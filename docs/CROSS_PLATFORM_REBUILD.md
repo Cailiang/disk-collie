@@ -57,6 +57,8 @@ Warm neutral surfaces, forest-green actions, consistent Lucide icons, restrained
 
 Platform packaging is configured for x64 and arm64 on all three systems. `beforePack` compiles the Rust binary for the **package architecture**, and resources contain the matching executable and `source-revision.json`. CI runs native tests, JS tests, a production build, native smoke and real Electron smoke on three operating systems. Release collection now expects all six platform/architecture jobs, eight installers and the corresponding update payloads/manifests, with eight installer hashes. No public release was requested or published during this rebuild.
 
+Windows verification runs the portable product tests; seven retained macOS maintenance test files (Finder Trash fallback, Homebrew, legacy `du`, hidden-home maintenance, privileged AppleScript, shell environment and launch services) run on the POSIX runners. Mac application-root classification and POSIX permission-bit assertions are also platform scoped. AI encryption, provider editing, path evidence, native indexing and real Trash operations remain covered on Windows. Local Agent evidence accepts both home-path separators and inspects the platform's application-data roots.
+
 Windows/Linux package-manager handoff is intentional: deleting installation folders directly would bypass uninstall registrations, services and package databases. Linux requires a desktop handler for `appstream://`; absent handlers report an error instead of claiming success. Browser histories beyond supported default profiles are not yet enumerated. No package-manager removal or Windows/Linux runtime result is claimed as verified by the local macOS session.
 
 ## Mutation and recovery boundaries

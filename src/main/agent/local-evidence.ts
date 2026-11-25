@@ -169,13 +169,13 @@ export function relatedScanEvidence(
 
 function displayPath(target: string, home: string): string {
   return target === home ? '~' : target.startsWith(`${home}${path.sep}`)
-    ? `~${target.slice(home.length)}`
+    ? `~/${path.relative(home, target).split(path.sep).join('/')}`
     : target
 }
 
 function resolveDisplayPath(target: string, home: string): string | null {
   if (target === '~') return home
-  if (target.startsWith(`~${path.sep}`)) return path.join(home, target.slice(2))
+  if (/^~[\\/]/.test(target)) return path.join(home, target.slice(2).replace(/[\\/]/g, path.sep))
   return path.isAbsolute(target) ? path.resolve(target) : null
 }
 
@@ -260,6 +260,7 @@ async function shellReferences(
 }
 
 async function installedPackageReceipts(): Promise<string[]> {
+  if (process.platform !== 'darwin') return []
   try {
     const { stdout } = await execFileAsync('/usr/sbin/pkgutil', ['--pkgs'], {
       timeout: 5_000,
@@ -312,12 +313,21 @@ export async function inspectLocalArtifactEvidence(
     ['Library', 'Containers'],
     ['Library', 'Group Containers']
   ].map((parts) => path.join(home, ...parts))
-  const systemRoots = options.systemRoots ?? [
+  if (process.platform === 'win32') homeRoots.push(
+    process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local'),
+    process.env.APPDATA || path.join(home, 'AppData', 'Roaming')
+  )
+  if (process.platform === 'linux') homeRoots.push(
+    process.env.XDG_CONFIG_HOME || path.join(home, '.config'),
+    process.env.XDG_CACHE_HOME || path.join(home, '.cache'),
+    path.join(home, '.local', 'share')
+  )
+  const systemRoots = options.systemRoots ?? (process.platform === 'darwin' ? [
     '/Library/Application Support',
     '/Library/Preferences',
     '/Library/LaunchAgents',
     '/Library/LaunchDaemons'
-  ]
+  ] : [])
   const matchingPaths = (await Promise.all(
     [...homeRoots, ...systemRoots].map((root) => matchingDirectoryEntries(root, tokens, home))
   )).flat().slice(0, 40)

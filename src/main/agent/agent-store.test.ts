@@ -58,7 +58,8 @@ describe('AgentStore', () => {
     expect(row.api_key_tag.byteLength).toBe(16)
     expect(Buffer.from(row.api_key_ciphertext).toString('utf8')).not.toContain('secret-key')
     database.close()
-    expect(statSync(path.join(directory, 'agent-master.key')).mode & 0o777).toBe(0o600)
+    // POSIX mode bits do not describe Windows ACLs. Encryption is checked on every platform.
+    if (process.platform !== 'win32') expect(statSync(path.join(directory, 'agent-master.key')).mode & 0o777).toBe(0o600)
     expect(readFileSync(path.join(directory, 'agent-master.key'))).toHaveLength(32)
     expect(store.resolveModelDiscoveryInput({
       id: saved.id,

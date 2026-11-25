@@ -42,7 +42,7 @@ describe('application cleanup threshold', () => {
     expect(parseApplicationLastUsedDate('2027-01-01 00:00:00 +0000', fallback, now)).toBe(fallback)
   })
 
-  it('classifies user, shared, and protected system application roots', () => {
+  it.skipIf(process.platform === 'win32')('classifies user, shared, and protected system application roots', () => {
     expect(applicationScope(path.join(os.homedir(), 'Applications', 'Example.app'))).toBe('user')
     expect(applicationScope('/Applications/Example.app')).toBe('shared')
     expect(applicationScope('/System/Applications/Safari.app')).toBe('system')
