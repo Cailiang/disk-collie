@@ -71,7 +71,7 @@ function DialogFrame({
   return (
     <div className="dialog-backdrop is-open" role="presentation" onMouseDown={() => !busy && onClose()}>
       <section ref={dialogRef} className={`dialog ${wide ? 'ignored-dialog' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId.current} onMouseDown={(event) => event.stopPropagation()}>
-        <header className="dialog-header"><div><h2 id={titleId.current}>{title}</h2><p>{description}</p></div><button type="button" className="icon-button" onClick={onClose} disabled={busy} title={text('关闭', 'Close')} aria-label={text('关闭', 'Close')}><X size={16} /></button></header>
+        <header className="dialog-header"><div><h2 id={titleId.current}>{title}</h2><p>{description}</p></div><button type="button" className="icon-button" onClick={onClose} disabled={busy} title={text("legacy.close.fbd8ce")} aria-label={text("legacy.close.fbd8ce")}><X size={16} /></button></header>
         {children}
         <footer className="dialog-actions">{actions}</footer>
       </section>
@@ -110,19 +110,19 @@ export function DirectActionConfirmDialog({
   return (
     <DialogFrame
       title={itemCount > 1
-        ? text(`确认清理 ${itemCount} 项？`, `Clean ${itemCount} items?`)
-        : text(`直接执行“${action.label}”？`, `Run "${action.label}" directly?`)}
+        ? text("legacy.clean_items.126b25", { p0: itemCount })
+        : text("legacy.run_directly.7da91f", { p0: action.label })}
       description={action.verificationMode === 'local'
-        ? text('不会经过 AI 分析；只执行当前扫描已经注册并再次通过路径校验的操作，完成后更新列表。', 'AI analysis is skipped. Only actions registered by the current scan and validated again will run, followed by a list update.')
-        : text('不会经过 AI 分析；只执行下面这项已注册操作，完成后自动复检。', 'AI analysis is skipped. Only this registered action runs, followed by automatic verification.')}
+        ? text("legacy.ai_analysis_is_skipped_only_actions_regist.ff31ac")
+        : text("legacy.ai_analysis_is_skipped_only_this_registere.c2e122")}
       onClose={onClose}
-      actions={<><button type="button" className="secondary-button" onClick={onClose}>{text('取消', 'Cancel')}</button><button type="button" className={action.reversible ? 'primary-button' : 'danger-button'} onClick={onConfirm}><Play size={15} />{text('确认并执行', 'Confirm and run')}</button></>}
+      actions={<><button type="button" className="secondary-button" onClick={onClose}>{text("legacy.cancel.d94a8e")}</button><button type="button" className={action.reversible ? 'primary-button' : 'danger-button'} onClick={onConfirm}><Play size={15} />{text("legacy.confirm_and_run.48cd4d")}</button></>}
     >
       <div className="dialog-body">
         <div className="confirm-row">
           <span>{action.reversible ? <ShieldCheck size={13} /> : <CircleAlert size={13} />}</span>
           <div><strong>{action.subject}</strong><small>{action.consequence}</small></div>
-          <span className={`risk-label ${action.reversible ? 'safe' : 'review'}`}>{action.estimatedBytes ? formatBytes(action.estimatedBytes) : action.ids && action.ids.length > 1 ? text(`${action.ids.length} 项`, `${action.ids.length} items`) : text('操作', 'Action')}</span>
+          <span className={`risk-label ${action.reversible ? 'safe' : 'review'}`}>{action.estimatedBytes ? formatBytes(action.estimatedBytes) : action.ids && action.ids.length > 1 ? text("legacy.items.217ed7", { p0: action.ids.length }) : text("legacy.action.c3ce74")}</span>
         </div>
       </div>
     </DialogFrame>
@@ -165,23 +165,23 @@ export function ExecutionProgressDialog({
   }, [items.length, phase, progress])
   const progressValue = Math.max(0, Math.min(100, Math.round(phase === 'executing' ? animatedProgress : progress)))
   const title = phase === 'executing'
-    ? text('正在执行已确认的操作', 'Running confirmed actions')
+    ? text("legacy.running_confirmed_actions.d07139")
     : phase === 'verifying'
       ? verificationMode === 'local'
-        ? text('正在更新存储列表', 'Updating storage list')
-        : text('正在重新体检', 'Verifying results')
+        ? text("legacy.updating_storage_list.50fdd3")
+        : text("legacy.verifying_results.80d427")
       : phase === 'completed'
-        ? text('处理完成', 'Actions completed')
-        : text('部分操作未完成', 'Some actions did not complete')
+        ? text("legacy.actions_completed.59f76b")
+        : text("legacy.some_actions_did_not_complete.c4107b")
   const stage = phase === 'executing'
-    ? text('执行操作', 'Running actions')
+    ? text("legacy.running_actions.2cf33d")
     : phase === 'verifying'
       ? verificationMode === 'local'
-        ? text('更新列表', 'Updating list')
-        : text('验证结果', 'Verifying')
+        ? text("legacy.updating_list.4ab7dc")
+        : text("legacy.verifying.c2ef36")
       : phase === 'completed'
-        ? text('复检通过', 'Verified')
-        : text('需要查看', 'Review needed')
+        ? text("legacy.verified.1e9a6f")
+        : text("legacy.review_needed.96dc04")
   const stageIndex = phase === 'executing' ? 0 : phase === 'verifying' ? 1 : 2
   const StatusIcon = phase === 'executing'
     ? verificationMode === 'local' ? Trash2 : Play
@@ -191,9 +191,9 @@ export function ExecutionProgressDialog({
         ? CheckCircle2
         : CircleAlert
   const stages = [
-    { label: text('执行', 'Run'), icon: verificationMode === 'local' ? Trash2 : Play },
-    { label: verificationMode === 'local' ? text('更新', 'Update') : text('复检', 'Verify'), icon: verificationMode === 'local' ? Archive : Search },
-    { label: text('完成', 'Done'), icon: CheckCircle2 }
+    { label: text("legacy.run.405068"), icon: verificationMode === 'local' ? Trash2 : Play },
+    { label: verificationMode === 'local' ? text("legacy.update.5cb0e4") : text("legacy.verify.c05202"), icon: verificationMode === 'local' ? Archive : Search },
+    { label: text("legacy.done.23c91b"), icon: CheckCircle2 }
   ]
   return (
     <DialogFrame
@@ -201,25 +201,25 @@ export function ExecutionProgressDialog({
       description={detail}
       busy={!finished}
       onClose={onClose}
-      actions={<button type="button" className="secondary-button" onClick={onClose} disabled={!finished}>{text('完成', 'Done')}</button>}
+      actions={<button type="button" className="secondary-button" onClick={onClose} disabled={!finished}>{text("legacy.done.23c91b")}</button>}
     >
       <div className={`execution-stage is-${phase} is-${verificationMode}`} role="status" aria-live="polite">
         <div className="execution-overview">
           <span className="execution-status-mark" aria-hidden="true"><StatusIcon size={22} /></span>
           <div className="execution-copy">
-            <small>{text('当前阶段', 'Current stage')}</small>
+            <small>{text("legacy.current_stage.48e735")}</small>
             <strong>{stage}</strong>
             <span>{phase === 'executing'
               ? text(`正在处理 ${itemCount} 项已确认操作`, `Running ${itemCount} confirmed ${itemCount === 1 ? 'action' : 'actions'}`)
               : phase === 'verifying'
                 ? verificationMode === 'local'
-                  ? text('正在确认删除结果并更新当前列表', 'Confirming the deletion and updating the current list')
-                  : text('正在核对操作结果与设备状态', 'Checking action results and device state')
+                  ? text("legacy.confirming_the_deletion_and_updating_the_c.152bb4")
+                  : text("legacy.checking_action_results_and_device_state.385461")
                 : detail}</span>
           </div>
           <strong className="execution-progress-value">{progressValue}%</strong>
         </div>
-        <div className="execution-progress-track" role="progressbar" aria-label={text('处理进度', 'Action progress')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressValue}>
+        <div className="execution-progress-track" role="progressbar" aria-label={text("legacy.action_progress.ae3a51")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressValue}>
           <span style={{ width: `${progressValue}%` }}><i /></span>
         </div>
         <ol className="execution-pipeline">
@@ -238,17 +238,17 @@ export function ExecutionProgressDialog({
               <li className={`is-${state}`} key={item.label}>
                 <span className="execution-phase-icon">{state === 'complete' ? <CheckCircle2 size={16} /> : <Icon size={16} />}</span>
                 <span><strong>{item.label}</strong><small>{state === 'complete'
-                  ? text('已完成', 'Complete')
+                  ? text("legacy.complete.d5a549")
                   : state === 'active'
-                    ? text('进行中', 'In progress')
+                    ? text("legacy.in_progress.bcb296")
                     : state === 'failed'
-                      ? text('未完成', 'Incomplete')
-                      : text('等待', 'Waiting')}</small></span>
+                      ? text("legacy.incomplete.4c1087")
+                      : text("legacy.waiting.84187b")}</small></span>
               </li>
             )
           })}
         </ol>
-        {items.length > 0 && <div className="execution-items" aria-label={text('逐项处理结果', 'Item results')}>
+        {items.length > 0 && <div className="execution-items" aria-label={text("legacy.item_results.7da2a2")}>
           {items.map((item, index) => {
             const displayStatus = phase === 'executing' && item.status === 'pending'
               ? index === activeIndex ? 'running' : 'pending'
@@ -256,12 +256,12 @@ export function ExecutionProgressDialog({
             return <div className={`execution-item is-${displayStatus}`} key={item.id}>
               <span className="execution-item-icon">{displayStatus === 'completed' ? <CheckCircle2 size={14} /> : displayStatus === 'failed' ? <CircleAlert size={14} /> : displayStatus === 'running' ? <LoaderCircle className="spinner" size={14} /> : <span />}</span>
               <span className="execution-item-copy"><strong>{item.label}</strong>{displayStatus === 'failed' && item.message && <small>{item.message}</small>}</span>
-              <small>{displayStatus === 'completed' ? text('完成', 'Done') : displayStatus === 'failed' ? text('失败', 'Failed') : displayStatus === 'running' ? text('处理中', 'Working') : text('等待', 'Waiting')}</small>
+              <small>{displayStatus === 'completed' ? text("legacy.done.23c91b") : displayStatus === 'failed' ? text("legacy.failed.1dad49") : displayStatus === 'running' ? text("legacy.working.6e7c9f") : text("legacy.waiting.84187b")}</small>
             </div>
           })}
         </div>}
-        {finished && <div className={`execution-result ${phase === 'failed' ? 'is-failed' : ''}`}><span>{phase === 'completed' ? <CheckCircle2 size={16} /> : <CircleAlert size={16} />}</span><strong>{completedCount} / {itemCount}</strong><small>{phase === 'completed' ? text('项操作完成', 'actions completed') : text('项操作完成，失败项可重试', 'completed; failed items can be retried')}</small></div>}
-        {phase === 'failed' && onRetry && <button type="button" className="primary-button execution-retry-button" onClick={onRetry}><RefreshCw size={14} />{text('只重试失败项', 'Retry failed items')}</button>}
+        {finished && <div className={`execution-result ${phase === 'failed' ? 'is-failed' : ''}`}><span>{phase === 'completed' ? <CheckCircle2 size={16} /> : <CircleAlert size={16} />}</span><strong>{completedCount} / {itemCount}</strong><small>{phase === 'completed' ? text("legacy.actions_completed.6b06cd") : text("legacy.completed_failed_items_can_be_retried.78310f")}</small></div>}
+        {phase === 'failed' && onRetry && <button type="button" className="primary-button execution-retry-button" onClick={onRetry}><RefreshCw size={14} />{text("legacy.retry_failed_items.99b0ea")}</button>}
       </div>
     </DialogFrame>
   )
@@ -279,8 +279,8 @@ export function UninstallDialog({
   onConfirm: () => void
 }): React.JSX.Element {
   const { text } = useI18n()
-  return <DialogFrame title={text(`卸载 ${application.name}`, `Uninstall ${application.name}`)} description={busy ? text('Memento 正在将应用移到废纸篓，请稍候。', 'Memento is moving the application to Trash. Please wait.') : text('应用本体将移到废纸篓，文稿、设置和其他应用数据会保留。', 'The application bundle will move to Trash. Documents, settings, and app data are kept.')} busy={busy} onClose={onClose} actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text('取消', 'Cancel')}</button><button type="button" className="danger-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <Trash2 size={15} />}{busy ? text('正在卸载', 'Uninstalling') : text('移到废纸篓', 'Move to Trash')}</button></>}>
-    {busy && <div className="uninstall-progress" role="status" aria-live="polite"><span className="uninstall-progress-mark"><Trash2 size={20} /></span><div><strong>{text('正在卸载应用', 'Uninstalling application')}</strong><small>{text('操作完成后，此应用会自动从列表中移除。', 'The app will disappear from the list when the operation completes.')}</small></div></div>}
+  return <DialogFrame title={text("legacy.uninstall.0ec5f5", { p0: application.name })} description={busy ? text("legacy.memento_is_moving_the_application_to_trash.b91c98") : text("legacy.the_application_bundle_will_move_to_trash_.68aaa8")} busy={busy} onClose={onClose} actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text("legacy.cancel.d94a8e")}</button><button type="button" className="danger-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <Trash2 size={15} />}{busy ? text("legacy.uninstalling.2f00df") : text("legacy.move_to_trash.488326")}</button></>}>
+    {busy && <div className="uninstall-progress" role="status" aria-live="polite"><span className="uninstall-progress-mark"><Trash2 size={20} /></span><div><strong>{text("legacy.uninstalling_application.77bebd")}</strong><small>{text("legacy.the_app_will_disappear_from_the_list_when_.779c88")}</small></div></div>}
   </DialogFrame>
 }
 
@@ -296,18 +296,18 @@ export function DiskUsageTrashDialog({
   onConfirm: () => void
 }): React.JSX.Element {
   const { text } = useI18n()
-  const itemType = node.kind === 'directory' ? text('目录', 'Folder') : text('文件', 'File')
+  const itemType = node.kind === 'directory' ? text("legacy.folder.edef97") : text("legacy.file.873b4b")
   return (
     <DialogFrame
-      title={text(`将“${node.name}”移到废纸篓？`, `Move "${node.name}" to Trash?`)}
+      title={text("legacy.move_to_trash.04175b", { p0: node.name })}
       description={node.kind === 'directory'
-        ? text('整个目录及其中所有内容都会移到废纸篓。此操作不使用永久删除，但请先确认路径。', 'The entire folder and all of its contents will move to Trash. This is not a permanent deletion, but verify the path first.')
-        : text('文件会移到废纸篓，不会直接永久删除。', 'The file will move to Trash and will not be deleted permanently.')}
+        ? text("legacy.the_entire_folder_and_all_of_its_contents_.7344f5")
+        : text("legacy.the_file_will_move_to_trash_and_will_not_b.a5c19c")}
       busy={busy}
       onClose={onClose}
-      actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text('取消', 'Cancel')}</button><button type="button" className="danger-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <Trash2 size={15} />}{busy ? text('正在移动', 'Moving') : text('移到废纸篓', 'Move to Trash')}</button></>}
+      actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text("legacy.cancel.d94a8e")}</button><button type="button" className="danger-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <Trash2 size={15} />}{busy ? text("legacy.moving.e763df") : text("legacy.move_to_trash.488326")}</button></>}
     >
-      <div className="dialog-body"><div className="confirm-row"><span><Trash2 size={13} /></span><div><strong>{node.location}</strong><small>{itemType} · {formatBytes(node.sizeBytes)}</small></div><span className="risk-label review">{text('需确认', 'Review')}</span></div></div>
+      <div className="dialog-body"><div className="confirm-row"><span><Trash2 size={13} /></span><div><strong>{node.location}</strong><small>{itemType} · {formatBytes(node.sizeBytes)}</small></div><span className="risk-label review">{text("legacy.review.fb1984")}</span></div></div>
     </DialogFrame>
   )
 }
@@ -327,8 +327,8 @@ export function IgnoreConfirmDialog({
   const storage = candidate.section === 'storage'
   const identity = candidateWhitelistValue(candidate) ?? candidate.name
   return (
-    <DialogFrame title={text(`忽略 ${candidate.name}？`, `Ignore ${candidate.name}?`)} description={storage ? text('以后不会清理此项目，也不再计入可释放空间。', 'This item will not be cleaned or counted as reclaimable space.') : text('不会停止或移除该服务，后续体检和 Agent 都会跳过它。', 'The service is not changed. Future scans and Agent skip it.')} busy={busy} onClose={onClose} actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text('取消', 'Cancel')}</button><button type="button" className="primary-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <EyeOff size={15} />}{text('确认忽略', 'Ignore item')}</button></>}>
-      <div className="dialog-body"><div className="confirm-row"><span><EyeOff size={13} /></span><div><strong>{candidate.name}</strong><small>{identity}</small></div><span className="risk-label safe">{text('可恢复', 'Restorable')}</span></div></div>
+    <DialogFrame title={text("legacy.ignore.8d0e3e", { p0: candidate.name })} description={storage ? text("legacy.this_item_will_not_be_cleaned_or_counted_a.7fd546") : text("legacy.the_service_is_not_changed_future_scans_an.bb09cb")} busy={busy} onClose={onClose} actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text("legacy.cancel.d94a8e")}</button><button type="button" className="primary-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <EyeOff size={15} />}{text("legacy.ignore_item.25b7f2")}</button></>}>
+      <div className="dialog-body"><div className="confirm-row"><span><EyeOff size={13} /></span><div><strong>{candidate.name}</strong><small>{identity}</small></div><span className="risk-label safe">{text("legacy.restorable.53d267")}</span></div></div>
     </DialogFrame>
   )
 }
@@ -347,8 +347,8 @@ export function ApplicationIgnoreConfirmDialog({
   const { text } = useI18n()
   const identity = applicationWhitelistValue(application)
   return (
-    <DialogFrame title={text(`忽略 ${application.name}？`, `Ignore ${application.name}?`)} description={text('不会卸载此应用，后续应用管理、体检建议和 Agent 都会跳过它。', 'The app is not uninstalled. Application Management, health recommendations, and Agent will skip it.')} busy={busy} onClose={onClose} actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text('取消', 'Cancel')}</button><button type="button" className="primary-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <EyeOff size={15} />}{text('确认忽略', 'Ignore application')}</button></>}>
-      <div className="dialog-body"><div className="confirm-row"><span><AppWindow size={13} /></span><div><strong>{application.name}</strong><small>{identity}</small></div><span className="risk-label safe">{text('可恢复', 'Restorable')}</span></div></div>
+    <DialogFrame title={text("legacy.ignore.8d0e3e", { p0: application.name })} description={text("legacy.the_app_is_not_uninstalled_application_man.0cc420")} busy={busy} onClose={onClose} actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text("legacy.cancel.d94a8e")}</button><button type="button" className="primary-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <EyeOff size={15} />}{text("legacy.ignore_application.080a18")}</button></>}>
+      <div className="dialog-body"><div className="confirm-row"><span><AppWindow size={13} /></span><div><strong>{application.name}</strong><small>{identity}</small></div><span className="risk-label safe">{text("legacy.restorable.53d267")}</span></div></div>
     </DialogFrame>
   )
 }
@@ -367,8 +367,8 @@ export function DeleteHistoryDialog({
   const { text } = useI18n()
   const multiple = runs.length > 1
   return (
-    <DialogFrame title={text(multiple ? `删除 ${runs.length} 条任务记录？` : '删除任务记录？', multiple ? `Delete ${runs.length} task records?` : 'Delete task history?')} description={text('这会删除本机保存的对话、分析结果和工具调用记录，无法恢复。', 'This permanently deletes the locally stored conversation, analysis results, and tool-call records.')} busy={busy} onClose={onClose} actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text('取消', 'Cancel')}</button><button type="button" className="danger-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <Trash2 size={15} />}{busy ? text('正在删除', 'Deleting') : text(multiple ? '全部删除' : '删除记录', multiple ? 'Delete all' : 'Delete history')}</button></>}>
-      <div className="dialog-body"><div className="confirm-row"><span><Archive size={13} /></span><div><strong>{multiple ? text(`${runs.length} 条所选记录`, `${runs.length} selected records`) : runs[0]?.prompt}</strong><small>{text('只删除历史数据，不会撤销已经完成的操作', 'Completed system changes are not undone')}</small></div><span className="risk-label review">{text('不可恢复', 'Permanent')}</span></div></div>
+    <DialogFrame title={text(multiple ? `删除 ${runs.length} 条任务记录？` : '删除任务记录？', multiple ? `Delete ${runs.length} task records?` : 'Delete task history?')} description={text("legacy.this_permanently_deletes_the_locally_store.4a4ff4")} busy={busy} onClose={onClose} actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text("legacy.cancel.d94a8e")}</button><button type="button" className="danger-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <Trash2 size={15} />}{busy ? text("legacy.deleting.b065ce") : text(multiple ? '全部删除' : '删除记录', multiple ? 'Delete all' : 'Delete history')}</button></>}>
+      <div className="dialog-body"><div className="confirm-row"><span><Archive size={13} /></span><div><strong>{multiple ? text("legacy.selected_records.f8c3e4", { p0: runs.length }) : runs[0]?.prompt}</strong><small>{text("legacy.completed_system_changes_are_not_undone.01020b")}</small></div><span className="risk-label review">{text("legacy.permanent.0178ad")}</span></div></div>
     </DialogFrame>
   )
 }
@@ -387,8 +387,8 @@ export function DeleteMaintenanceHistoryDialog({
   const { text } = useI18n()
   const multiple = runs.length > 1
   return (
-    <DialogFrame title={text(multiple ? `删除 ${runs.length} 条维护记录？` : '删除维护记录？', multiple ? `Delete ${runs.length} maintenance records?` : 'Delete maintenance history?')} description={text('只会删除本机审计记录，不会删除废纸篓项目、终端备份，也不会撤销已完成的系统操作。', 'Only local audit records are deleted. Trash items, terminal backups, and completed system changes are not affected.')} busy={busy} onClose={onClose} actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text('取消', 'Cancel')}</button><button type="button" className="danger-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <Trash2 size={15} />}{busy ? text('正在删除', 'Deleting') : text('删除记录', 'Delete history')}</button></>}>
-      <div className="dialog-body"><div className="confirm-row"><span><Archive size={13} /></span><div><strong>{multiple ? text(`${runs.length} 条所选记录`, `${runs.length} selected records`) : runs[0]?.title}</strong><small>{text('文件系统目标和恢复材料都会保留', 'File-system targets and recovery materials remain')}</small></div><span className="risk-label review">{text('仅删记录', 'Records only')}</span></div></div>
+    <DialogFrame title={text(multiple ? `删除 ${runs.length} 条维护记录？` : '删除维护记录？', multiple ? `Delete ${runs.length} maintenance records?` : 'Delete maintenance history?')} description={text("legacy.only_local_audit_records_are_deleted_trash.d064b9")} busy={busy} onClose={onClose} actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text("legacy.cancel.d94a8e")}</button><button type="button" className="danger-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <Trash2 size={15} />}{busy ? text("legacy.deleting.b065ce") : text("legacy.delete_history.10cfc7")}</button></>}>
+      <div className="dialog-body"><div className="confirm-row"><span><Archive size={13} /></span><div><strong>{multiple ? text("legacy.selected_records.f8c3e4", { p0: runs.length }) : runs[0]?.title}</strong><small>{text("legacy.file_system_targets_and_recovery_materials.03ad7f")}</small></div><span className="risk-label review">{text("legacy.records_only.574712")}</span></div></div>
     </DialogFrame>
   )
 }
@@ -407,16 +407,13 @@ export function DeleteProviderDialog({
   const { text } = useI18n()
   return (
     <DialogFrame
-      title={text(`删除“${provider.name}”配置？`, `Delete “${provider.name}”?`)}
-      description={text(
-        '将从 Memento 删除该供应商、加密密钥和连接状态。不会修改 Claude、Codex、Gemini、Grok 或 CC Switch 中的原始配置。',
-        'This removes the provider, encrypted key, and connection state from Memento. Original Claude, Codex, Gemini, Grok, and CC Switch configurations are not changed.'
-      )}
+      title={text("legacy.delete.6e53a6", { p0: provider.name })}
+      description={text("legacy.this_removes_the_provider_encrypted_key_an.01b06f")}
       busy={busy}
       onClose={onClose}
-      actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text('取消', 'Cancel')}</button><button type="button" className="danger-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <Trash2 size={15} />}{busy ? text('正在删除', 'Deleting') : text('删除配置', 'Delete configuration')}</button></>}
+      actions={<><button type="button" className="secondary-button" onClick={onClose} disabled={busy}>{text("legacy.cancel.d94a8e")}</button><button type="button" className="danger-button" onClick={onConfirm} disabled={busy}>{busy ? <LoaderCircle className="spinner" size={15} /> : <Trash2 size={15} />}{busy ? text("legacy.deleting.b065ce") : text("legacy.delete_configuration.9829c2")}</button></>}
     >
-      <div className="dialog-body"><div className="confirm-row"><span><KeyRound size={13} /></span><div><strong>{provider.name}</strong><small>{text(`${provider.model} · 密钥、模型设置和连接状态`, `${provider.model} · key, model settings, and connection state`)}</small></div><span className="risk-label review">{text('不可恢复', 'Permanent')}</span></div></div>
+      <div className="dialog-body"><div className="confirm-row"><span><KeyRound size={13} /></span><div><strong>{provider.name}</strong><small>{text("legacy.key_model_settings_and_connection_state.cc77a9", { p0: provider.model })}</small></div><span className="risk-label review">{text("legacy.permanent.0178ad")}</span></div></div>
     </DialogFrame>
   )
 }
@@ -464,11 +461,11 @@ export function IgnoredItemsDialog({
     setSearch('')
   }
   return (
-    <DialogFrame wide title={text('忽略列表', 'Ignored items')} description={text('这些项目不会出现在体检建议中，Agent 也无法处理。', 'These items stay out of health recommendations and cannot be changed by Agent.')} busy={busyValue !== null} onClose={onClose} actions={<button type="button" className="secondary-button" onClick={onClose} disabled={busyValue !== null}>{text('完成', 'Done')}</button>}>
-      <div className="ignored-tabs" role="tablist" aria-label={text('忽略项目类型', 'Ignored item type')}><button type="button" role="tab" aria-selected={kind === 'storage'} className={`ignored-tab ${kind === 'storage' ? 'is-active' : ''}`} onClick={() => selectKind('storage')}>{text('存储空间', 'Storage')} <span>{storageValues.length}</span></button><button type="button" role="tab" aria-selected={kind === 'services'} className={`ignored-tab ${kind === 'services' ? 'is-active' : ''}`} onClick={() => selectKind('services')}>{text('后台服务', 'Services')} <span>{serviceValues.length}</span></button><button type="button" role="tab" aria-selected={kind === 'applications'} className={`ignored-tab ${kind === 'applications' ? 'is-active' : ''}`} onClick={() => selectKind('applications')}>{text('应用', 'Applications')} <span>{applicationValues.length}</span></button></div>
+    <DialogFrame wide title={text("legacy.ignored_items.988cce")} description={text("legacy.these_items_stay_out_of_health_recommendat.20fe85")} busy={busyValue !== null} onClose={onClose} actions={<button type="button" className="secondary-button" onClick={onClose} disabled={busyValue !== null}>{text("legacy.done.23c91b")}</button>}>
+      <div className="ignored-tabs" role="tablist" aria-label={text("legacy.ignored_item_type.319c9a")}><button type="button" role="tab" aria-selected={kind === 'storage'} className={`ignored-tab ${kind === 'storage' ? 'is-active' : ''}`} onClick={() => selectKind('storage')}>{text("legacy.storage.3a8df2")} <span>{storageValues.length}</span></button><button type="button" role="tab" aria-selected={kind === 'services'} className={`ignored-tab ${kind === 'services' ? 'is-active' : ''}`} onClick={() => selectKind('services')}>{text("legacy.services.c83843")} <span>{serviceValues.length}</span></button><button type="button" role="tab" aria-selected={kind === 'applications'} className={`ignored-tab ${kind === 'applications' ? 'is-active' : ''}`} onClick={() => selectKind('applications')}>{text("legacy.applications.50f6b0")} <span>{applicationValues.length}</span></button></div>
       <label className="ignored-search search-field">
         <Search size={15} />
-        <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={kind === 'applications' ? text('搜索应用名称、Bundle ID 或路径', 'Search app name, Bundle ID, or path') : text('搜索名称或路径', 'Search name or path')} aria-label={text('搜索忽略项目', 'Search ignored items')} />
+        <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={kind === 'applications' ? text("legacy.search_app_name_bundle_id_or_path.cc34ad") : text("legacy.search_name_or_path.f1debb")} aria-label={text("legacy.search_ignored_items.b24f6b")} />
       </label>
       <div className="ignored-list">
         {filteredValues.length ? filteredValues.map((value) => {
@@ -479,8 +476,8 @@ export function IgnoredItemsDialog({
           const detail = application
             ? [application.bundleId, application.location].filter(Boolean).join(' · ')
             : value
-          return <div className="ignored-row" key={value}>{application ? <ApplicationIcon application={application} /> : <span>{kind === 'storage' ? <Archive size={14} /> : kind === 'services' ? <RadioTower size={14} /> : <AppWindow size={14} />}</span>}<div><strong>{name}</strong><small>{detail}</small></div><button type="button" className="quiet-button" onClick={() => onRestore(kind, value)} disabled={busyValue !== null}>{busyValue === value ? <LoaderCircle className="spinner" size={14} /> : <Eye size={14} />}{text('恢复检测', 'Restore')}</button></div>
-        }) : <div className="ignored-empty"><div>{search ? <Search size={18} /> : <CheckCircle2 size={18} />}<span>{search ? text('没有匹配的忽略项目', 'No ignored items match') : kind === 'storage' ? text('没有忽略的存储项目', 'No ignored storage') : kind === 'services' ? text('没有忽略的后台服务', 'No ignored services') : text('没有忽略的应用', 'No ignored applications')}</span></div></div>}
+          return <div className="ignored-row" key={value}>{application ? <ApplicationIcon application={application} /> : <span>{kind === 'storage' ? <Archive size={14} /> : kind === 'services' ? <RadioTower size={14} /> : <AppWindow size={14} />}</span>}<div><strong>{name}</strong><small>{detail}</small></div><button type="button" className="quiet-button" onClick={() => onRestore(kind, value)} disabled={busyValue !== null}>{busyValue === value ? <LoaderCircle className="spinner" size={14} /> : <Eye size={14} />}{text("legacy.restore.5b1670")}</button></div>
+        }) : <div className="ignored-empty"><div>{search ? <Search size={18} /> : <CheckCircle2 size={18} />}<span>{search ? text("legacy.no_ignored_items_match.d12887") : kind === 'storage' ? text("legacy.no_ignored_storage.fe072a") : kind === 'services' ? text("legacy.no_ignored_services.61fc07") : text("legacy.no_ignored_applications.8be8e1")}</span></div></div>}
       </div>
     </DialogFrame>
   )

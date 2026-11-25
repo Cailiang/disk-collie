@@ -17,7 +17,7 @@ esac
 
 verification_mode="${3:-bundle}"
 case "${verification_mode}" in
-  bundle|developer-id)
+  bundle|developer-id|developer-id-local)
     ;;
   *)
     echo "Usage: scripts/verify-mac-dmg.sh <x64|arm64> [dmg-path] [bundle|developer-id]" >&2
@@ -65,6 +65,13 @@ if [[ "${architecture}" != *"${expected_macho_arch}"* ]]; then
   echo "Unexpected executable architecture: ${architecture}" >&2
   exit 1
 fi
+native_path="${app_path}/Contents/Resources/native/memento-engine"
+if [[ ! -x "${native_path}" || "$(file "${native_path}")" != *"${expected_macho_arch}"* ]]; then
+  echo "Missing or mismatched native storage engine" >&2
+  exit 1
+fi
+codesign --verify --strict --verbose=2 "${native_path}"
+test -f "${app_path}/Contents/Resources/native/source-revision.json"
 
 codesign --verify --deep --strict --verbose=4 "${app_path}"
 signature="$(codesign -d --verbose=4 "${app_path}" 2>&1)"
@@ -74,7 +81,7 @@ if [[ "${signature}" != *"Identifier=com.fcl.memento"* ]]; then
   exit 1
 fi
 
-if [[ "${verification_mode}" == developer-id ]]; then
+if [[ "${verification_mode}" == developer-id || "${verification_mode}" == developer-id-local ]]; then
   expected_identity="${APPLE_SIGNING_IDENTITY:-}"
   expected_team_id="${APPLE_TEAM_ID:-}"
   if [[ -z "${expected_identity}" || -z "${expected_team_id}" ]]; then
@@ -97,10 +104,12 @@ if [[ "${verification_mode}" == developer-id ]]; then
     echo "${dmg_signature}" >&2
     exit 1
   fi
-  spctl --assess --type execute --verbose=4 "${app_path}"
-  spctl --assess --type open --context context:primary-signature --verbose=4 "${dmg_path}"
-  xcrun stapler validate "${app_path}"
-  xcrun stapler validate "${dmg_path}"
+  if [[ "${verification_mode}" == developer-id ]]; then
+    spctl --assess --type execute --verbose=4 "${app_path}"
+    spctl --assess --type open --context context:primary-signature --verbose=4 "${dmg_path}"
+    xcrun stapler validate "${app_path}"
+    xcrun stapler validate "${dmg_path}"
+  fi
 fi
 
 echo "Verified Memento ${actual_version} ${expected_macho_arch} DMG (${verification_mode})"

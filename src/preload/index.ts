@@ -24,6 +24,25 @@ if (bootTheme && allowedBootThemes.has(bootTheme)) {
 }
 
 const api: MementoApi = {
+  storageState: () => ipcRenderer.invoke('memento:storage:state'),
+  storageScan: (choose) => ipcRenderer.invoke('memento:storage:scan', choose),
+  storageCancel: () => ipcRenderer.invoke('memento:storage:cancel'),
+  storageChildren: (input) => ipcRenderer.invoke('memento:storage:children', input),
+  storageLarge: (input) => ipcRenderer.invoke('memento:storage:large', input),
+  storageDuplicates: (generation) => ipcRenderer.invoke('memento:storage:duplicates', generation),
+  storageTrash: (input) => ipcRenderer.invoke('memento:storage:trash', input),
+  storageReveal: (input) => ipcRenderer.invoke('memento:storage:reveal', input),
+  storageCleanup: (privacy) => ipcRenderer.invoke('memento:storage:cleanup', privacy),
+  storageClean: (ids) => ipcRenderer.invoke('memento:storage:clean', ids),
+  storageApplications: () => ipcRenderer.invoke('memento:storage:applications'),
+  storageApplicationIcon: (id) => ipcRenderer.invoke('memento:storage:application-icon', id),
+  storageRelated: (id) => ipcRenderer.invoke('memento:storage:related', id),
+  storageUninstall: (input) => ipcRenderer.invoke('memento:storage:uninstall', input),
+  onStorageProgress: (callback) => {
+    const listener = (_event: Electron.IpcRendererEvent, progress: import('../shared/storage-types').StorageProgress): void => callback(progress)
+    ipcRenderer.on('memento:storage:progress', listener)
+    return () => ipcRenderer.removeListener('memento:storage:progress', listener)
+  },
   getVersion: () => ipcRenderer.invoke('memento:get-version'),
   getUpdateState: () => ipcRenderer.invoke('memento:update:get'),
   checkForUpdates: () => ipcRenderer.invoke('memento:update:check'),

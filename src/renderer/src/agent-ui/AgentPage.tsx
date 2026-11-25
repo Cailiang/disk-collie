@@ -95,19 +95,19 @@ function AgentProgress({
 
   const roundedProgress = Math.round(progress)
   const stages = [
-    text('读取', 'Read'),
-    text('分析', 'Analyze'),
-    text('核对', 'Review'),
-    text('整理', 'Compose')
+    text("legacy.read.962df2"),
+    text("legacy.analyze.3da51d"),
+    text("legacy.review.3a42f4"),
+    text("legacy.compose.ae6a23")
   ]
   return (
     <div className="activity-block agent-progress" role="status" aria-live="polite">
       <div className="agent-progress-head">
         <span className="agent-progress-mark"><Sparkles size={16} /></span>
-        <span className="agent-progress-copy"><strong>{statusMessage || runStatusLabel(run.status, run.language)}</strong><small>{elapsedSeconds < 2 ? text('Agent 正在建立分析上下文', 'Agent is building analysis context') : text(`已用 ${elapsedSeconds} 秒`, `${elapsedSeconds}s elapsed`)}</small></span>
+        <span className="agent-progress-copy"><strong>{statusMessage || runStatusLabel(run.status, run.language)}</strong><small>{elapsedSeconds < 2 ? text("legacy.agent_is_building_analysis_context.95bb4a") : text("legacy.s_elapsed.59dc02", { p0: elapsedSeconds })}</small></span>
         <span className="agent-progress-value">{roundedProgress}%</span>
       </div>
-      <div className="agent-progress-track" role="progressbar" aria-label={text('Agent 分析进度', 'Agent analysis progress')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={roundedProgress}><span style={{ width: `${roundedProgress}%` }} /></div>
+      <div className="agent-progress-track" role="progressbar" aria-label={text("legacy.agent_analysis_progress.b9b514")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={roundedProgress}><span style={{ width: `${roundedProgress}%` }} /></div>
       <div className="agent-progress-stages">{stages.map((stage, index) => <span className={index <= phase ? 'is-active' : ''} key={stage}><i />{stage}</span>)}</div>
     </div>
   )
@@ -191,28 +191,25 @@ export function AgentPage({
       <div className="agent-main">
         <header className="agent-heading">
           <div>
-            <h1>{text('今天想处理什么？', 'What would you like to handle?')}</h1>
-            <p>{text(
-              'Agent 可以检查问题、准备计划，并在确认后完成处理。',
-              'Agent can inspect issues, prepare a plan, and act after confirmation.'
-            )}</p>
+            <h1>{text("legacy.what_would_you_like_to_handle.04a7bd")}</h1>
+            <p>{text("legacy.agent_can_inspect_issues_prepare_a_plan_an.8f37dd")}</p>
           </div>
           <div className="session-menu">
-            {returnLabel && <button type="button" className="secondary-button return-origin-button" onClick={onReturn}><ArrowLeft size={15} />{text(`返回${returnLabel}`, `Back to ${returnLabel}`)}</button>}
-            <button type="button" className="icon-button" onClick={onNewTask} disabled={busy} title={text('新任务', 'New task')} aria-label={text('新任务', 'New task')}>
+            {returnLabel && <button type="button" className="secondary-button return-origin-button" onClick={onReturn}><ArrowLeft size={15} />{text("legacy.back_to.f5c261", { p0: returnLabel })}</button>}
+            <button type="button" className="icon-button" onClick={onNewTask} disabled={busy} title={text("legacy.new_task.146617")} aria-label={text("legacy.new_task.146617")}>
               <SquarePen size={16} />
             </button>
-            <button type="button" className="icon-button" onClick={onOpenHistory} title={text('任务记录', 'History')} aria-label={text('任务记录', 'History')}>
+            <button type="button" className="icon-button" onClick={onOpenHistory} title={text("legacy.history.116143")} aria-label={text("legacy.history.116143")}>
               <Clock3 size={16} />
             </button>
           </div>
         </header>
 
         {workspaceRuns.length > 1 && (
-          <div className="agent-task-switcher" aria-label={text('分析任务', 'Analysis tasks')}>
+          <div className="agent-task-switcher" aria-label={text("legacy.analysis_tasks.e6adbe")}>
             <strong>{busyWorkspaceCount
               ? text(`正在处理 ${busyWorkspaceCount} 项任务`, `${busyWorkspaceCount} ${busyWorkspaceCount === 1 ? 'task' : 'tasks'} running`)
-              : text(`${workspaceRuns.length} 项最近任务`, `${workspaceRuns.length} recent tasks`)}</strong>
+              : text("legacy.recent_tasks.e92f2a", { p0: workspaceRuns.length })}</strong>
             <div className="agent-task-list">
               {workspaceRuns.map((workspaceRun) => {
                 const taskBusy = runIsBusy(workspaceRun)
@@ -228,7 +225,7 @@ export function AgentPage({
                       <strong>{workspaceRun.prompt}</strong>
                       <small>{runStatusLabel(workspaceRun.status, language)}</small>
                     </button>
-                    <button type="button" className="agent-task-close" onClick={() => onCloseWorkspaceRun(workspaceRun.conversationId)} title={text('关闭任务', 'Close task')} aria-label={text(`关闭任务：${workspaceRun.prompt}`, `Close task: ${workspaceRun.prompt}`)}><X size={13} /></button>
+                    <button type="button" className="agent-task-close" onClick={() => onCloseWorkspaceRun(workspaceRun.conversationId)} title={text("legacy.close_task.ebe518")} aria-label={text("legacy.close_task.be2632", { p0: workspaceRun.prompt })}><X size={13} /></button>
                   </div>
                 )
               })}
@@ -240,12 +237,9 @@ export function AgentPage({
           <div className="message assistant">
             <span className="message-avatar"><Sparkles size={16} /></span>
             <div className="message-body">
-              <p><strong>{text('设备已经准备好。', 'The device is ready.')}</strong> {scan
-                ? text(
-                    `最近一次体检发现 ${scan.candidates.length} 项内容，你可以继续深度检查或直接管理应用。`,
-                    `The latest scan found ${scan.candidates.length} items. You can inspect further or manage applications.`
-                  )
-                : text('正在准备第一次电脑体检。', 'Preparing the first health scan.')}</p>
+              <p><strong>{text("legacy.the_device_is_ready.807c23")}</strong> {scan
+                ? text("legacy.the_latest_scan_found_items_you_can_inspec.3d2ca1", { p0: scan.candidates.length })
+                : text("legacy.preparing_the_first_health_scan.74b224")}</p>
             </div>
           </div>
 
@@ -302,9 +296,9 @@ export function AgentPage({
                     {conversationRun.error && <p role="alert" className="error-copy">{conversationRun.error}</p>}
                     {conversationRun.status === 'completed' && conversationRun.results.length > 0 && (
                       <div className="result-summary">
-                        <div><strong>{conversationRun.results.filter((item) => item.ok).length}</strong><span>{text('已完成', 'Completed')}</span></div>
-                        <div><strong>{conversationRun.results.filter((item) => !item.ok).length}</strong><span>{text('未完成', 'Failed')}</span></div>
-                        <div><strong>{formatBytes(runBytes)}</strong><span>{text('计划处理空间', 'Planned space')}</span></div>
+                        <div><strong>{conversationRun.results.filter((item) => item.ok).length}</strong><span>{text("legacy.completed.58782c")}</span></div>
+                        <div><strong>{conversationRun.results.filter((item) => !item.ok).length}</strong><span>{text("legacy.failed.af9f5f")}</span></div>
+                        <div><strong>{formatBytes(runBytes)}</strong><span>{text("legacy.planned_space.cc61fd")}</span></div>
                       </div>
                     )}
                   </div>
@@ -318,12 +312,12 @@ export function AgentPage({
           <form className="composer" onSubmit={(event) => { event.preventDefault(); submit() }}>
             <textarea
               rows={1}
-              aria-label={text('输入任务', 'Enter task')}
+              aria-label={text("legacy.enter_task.405f37")}
               placeholder={providerConfigured
                 ? scan
-                  ? text('描述你想检查或处理的问题', 'Describe what you want to inspect or handle')
-                  : text('正在准备本机规则扫描', 'Preparing the local rules scan')
-                : text('请先在设置中配置模型供应商', 'Configure a model provider in Settings first')}
+                  ? text("legacy.describe_what_you_want_to_inspect_or_handl.e70f0b")
+                  : text("legacy.preparing_the_local_rules_scan.58f6f7")
+                : text("legacy.configure_a_model_provider_in_settings_fir.f98816")}
               value={input}
               disabled={busy || !scan}
               onChange={(event) => {
@@ -338,54 +332,51 @@ export function AgentPage({
                 }
               }}
             />
-            <button type="submit" className="send-button" title={text('发送', 'Send')} aria-label={text('发送', 'Send')} disabled={!input.trim() || busy || !scan}>
+            <button type="submit" className="send-button" title={text("legacy.send.f1004b")} aria-label={text("legacy.send.f1004b")} disabled={!input.trim() || busy || !scan}>
               {busy ? <LoaderCircle className="spinner" size={17} /> : <ArrowUp size={17} />}
             </button>
           </form>
         </div>
       </div>
 
-      <aside className="agent-rail" aria-label={text('当前任务', 'Current task')}>
+      <aside className="agent-rail" aria-label={text("legacy.current_task.711bf2")}>
         <div className="rail-header">
-          <h2>{text('当前任务', 'Current task')}</h2>
-          <span className="state-label">{run ? runStatusLabel(run.status, language) : text('等待任务', 'Waiting')}</span>
+          <h2>{text("legacy.current_task.711bf2")}</h2>
+          <span className="state-label">{run ? runStatusLabel(run.status, language) : text("legacy.waiting.b4e9d2")}</span>
         </div>
 
         {!run?.plan.length ? (
           <div className="rail-empty">
             <div>
               <span><ListChecks size={18} /></span>
-              <strong>{text('暂无执行计划', 'No execution plan')}</strong>
-              <small>{text('在诊断结果中直接加入操作，或让 Agent 准备计划。', 'Add an action from a result or ask the Agent to prepare a plan.')}</small>
+              <strong>{text("legacy.no_execution_plan.03b192")}</strong>
+              <small>{text("legacy.add_an_action_from_a_result_or_ask_the_age.32a8f2")}</small>
             </div>
           </div>
         ) : (
           <div className="plan-panel is-visible">
             <div className="plan-summary">
-              <div><strong>{selectedBytes ? formatBytes(selectedBytes) : `${selectedItems.length}`}</strong><span>{selectedBytes ? text('预计处理空间', 'Estimated space') : text('待处理操作', 'Pending actions')}</span></div>
-              <span className="risk-label review">{text(
-                `包含 ${selectedItems.filter((item) => item.risk === 'review').length} 项确认`,
-                `${selectedItems.filter((item) => item.risk === 'review').length} review items`
-              )}</span>
+              <div><strong>{selectedBytes ? formatBytes(selectedBytes) : `${selectedItems.length}`}</strong><span>{selectedBytes ? text("legacy.estimated_space.7a62ca") : text("legacy.pending_actions.0f782a")}</span></div>
+              <span className="risk-label review">{text("legacy.review_items.7ae12c", { p0: selectedItems.filter((item) => item.risk === 'review').length })}</span>
             </div>
             <div className="plan-steps">
               {run.plan.map((item) => (
                 <div className="plan-step" key={item.id}>
-                  <label className="plan-check" title={text('选择此步骤', 'Select this step')}>
+                  <label className="plan-check" title={text("legacy.select_this_step.627489")}>
                     <input type="checkbox" checked={selectedPlanIds.has(item.id)} onChange={() => onTogglePlanItem(item.id)} disabled={!waitingConfirmation || completedPlanIds.has(item.id)} />
                     <span>{(selectedPlanIds.has(item.id) || completedPlanIds.has(item.id)) && <Check size={12} />}</span>
                   </label>
                   <div className="plan-step-copy"><strong>{item.title}</strong><small>{item.detail}</small></div>
-                  <div className="plan-step-meta"><strong>{item.estimatedBytes ? formatBytes(item.estimatedBytes) : text('操作', 'Action')}</strong><small>{completedPlanIds.has(item.id) ? text('已完成', 'Completed') : item.risk === 'review' ? text('需确认', 'Review') : text('待执行', 'Pending')}</small></div>
+                  <div className="plan-step-meta"><strong>{item.estimatedBytes ? formatBytes(item.estimatedBytes) : text("legacy.action.c3ce74")}</strong><small>{completedPlanIds.has(item.id) ? text("legacy.completed.58782c") : item.risk === 'review' ? text("legacy.review.fb1984") : text("legacy.pending.8b36bc")}</small></div>
                 </div>
               ))}
             </div>
             {waitingConfirmation && (
               <div className="plan-actions">
                 <button type="button" className="primary-button" onClick={onExecutePlan} disabled={!selectedPlanIds.size}>
-                  <Play size={15} />{text('确认并执行', 'Confirm and run')}
+                  <Play size={15} />{text("legacy.confirm_and_run.48cd4d")}
                 </button>
-                <button type="button" className="icon-button" onClick={onDiscardPlan} title={text('放弃计划', 'Discard plan')} aria-label={text('放弃计划', 'Discard plan')}>
+                <button type="button" className="icon-button" onClick={onDiscardPlan} title={text("legacy.discard_plan.ab31fb")} aria-label={text("legacy.discard_plan.ab31fb")}>
                   <X size={15} />
                 </button>
               </div>

@@ -1,3 +1,6 @@
+import { collectPortableOverview, terminatePortableProcess, stopPortableOverview } from './portable-overview'
+import { StorageService } from './storage-service'
+import { runPortableScan } from './portable-scan'
 import {
   app,
   BrowserWindow,
@@ -106,6 +109,7 @@ import { shouldKeepWindowInTray } from './window-lifecycle'
 
 const execFileAsync = promisify(execFile)
 let registeredActions = new Map<string, RegisteredAction>()
+let storageService: StorageService
 let registeredRevealTargets = new Map<string, string>()
 let registeredTerminalFixes = new Map<string, RegisteredTerminalFix>()
 const applicationIconCache = new Map<string, string | null>()
@@ -290,6 +294,7 @@ async function terminateOverviewProcess(pidInput: unknown, forceInput: unknown):
   if (pid <= 1 || pid === process.pid) {
     throw new Error(mainText('不能退出 Memento 自身', 'Memento cannot terminate itself.'))
   }
+  if (process.platform !== 'darwin') return terminatePortableProcess(pid, forceInput === true)
   const processInfo = await inspectOverviewProcess(pid)
   const currentUser = (() => {
     try {
@@ -1143,6 +1148,11 @@ async function executeRegisteredAction(action: RegisteredAction): Promise<void> 
   }
 
   if (action.kind === 'delete-storage') {
+    if (action.storageRuleId) {
+      const result = await storageService.clean([action.storageRuleId])
+      if (result.failures) throw new Error('The registered cleanup target could not be removed')
+      return
+    }
     if (!isAllowedStorageCleanupTarget(action.target, os.homedir())) {
       throw new Error(mainText('存储目标未通过本地安全校验，请重新扫描', 'The storage target did not pass local validation. Scan again.'))
     }
@@ -1603,7 +1613,9 @@ async function performScan(
         actions: registeredActions,
         terminalFixes: registeredTerminalFixes
       },
-      await runFullScan(onProgress ?? (() => undefined), language)
+      process.platform === 'darwin'
+        ? await runFullScan(onProgress ?? (() => undefined), language)
+        : await runPortableScan(storageService, language, onProgress ?? (() => undefined))
     )
     registeredApplicationIconTargets = new Map(
       scannedBundle.result.applications.flatMap((application) => {
@@ -1642,11 +1654,16 @@ app.whenReady().then(async () => {
   updateState = emptyUpdateState()
   configureAppUpdater()
 
+  storageService = new StorageService()
+  await storageService.init()
+  storageService.register()
+  app.on('before-quit', stopPortableOverview)
+
   ipcMain.handle('memento:get-version', () => app.getVersion())
   ipcMain.handle('memento:update:get', () => updateState ?? emptyUpdateState())
   ipcMain.handle('memento:update:check', () => checkForAppUpdate())
   ipcMain.handle('memento:update:install', () => installAppUpdate())
-  ipcMain.handle('memento:overview:get', () => overviewMonitor.collect())
+  ipcMain.handle('memento:overview:get', () => process.platform === 'darwin' ? overviewMonitor.collect() : collectPortableOverview())
   ipcMain.handle('memento:overview:process-copy-name', (_event, name: unknown) => {
     clipboard.writeText(validateOverviewProcessName(name))
   })

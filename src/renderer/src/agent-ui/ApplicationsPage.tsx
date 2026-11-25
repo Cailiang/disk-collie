@@ -180,49 +180,49 @@ export function ApplicationsPage({
     <section ref={pageRef} className="page content-page is-active">
       <div className="page-command-bar">
         <span className="page-command-summary">{initialLoading
-          ? <><LoaderCircle className="spinner" size={14} />{text('正在读取应用信息…', 'Reading application inventory…')}</>
-          : text(`共 ${applications.length} 个应用，其中 ${manageable.length} 个可卸载，占用 ${formatBytes(totalBytes)}`, `${applications.length} applications, ${manageable.length} uninstallable, using ${formatBytes(totalBytes)}`)}</span>
+          ? <><LoaderCircle className="spinner" size={14} />{text("legacy.reading_application_inventory.6085ba")}</>
+          : text("legacy.applications_uninstallable_using.eb45b9", { p0: applications.length, p1: manageable.length, p2: formatBytes(totalBytes) })}</span>
         <div className="page-command-actions">
           <button type="button" className="secondary-button" onClick={onManageIgnored}>
-            <EyeOff size={16} />{text(`已忽略 ${ignoredCount} 项`, `${ignoredCount} ignored`)}
+            <EyeOff size={16} />{text("legacy.ignored.95e27a", { p0: ignoredCount })}
           </button>
           <button type="button" className="secondary-button" onClick={onScan} disabled={loading}>
-            {loading ? <LoaderCircle className="spinner" size={16} /> : <RefreshCw size={16} />}{text('检查更新', 'Check updates')}
+            {loading ? <LoaderCircle className="spinner" size={16} /> : <RefreshCw size={16} />}{text("legacy.check_updates.beeb57")}
           </button>
-          <button type="button" className="secondary-button" onClick={() => askAgent(text('帮我检查长期没用的应用和可以安全清理的应用残留', 'Find unused applications and safe application leftovers'))}>
-            <Sparkles size={16} />{text('Agent 分析', 'Agent analysis')}
+          <button type="button" className="secondary-button" onClick={() => askAgent(text("legacy.find_unused_applications_and_safe_applicat.756446"))}>
+            <Sparkles size={16} />{text("legacy.agent_analysis.663c84")}
           </button>
         </div>
       </div>
 
       {initialLoading ? (
         <div className="app-loading-state" role="status" aria-live="polite">
-          <div className="app-loading-hero"><span className="app-loading-orb"><LoaderCircle className="spinner" size={20} /></span><div><strong>{text('正在扫描应用', 'Scanning applications')}</strong><p>{progress?.message ?? text('正在读取应用目录、版本和最近使用时间…', 'Reading application folders, versions, and recent usage…')}</p></div></div>
+          <div className="app-loading-hero"><span className="app-loading-orb"><LoaderCircle className="spinner" size={20} /></span><div><strong>{text("legacy.scanning_applications.8657d9")}</strong><p>{progress?.message ?? text("legacy.reading_application_folders_versions_and_r.ebaabf")}</p></div></div>
           <div className="app-skeleton-grid" aria-hidden="true">{Array.from({ length: 6 }, (_, index) => <div className="app-skeleton-card" key={index}><i /><span /><small /><b /></div>)}</div>
         </div>
       ) : error && !hasResult ? (
-        <div className="app-loading-state app-loading-error" role="alert"><div className="app-loading-hero"><span className="app-loading-orb"><AppWindow size={20} /></span><div><strong>{text('应用扫描未完成', 'Application scan did not finish')}</strong><p>{error}</p></div></div><button type="button" className="secondary-button" onClick={onScan}><RefreshCw size={14} />{text('重新扫描', 'Scan again')}</button></div>
+        <div className="app-loading-state app-loading-error" role="alert"><div className="app-loading-hero"><span className="app-loading-orb"><AppWindow size={20} /></span><div><strong>{text("legacy.application_scan_did_not_finish.ff54a1")}</strong><p>{error}</p></div></div><button type="button" className="secondary-button" onClick={onScan}><RefreshCw size={14} />{text("legacy.scan_again.bc5e14")}</button></div>
       ) : <>
-      {loading && hasResult && <div className="app-scan-progress" role="status" aria-live="polite"><LoaderCircle className="spinner" size={14} /><span>{progress?.message ?? text('正在刷新应用列表…', 'Refreshing application inventory…')}</span></div>}
+      {loading && hasResult && <div className="app-scan-progress" role="status" aria-live="polite"><LoaderCircle className="spinner" size={14} /><span>{progress?.message ?? text("legacy.refreshing_application_inventory.f4802b")}</span></div>}
 
       <div className="toolbar">
         <label className="search-field">
           <Search size={16} />
-          <input type="search" placeholder={text('搜索应用名称', 'Search applications')} aria-label={text('搜索应用名称', 'Search applications')} value={search} onChange={(event) => setSearch(event.target.value)} />
+          <input type="search" placeholder={text("legacy.search_applications.1b9f86")} aria-label={text("legacy.search_applications.1b9f86")} value={search} onChange={(event) => setSearch(event.target.value)} />
         </label>
-        <select aria-label={text('筛选应用', 'Filter applications')} value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}>
-          <option value="all">{text('全部应用', 'All applications')}</option>
-          <option value="recent">{text('最近使用', 'Recently used')}</option>
-          <option value="unused">{text('3 个月未使用', 'Unused for 3 months')}</option>
-          <option value="updates">{text('需要更新', 'Updates available')}</option>
-          <option value="direct-updates">{text('可在 Memento 内更新', 'Update in Memento')}</option>
-          <option value="external-updates">{text('需打开更新', 'Open to update')}</option>
-          <option value="system">{text('系统应用', 'System applications')}</option>
+        <select aria-label={text("legacy.filter_applications.20f41c")} value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}>
+          <option value="all">{text("legacy.all_applications.7a361e")}</option>
+          <option value="recent">{text("legacy.recently_used.cefaa6")}</option>
+          <option value="unused">{text("legacy.unused_for_3_months.e3dfc7")}</option>
+          <option value="updates">{text("legacy.updates_available.ccebb0")}</option>
+          <option value="direct-updates">{text("legacy.update_in_memento.7723e5")}</option>
+          <option value="external-updates">{text("legacy.open_to_update.38d4b9")}</option>
+          <option value="system">{text("legacy.system_applications.7ae717")}</option>
         </select>
-        <select aria-label={text('应用排序', 'Sort applications')} value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
-          <option value="recent">{text('最近使用优先', 'Recently used first')}</option>
-          <option value="size">{text('占用空间优先', 'Largest first')}</option>
-          <option value="name">{text('名称排序', 'Name')}</option>
+        <select aria-label={text("legacy.sort_applications.45031d")} value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
+          <option value="recent">{text("legacy.recently_used_first.d89b5f")}</option>
+          <option value="size">{text("legacy.largest_first.72f2cc")}</option>
+          <option value="name">{text("legacy.name.58029b")}</option>
         </select>
       </div>
 
@@ -233,10 +233,10 @@ export function ApplicationsPage({
               className={`app-card is-openable ${removingId === application.id ? 'is-removing' : ''}`}
               key={application.id}
               aria-busy={removingId === application.id || openingId === application.id || updatingId === application.id}
-              aria-label={text(`打开 ${application.name}`, `Open ${application.name}`)}
+              aria-label={text("legacy.open.bffde7", { p0: application.name })}
               data-focus-id={application.id}
               tabIndex={0}
-              title={text(`点击打开 ${application.name}`, `Click to open ${application.name}`)}
+              title={text("legacy.click_to_open.38fbf9", { p0: application.name })}
               onClick={(event) => {
                 if ((event.target as HTMLElement).closest('button, a, input, select')) return
                 onOpen(application)
@@ -247,44 +247,44 @@ export function ApplicationsPage({
                 onOpen(application)
               }}
             >
-              {(application.scope === 'system' || application.backgroundOnly) && <span className="app-scope-label">{application.scope === 'system' ? text('系统', 'System') : text('后台组件', 'Helper')}</span>}
-              <button type="button" className="icon-button app-ignore-button" onClick={() => onIgnore(application)} disabled={removingId === application.id} title={text('忽略应用', 'Ignore application')} aria-label={text(`忽略 ${application.name}`, `Ignore ${application.name}`)}>
+              {(application.scope === 'system' || application.backgroundOnly) && <span className="app-scope-label">{application.scope === 'system' ? text("legacy.system.5b103d") : text("legacy.helper.3fd94e")}</span>}
+              <button type="button" className="icon-button app-ignore-button" onClick={() => onIgnore(application)} disabled={removingId === application.id} title={text("legacy.ignore_application.2ecdde")} aria-label={text("legacy.ignore.28fec4", { p0: application.name })}>
                 <EyeOff size={14} />
               </button>
               <ApplicationIcon application={application} />
               <div className="app-title"><strong title={application.name}>{application.name}</strong><small>{text(`版本 ${application.version || '未知'}`, `Version ${application.version || 'unknown'}`)}</small>{application.updateAvailable && <span className="app-update-badge" title={`${updateSourceLabel(application.updateSource, language)} · ${updateModeLabel(application, language)}`}><ArrowUpCircle size={12} />{text(`可更新${application.latestVersion ? `至 ${application.latestVersion}` : ''}`, `Update${application.latestVersion ? ` to ${application.latestVersion}` : ''}`)}</span>}</div>
               <div className="app-meta">
-                {application.updateAvailable && <div className="app-update-method"><span>{text('更新方式', 'Update method')}</span><strong title={updateSourceLabel(application.updateSource, language)}>{updateModeLabel(application, language)}</strong></div>}
-                <div><span>{text('最后使用', 'Last used')}</span><strong>{relativeDate(application.lastUsedAt, language)}</strong></div>
-                <div><span>{text('大小', 'Size')}</span><strong>{formatBytes(application.sizeBytes)}</strong></div>
+                {application.updateAvailable && <div className="app-update-method"><span>{text("legacy.update_method.4d6fd1")}</span><strong title={updateSourceLabel(application.updateSource, language)}>{updateModeLabel(application, language)}</strong></div>}
+                <div><span>{text("legacy.last_used.cc8077")}</span><strong>{relativeDate(application.lastUsedAt, language)}</strong></div>
+                <div><span>{text("legacy.size.5354fe")}</span><strong>{formatBytes(application.sizeBytes)}</strong></div>
               </div>
               <div className="app-actions">
                 <button type="button" className="secondary-button app-agent-action" onClick={() => askAgent(text(
                   `请分析应用“${application.name}”。Bundle ID：${application.bundleId ?? '未知'}；版本：${application.version}；路径：${application.location}；最后使用：${relativeDate(application.lastUsedAt, language)}；类型：${application.scope === 'system' ? 'macOS 系统应用' : application.backgroundOnly ? '后台辅助组件' : '用户安装应用'}；可执行文件：${application.executable ?? '未知'}；注册的 URL 协议：${application.urlSchemes?.join(', ') || '无'}。请说明它是什么、主要用途、是否属于驱动/安全组件/辅助程序、能否卸载、卸载影响和你的建议。`,
                   `Analyze the application "${application.name}". Bundle ID: ${application.bundleId ?? 'unknown'}; version: ${application.version}; path: ${application.location}; last used: ${relativeDate(application.lastUsedAt, language)}; type: ${application.scope === 'system' ? 'macOS system application' : application.backgroundOnly ? 'background helper' : 'user-installed application'}; executable: ${application.executable ?? 'unknown'}; registered URL schemes: ${application.urlSchemes?.join(', ') || 'none'}. Explain what it is, its purpose, whether it is a driver, security component, or helper, whether it can be uninstalled, the impact, and your recommendation.`
                 ), application.id)} disabled={removingId === application.id}>
-                  <Sparkles size={14} />{text('问 Agent', 'Ask Agent')}
+                  <Sparkles size={14} />{text("legacy.ask_agent.655800")}
                 </button>
                 {application.updateAvailable && <button type="button" className="secondary-button app-update-action" onClick={() => onUpdate(application)} disabled={updatingId === application.id || removingId === application.id} title={`${updateModeLabel(application, language)} · ${application.name}`}>
                   {updatingId === application.id ? <LoaderCircle className="spinner" size={14} /> : <ArrowUpCircle size={14} />}{text(application.updateMode === 'direct' ? '更新' : '打开更新', application.updateMode === 'direct' ? 'Update' : 'Open update')}
                 </button>}
                 {application.action ? (
-                  <button type="button" className="icon-button uninstall-app" onClick={() => onUninstall(application)} disabled={removingId === application.id} title={text(`卸载 ${application.name}`, `Uninstall ${application.name}`)} aria-label={text(`卸载 ${application.name}`, `Uninstall ${application.name}`)}>
+                  <button type="button" className="icon-button uninstall-app" onClick={() => onUninstall(application)} disabled={removingId === application.id} title={text("legacy.uninstall.0ec5f5", { p0: application.name })} aria-label={text("legacy.uninstall.0ec5f5", { p0: application.name })}>
                     <Trash2 size={14} />
                   </button>
                 ) : (
-                  <button type="button" className="icon-button is-protected" disabled title={application.protectedReason ?? text('受 macOS 保护', 'Protected by macOS')} aria-label={application.protectedReason ?? text('受 macOS 保护', 'Protected by macOS')}>
+                  <button type="button" className="icon-button is-protected" disabled title={application.protectedReason ?? text("legacy.protected_by_macos.f5e12c")} aria-label={application.protectedReason ?? text("legacy.protected_by_macos.f5e12c")}>
                     <LockKeyhole size={14} />
                   </button>
                 )}
               </div>
-              <span className="app-open-hint" aria-hidden="true"><ExternalLink size={12} />{text('打开', 'Open')}</span>
-              {removingId === application.id && <div className="app-removing-status" role="status"><LoaderCircle className="spinner" size={18} /><strong>{text('正在卸载', 'Uninstalling')}</strong></div>}
+              <span className="app-open-hint" aria-hidden="true"><ExternalLink size={12} />{text("legacy.open.a211ee")}</span>
+              {removingId === application.id && <div className="app-removing-status" role="status"><LoaderCircle className="spinner" size={18} /><strong>{text("legacy.uninstalling.2f00df")}</strong></div>}
             </article>
           ))}
         </div>
       ) : (
-        <div className="empty-filter is-visible"><div><strong>{text('没有匹配的应用', 'No matching applications')}</strong><p>{text('调整搜索或筛选条件。', 'Change the search or filter.')}</p></div></div>
+        <div className="empty-filter is-visible"><div><strong>{text("legacy.no_matching_applications.09b4a6")}</strong><p>{text("legacy.change_the_search_or_filter.631eba")}</p></div></div>
       )}
       </>}
     </section>

@@ -11,3 +11,6 @@ test-results
 !.env.example
 .idea
 .artifacts/*
+
+native/target
+build/native

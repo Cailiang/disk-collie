@@ -81,6 +81,7 @@ export type RegisteredAction =
   | {
       kind: Exclude<ActionKind, 'trash-launch-agent-config' | 'trash-service-software' | 'trash-service-directory' | 'trash-project-artifact' | 'brew-cleanup' | 'delete-storage-group' | 'trash-home-artifact' | 'trash-disk-usage' | 'terminate-process' | 'terminate-process-force'>
       target: string
+      storageRuleId?: string
     }
   | {
       kind: 'terminate-process' | 'terminate-process-force'

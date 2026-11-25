@@ -40,8 +40,8 @@ export async function verifyProviderKeyEditing(page) {
     }
     await page.evaluate((provider) => window.memento.saveAgentProvider(provider), input)
     await page.reload()
-    await page.locator('.nav-button[title="概览"]').waitFor({ timeout: 60_000 })
-    await page.locator('.utility-button[title="设置"]').click()
+    await page.locator('.nav-button[title="首页"]').waitFor({ timeout: 60_000 })
+    await page.locator('.nav-button[title="设置"]').click()
     await page.locator('.provider-item').filter({ hasText: input.name }).click()
     const key = page.locator('#provider-key')
     await page.waitForFunction(() => document.querySelector('#provider-key')?.placeholder === '••••1111')
@@ -59,13 +59,9 @@ export async function verifyProviderKeyEditing(page) {
       const key = document.querySelector('#provider-key')
       return key?.value === '' && key.placeholder === '••••2222'
     })
-    // Reload only after the automatic scan finishes; a second scan cannot run
-    // while the main process is still serving the previous Renderer.
-    await page.locator('.nav-button[title="清理"]').click()
-    await page.locator('.page-command-summary').filter({ hasText: '最后扫描' }).waitFor({ timeout: 120_000 })
     await page.reload()
-    await page.locator('.nav-button[title="概览"]').waitFor({ timeout: 60_000 })
-    await page.locator('.utility-button[title="设置"]').click()
+    await page.locator('.nav-button[title="首页"]').waitFor({ timeout: 60_000 })
+    await page.locator('.nav-button[title="设置"]').click()
     await page.locator('.provider-item').filter({ hasText: 'Edited local copy' }).click()
     await page.waitForFunction(() => document.querySelector('#provider-key')?.placeholder === '••••2222')
     const offset = requests.length

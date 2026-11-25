@@ -83,8 +83,8 @@ export function AgentResults({
             <header className="agent-result-head">
               <strong>{section.title}</strong>
               <span>{bytes > 0
-                ? text(`${section.items.length} 项 · ${formatBytes(bytes)}`, `${section.items.length} items · ${formatBytes(bytes)}`)
-                : text(`${section.items.length} 项`, `${section.items.length} items`)}</span>
+                ? text("legacy.items.16463b", { p0: section.items.length, p1: formatBytes(bytes) })
+                : text("legacy.items.217ed7", { p0: section.items.length })}</span>
             </header>
             {section.kind === 'applications' ? (
               <div className="agent-app-results">
@@ -96,13 +96,13 @@ export function AgentResults({
                       <small>{item.protectedReason
                         ? `${item.protectedReason} · ${formatBytes(item.sizeBytes)}`
                         : item.backgroundOnly
-                          ? text(`后台组件${item.urlSchemes?.length ? ` · ${item.urlSchemes.join(', ')}` : ''} · ${formatBytes(item.sizeBytes)}`, `Background helper${item.urlSchemes?.length ? ` · ${item.urlSchemes.join(', ')}` : ''} · ${formatBytes(item.sizeBytes)}`)
+                          ? text("legacy.background_helper.e859d3", { p0: item.urlSchemes?.length ? ` · ${item.urlSchemes.join(', ')}` : '', p1: formatBytes(item.sizeBytes) })
                         : item.lastUsedAt
                           ? text(
                               `${relativeDate(item.lastUsedAt, language)}使用 · ${formatBytes(item.sizeBytes)}`,
                               `Used ${relativeDate(item.lastUsedAt, language).toLocaleLowerCase()} · ${formatBytes(item.sizeBytes)}`
                             )
-                          : text(`无使用记录 · ${formatBytes(item.sizeBytes)}`, `No usage record · ${formatBytes(item.sizeBytes)}`)}</small>
+                          : text("legacy.no_usage_record.44efbb", { p0: formatBytes(item.sizeBytes) })}</small>
                     </div>
                     <div className="agent-result-actions">
                       <button
@@ -114,15 +114,15 @@ export function AgentResults({
                         {openingApplicationId === item.id
                           ? <LoaderCircle className="spinner" size={12} />
                           : <ExternalLink size={12} />}
-                        {text('打开', 'Open')}
+                        {text("legacy.open.a211ee")}
                       </button>
                       {item.operation && operationButton(
                         item.operation,
                         plannedIds,
                         addingOperationId,
                         onAddPlanItem,
-                        text('已加入', 'Added'),
-                        text('加入计划', 'Add to plan')
+                        text("legacy.added.1b5ad2"),
+                        text("legacy.add_to_plan.2e1548")
                       )}
                     </div>
                   </article>
@@ -154,16 +154,16 @@ export function AgentResults({
                             plannedIds,
                             addingOperationId,
                             onAddPlanItem,
-                            text('已加入', 'Added'),
-                            text('加入计划', 'Add to plan')
+                            text("legacy.added.1b5ad2"),
+                            text("legacy.add_to_plan.2e1548")
                           )
                         : item.operations.map((operation) => operationButton(
                             operation,
                             plannedIds,
                             addingOperationId,
                             onAddPlanItem,
-                            text('已加入', 'Added'),
-                            text('加入计划', 'Add to plan')
+                            text("legacy.added.1b5ad2"),
+                            text("legacy.add_to_plan.2e1548")
                           ))}
                     </div>
                   </article>

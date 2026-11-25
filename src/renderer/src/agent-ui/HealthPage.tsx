@@ -99,15 +99,15 @@ function CleanupRow({
   const operation = operations(candidate)[0]
   const weak = isReviewClue(candidate)
   const status = weak
-    ? text('规则外线索', 'Outside rules')
+    ? text("legacy.outside_rules.99a49e")
     : candidate.risk === 'safe'
-      ? text('安全清理', 'Safe cleanup')
-      : text('需要确认', 'Review first')
+      ? text("legacy.safe_cleanup.2e46bd")
+      : text("legacy.review_first.8bc441")
 
   return (
     <article className={`cleanup-row ${selected ? 'is-selected' : ''}`} data-focus-id={candidate.id} tabIndex={-1}>
       <label className={`cleanup-check ${!selectable ? 'is-disabled' : ''}`}>
-        <input type="checkbox" checked={selected} disabled={!selectable} onChange={onToggle} aria-label={text(`选择 ${candidate.name}`, `Select ${candidate.name}`)} />
+        <input type="checkbox" checked={selected} disabled={!selectable} onChange={onToggle} aria-label={text("legacy.select.d4e3da", { p0: candidate.name })} />
         <span>{selected && <Check size={13} />}</span>
       </label>
       <span className="cleanup-item-icon">{categoryForCandidate(candidate) === 'developer' ? <Code2 size={17} /> : categoryForCandidate(candidate) === 'browsers' ? <Globe2 size={17} /> : <AppWindow size={17} />}</span>
@@ -116,10 +116,10 @@ function CleanupRow({
         <p>{candidate.description}</p>
         {candidate.location && <button type="button" className="candidate-location" title={candidate.location} onClick={() => onReveal(candidate)}><FolderOpen size={12} /><span>{candidate.location}</span></button>}
       </div>
-      <div className="cleanup-item-size"><strong>{candidate.sizeBytes ? formatBytes(candidate.sizeBytes) : '--'}</strong><small>{candidate.ageDays !== undefined ? text(`${candidate.ageDays} 天前更新`, `Updated ${candidate.ageDays} days ago`) : candidate.subtitle}</small></div>
+      <div className="cleanup-item-size"><strong>{candidate.sizeBytes ? formatBytes(candidate.sizeBytes) : '--'}</strong><small>{candidate.ageDays !== undefined ? text("legacy.updated_days_ago.de0010", { p0: candidate.ageDays }) : candidate.subtitle}</small></div>
       <div className="cleanup-row-actions">
-        <button type="button" className="icon-button" onClick={() => onAgentPrompt(candidate)} title={text('让 AI 解释此项', 'Ask AI to explain')} aria-label={text(`让 AI 解释 ${candidate.name}`, `Ask AI to explain ${candidate.name}`)}><Sparkles size={15} /></button>
-        <button type="button" className="icon-button" onClick={() => onIgnore(candidate)} title={text('忽略此项', 'Ignore item')} aria-label={text(`忽略 ${candidate.name}`, `Ignore ${candidate.name}`)}><EyeOff size={15} /></button>
+        <button type="button" className="icon-button" onClick={() => onAgentPrompt(candidate)} title={text("legacy.ask_ai_to_explain.661d9b")} aria-label={text("legacy.ask_ai_to_explain.1e78c3", { p0: candidate.name })}><Sparkles size={15} /></button>
+        <button type="button" className="icon-button" onClick={() => onIgnore(candidate)} title={text("legacy.ignore_item.374fd5")} aria-label={text("legacy.ignore.28fec4", { p0: candidate.name })}><EyeOff size={15} /></button>
         {operation && <button type="button" className={`icon-button cleanup-single-action ${weak ? 'is-review' : ''}`} onClick={() => onDirectAction(candidate, operation)} title={operation.label} aria-label={`${operation.label}: ${candidate.name}`}><Trash2 size={15} /></button>}
       </div>
     </article>
@@ -144,13 +144,13 @@ function TerminalCleanupRow({
   const { text } = useI18n()
   const actionable = Boolean(finding.fix)
   const status = finding.fix
-    ? finding.severity === 'slow' ? text('建议优化', 'Optimization suggested') : text('可优化', 'Optimizable')
-    : finding.severity === 'good' ? text('正常', 'Healthy') : text('可查看配置', 'Config available')
+    ? finding.severity === 'slow' ? text("legacy.optimization_suggested.8317ee") : text("legacy.optimizable.50cb5e")
+    : finding.severity === 'good' ? text("legacy.healthy.af0e4c") : text("legacy.config_available.114c91")
 
   return (
     <article className={`cleanup-row terminal-cleanup-row ${selected ? 'is-selected' : ''}`} data-focus-id={finding.id} tabIndex={-1}>
       <label className={`cleanup-check ${!actionable ? 'is-disabled' : ''}`}>
-        <input type="checkbox" checked={selected} disabled={!actionable} onChange={onToggle} aria-label={text(`选择 ${finding.title}`, `Select ${finding.title}`)} />
+        <input type="checkbox" checked={selected} disabled={!actionable} onChange={onToggle} aria-label={text("legacy.select.d4e3da", { p0: finding.title })} />
         <span>{selected && <Check size={13} />}</span>
       </label>
       <span className="cleanup-item-icon"><SquareTerminal size={17} /></span>
@@ -159,10 +159,10 @@ function TerminalCleanupRow({
         <p>{finding.detail}</p>
         {finding.source && <span className="candidate-location terminal-finding-source"><SquareTerminal size={12} /><span>{finding.source}</span></span>}
       </div>
-      <div className="cleanup-item-size"><strong>--</strong><small>{finding.recommendation ?? text('命令行启动诊断', 'Terminal startup diagnostic')}</small></div>
+      <div className="cleanup-item-size"><strong>--</strong><small>{finding.recommendation ?? text("legacy.terminal_startup_diagnostic.7f4368")}</small></div>
       <div className="cleanup-row-actions">
-        <button type="button" className="icon-button" onClick={() => onAgentPrompt(finding)} title={text('让 AI 解释此项', 'Ask AI to explain')} aria-label={text(`让 AI 解释 ${finding.title}`, `Ask AI to explain ${finding.title}`)}><Sparkles size={15} /></button>
-        <button type="button" className="icon-button" onClick={() => onReveal(finding)} title={text('查看配置文件', 'View config file')} aria-label={text(`查看 ${finding.title} 的配置`, `View configuration for ${finding.title}`)}><FolderOpen size={15} /></button>
+        <button type="button" className="icon-button" onClick={() => onAgentPrompt(finding)} title={text("legacy.ask_ai_to_explain.661d9b")} aria-label={text("legacy.ask_ai_to_explain.1e78c3", { p0: finding.title })}><Sparkles size={15} /></button>
+        <button type="button" className="icon-button" onClick={() => onReveal(finding)} title={text("legacy.view_config_file.791de4")} aria-label={text("legacy.view_configuration_for.23cda6", { p0: finding.title })}><FolderOpen size={15} /></button>
         {finding.fix && <button type="button" className="icon-button cleanup-single-action is-review" onClick={() => onDirectAction(finding)} title={finding.fix.label} aria-label={`${finding.fix.label}: ${finding.title}`}><Wrench size={15} /></button>}
       </div>
     </article>
@@ -258,16 +258,16 @@ export function HealthPage({
     label: string
     icon: typeof HardDrive
   }> = standaloneTerminal ? [
-    { id: 'terminal', label: text('命令行启动优化', 'Terminal startup'), icon: SquareTerminal }
+    { id: 'terminal', label: text("legacy.terminal_startup.54e632"), icon: SquareTerminal }
   ] : [
-    { id: 'all', label: text('全部项目', 'All items'), icon: ListFilter },
-    { id: 'system', label: text('系统与临时文件', 'System and temporary'), icon: HardDrive },
-    { id: 'applications', label: text('应用缓存', 'Application caches'), icon: Boxes },
-    { id: 'browsers', label: text('浏览器缓存', 'Browser caches'), icon: Globe2 },
-    { id: 'developer', label: text('开发者缓存', 'Developer caches'), icon: Code2 },
-    { id: 'logs', label: text('日志与诊断', 'Logs and diagnostics'), icon: FileWarning },
-    { id: 'devices', label: text('设备与模拟器', 'Devices and simulators'), icon: Smartphone },
-    { id: 'services', label: text('后台服务', 'Background services'), icon: RadioTower }
+    { id: 'all', label: text("legacy.all_items.6bedfb"), icon: ListFilter },
+    { id: 'system', label: text("legacy.system_and_temporary.d40d8c"), icon: HardDrive },
+    { id: 'applications', label: text("legacy.application_caches.df03eb"), icon: Boxes },
+    { id: 'browsers', label: text("legacy.browser_caches.ab4149"), icon: Globe2 },
+    { id: 'developer', label: text("legacy.developer_caches.833eea"), icon: Code2 },
+    { id: 'logs', label: text("legacy.logs_and_diagnostics.ff1d21"), icon: FileWarning },
+    { id: 'devices', label: text("legacy.devices_and_simulators.b9552a"), icon: Smartphone },
+    { id: 'services', label: text("legacy.background_services.69bf02"), icon: RadioTower }
   ]
 
   useEffect(() => {
@@ -314,20 +314,14 @@ export function HealthPage({
     onSelectedIdsChange(next)
   }
 
-  const askAgent = (candidate: ScanCandidate): void => onAgentPrompt(text(
-    `解释清理项“${candidate.name}”。说明它由哪个应用或系统组件生成、规则为什么只匹配当前路径、清理后会重新生成什么；区分确定事实与推断，不要直接执行。`,
-    `Explain the cleanup item "${candidate.name}". Identify the app or system component that creates it, why the rule matches only this path, and what will be rebuilt after cleanup. Separate verified facts from inference and do not execute it.`
-  ), {
+  const askAgent = (candidate: ScanCandidate): void => onAgentPrompt(text("legacy.explain_the_cleanup_item_identify_the_app_.e01646", { p0: candidate.name }), {
     tab: 'storage',
     category,
     itemId: candidate.id,
     scrollTop: pageRef.current?.scrollTop ?? 0
   })
 
-  const askTerminalAgent = (finding: TerminalFinding): void => onAgentPrompt(text(
-    `解释命令行启动项“${finding.title}”。说明它如何影响终端启动、哪些内容是确定事实、哪些只是推断，不要直接修改配置。`,
-    `Explain the terminal startup finding "${finding.title}". Describe how it affects shell startup, separate verified facts from inference, and do not modify the configuration.`
-  ), {
+  const askTerminalAgent = (finding: TerminalFinding): void => onAgentPrompt(text("legacy.explain_the_terminal_startup_finding_descr.3cff53", { p0: finding.title }), {
     tab: 'terminal',
     category: 'terminal',
     itemId: finding.id,
@@ -338,7 +332,7 @@ export function HealthPage({
     <section ref={pageRef} className="page content-page cleanup-page is-active">
       <div className="page-command-bar cleanup-command-bar">
         <div>
-          <h1>{standaloneTerminal ? text('命令行启动优化', 'Terminal startup') : text('清理', 'Cleanup')}</h1>
+          <h1>{standaloneTerminal ? text("legacy.terminal_startup.54e632") : text("legacy.cleanup.6f8a1f")}</h1>
           <span className="page-command-summary">{result
             ? text(
                 standaloneTerminal
@@ -355,7 +349,7 @@ export function HealthPage({
         </div>
         <button type="button" className="secondary-button cleanup-scan-button" onClick={onScan} disabled={scanBusy}>
           {scanBusy ? <LoaderCircle className="spinner" size={16} /> : <RefreshCw size={16} />}
-          {scanBusy ? text('扫描中', 'Scanning') : text('重新扫描', 'Scan again')}
+          {scanBusy ? text("legacy.scanning.12a218") : text("legacy.scan_again.bc5e14")}
         </button>
       </div>
 
@@ -370,25 +364,25 @@ export function HealthPage({
       <div className="cleanup-summary-band">
         {standaloneTerminal ? <>
           <div className="cleanup-reclaimable">
-            <span>{text('可优化启动项', 'Optimizable startup items')}</span>
+            <span>{text("legacy.optimizable_startup_items.b3e86a")}</span>
             <strong>{terminalSelectable.length}</strong>
-            <small><ShieldCheck size={13} />{text('修改前会自动备份 shell 配置', 'Shell configuration is backed up before changes')}</small>
+            <small><ShieldCheck size={13} />{text("legacy.shell_configuration_is_backed_up_before_ch.e3e875")}</small>
           </div>
-          <div className="cleanup-summary-stat"><span>{text('当前选择', 'Selected')}</span><strong>{selectedCount}</strong><small>{text('项启动优化', 'startup items')}</small></div>
-          <div className="cleanup-summary-stat"><span>{text('可优化项目', 'Optimizable')}</span><strong>{terminalSelectable.length}</strong><small>{text('仅展示可直接处理的启动项', 'Only directly actionable startup items are shown')}</small></div>
+          <div className="cleanup-summary-stat"><span>{text("legacy.selected.ad1734")}</span><strong>{selectedCount}</strong><small>{text("legacy.startup_items.47457a")}</small></div>
+          <div className="cleanup-summary-stat"><span>{text("legacy.optimizable.95c84f")}</span><strong>{terminalSelectable.length}</strong><small>{text("legacy.only_directly_actionable_startup_items_are.96298f")}</small></div>
         </> : <>
           <div className="cleanup-reclaimable">
-            <span>{text('安全可释放', 'Safe to reclaim')}</span>
+            <span>{text("legacy.safe_to_reclaim.1f276d")}</span>
             <strong>{formatBytes(trustedBytes)}</strong>
-            <small><ShieldCheck size={13} />{text(`${safeItems.length} 项通过内置规则和路径测量`, `${safeItems.length} items passed built-in rules and path measurement`)}</small>
+            <small><ShieldCheck size={13} />{text("legacy.items_passed_built_in_rules_and_path_measu.2752de", { p0: safeItems.length })}</small>
           </div>
-          <div className="cleanup-summary-stat"><span>{text('当前选择', 'Selected')}</span><strong>{formatBytes(selectedBytes)}</strong><small>{text(`${selectedCount} 项`, `${selectedCount} items`)}</small></div>
-          <div className="cleanup-summary-stat"><span>{text('需要确认', 'Review first')}</span><strong>{reviewItems.length}</strong><small>{text(`${reviewSelectable.length} 项可操作 · ${reviewItems.length - reviewSelectable.length} 条仅供参考`, `${reviewSelectable.length} actionable · ${reviewItems.length - reviewSelectable.length} reference-only clues`)}</small></div>
+          <div className="cleanup-summary-stat"><span>{text("legacy.selected.ad1734")}</span><strong>{formatBytes(selectedBytes)}</strong><small>{text("legacy.items.217ed7", { p0: selectedCount })}</small></div>
+          <div className="cleanup-summary-stat"><span>{text("legacy.review_first.8bc441")}</span><strong>{reviewItems.length}</strong><small>{text("legacy.actionable_reference_only_clues.256775", { p0: reviewSelectable.length, p1: reviewItems.length - reviewSelectable.length })}</small></div>
         </>}
       </div>
 
       <div className={`cleanup-workspace ${standaloneTerminal ? 'is-standalone' : ''}`}>
-        {!standaloneTerminal && <aside className="cleanup-categories" aria-label={text('清理类别', 'Cleanup categories')}>
+        {!standaloneTerminal && <aside className="cleanup-categories" aria-label={text("legacy.cleanup_categories.16c483")}>
           {categories.map((item) => {
             const Icon = item.icon
             const categoryItems = item.id === 'services'
@@ -401,21 +395,21 @@ export function HealthPage({
             const categoryBytes = item.id === 'terminal'
               ? 0
               : categoryItems.reduce((sum, candidate) => sum + ('sizeBytes' in candidate ? candidate.sizeBytes ?? 0 : 0), 0)
-            return <button key={item.id} type="button" className={category === item.id ? 'is-active' : ''} onClick={() => setCategory(item.id)} aria-current={category === item.id ? 'true' : undefined}><Icon size={16} /><span><strong>{item.label}</strong><small>{categoryItems.length ? `${categoryItems.length} · ${formatBytes(categoryBytes)}` : text('无项目', 'No items')}</small></span><ChevronRight size={14} /></button>
+            return <button key={item.id} type="button" className={category === item.id ? 'is-active' : ''} onClick={() => setCategory(item.id)} aria-current={category === item.id ? 'true' : undefined}><Icon size={16} /><span><strong>{item.label}</strong><small>{categoryItems.length ? `${categoryItems.length} · ${formatBytes(categoryBytes)}` : text("legacy.no_items.436b20")}</small></span><ChevronRight size={14} /></button>
           })}
         </aside>}
 
         <div className="cleanup-results">
           <div className="cleanup-results-toolbar">
-            {!standaloneTerminal && <div className="storage-mode-tabs" role="tablist" aria-label={text('清理可信等级', 'Cleanup trust level')}>
-              <button type="button" role="tab" aria-selected={storageMode === 'safe'} className={`storage-mode-tab ${storageMode === 'safe' ? 'is-active' : ''}`} onClick={() => onStorageModeChange('safe')}>{text('安全清理', 'Safe cleanup')} <span>{safeItems.length}</span></button>
-              <button type="button" role="tab" aria-selected={storageMode === 'review'} className={`storage-mode-tab ${storageMode === 'review' ? 'is-active' : ''}`} onClick={() => onStorageModeChange('review')}>{text('需要确认', 'Review first')} <span>{reviewItems.length}</span></button>
+            {!standaloneTerminal && <div className="storage-mode-tabs" role="tablist" aria-label={text("legacy.cleanup_trust_level.1f16e9")}>
+              <button type="button" role="tab" aria-selected={storageMode === 'safe'} className={`storage-mode-tab ${storageMode === 'safe' ? 'is-active' : ''}`} onClick={() => onStorageModeChange('safe')}>{text("legacy.safe_cleanup.2e46bd")} <span>{safeItems.length}</span></button>
+              <button type="button" role="tab" aria-selected={storageMode === 'review'} className={`storage-mode-tab ${storageMode === 'review' ? 'is-active' : ''}`} onClick={() => onStorageModeChange('review')}>{text("legacy.review_first.8bc441")} <span>{reviewItems.length}</span></button>
             </div>}
             <div className="cleanup-toolbar-actions">
-              {!standaloneTerminal && category !== 'terminal' && <button type="button" className="quiet-button" onClick={() => onManageIgnored(category === 'services' ? 'services' : 'storage')}><EyeOff size={14} />{category === 'services' ? text(`已忽略 ${settings.serviceWhitelist.length}`, `${settings.serviceWhitelist.length} ignored`) : text(`已忽略 ${settings.storageWhitelist.length}`, `${settings.storageWhitelist.length} ignored`)}</button>}
+              {!standaloneTerminal && category !== 'terminal' && <button type="button" className="quiet-button" onClick={() => onManageIgnored(category === 'services' ? 'services' : 'storage')}><EyeOff size={14} />{category === 'services' ? text("legacy.ignored.c8e753", { p0: settings.serviceWhitelist.length }) : text("legacy.ignored.c8e753", { p0: settings.storageWhitelist.length })}</button>}
               {category === 'terminal'
-                ? terminalSelectable.length > 0 && <button type="button" className="quiet-button" onClick={toggleVisibleTerminal}>{allTerminalSelected ? text('取消全选', 'Deselect all') : text('全选当前类别', 'Select category')}</button>
-                : visibleSelectable.length > 0 && <button type="button" className="quiet-button" onClick={toggleVisible}>{allVisibleSelected ? text('取消全选', 'Deselect all') : text('全选当前类别', 'Select category')}</button>}
+                ? terminalSelectable.length > 0 && <button type="button" className="quiet-button" onClick={toggleVisibleTerminal}>{allTerminalSelected ? text("legacy.deselect_all.697211") : text("legacy.select_category.705ef0")}</button>
+                : visibleSelectable.length > 0 && <button type="button" className="quiet-button" onClick={toggleVisible}>{allVisibleSelected ? text("legacy.deselect_all.697211") : text("legacy.select_category.705ef0")}</button>}
             </div>
           </div>
 
@@ -430,7 +424,7 @@ export function HealthPage({
                 onDirectAction={(item) => onDirectTerminalFixes([item])}
                 onReveal={onRevealTerminalFinding}
               />
-            )) : <div className="cleanup-empty"><ShieldCheck size={24} /><strong>{text('没有可优化的命令行启动项', 'No optimizable terminal startup items')}</strong><span>{text('当前扫描只发现了无需修改的诊断，已从列表中隐藏。', 'The scan found diagnostics that do not need changes; they are hidden from this list.')}</span></div> : visibleItems.length ? visibleItems.map((candidate) => (
+            )) : <div className="cleanup-empty"><ShieldCheck size={24} /><strong>{text("legacy.no_optimizable_terminal_startup_items.08ab66")}</strong><span>{text("legacy.the_scan_found_diagnostics_that_do_not_nee.ab1512")}</span></div> : visibleItems.length ? visibleItems.map((candidate) => (
               <CleanupRow
                 key={candidate.id}
                 candidate={candidate}
@@ -442,14 +436,14 @@ export function HealthPage({
                 onIgnore={onIgnore}
                 onReveal={onRevealCandidate}
               />
-            )) : <div className="cleanup-empty"><ShieldCheck size={24} /><strong>{category === 'services' ? text('没有检测到后台服务', 'No background services found') : storageMode === 'safe' ? text('当前类别没有可安全清理的项目', 'No safe cleanup items in this category') : text('当前类别没有需要确认的项目', 'No review items in this category')}</strong><span>{text('重新扫描后，结果会按照内置规则自动归类。', 'Results are categorized by built-in rules after each scan.')}</span></div>}
+            )) : <div className="cleanup-empty"><ShieldCheck size={24} /><strong>{category === 'services' ? text("legacy.no_background_services_found.ba7aac") : storageMode === 'safe' ? text("legacy.no_safe_cleanup_items_in_this_category.f4f944") : text("legacy.no_review_items_in_this_category.0226cb")}</strong><span>{text("legacy.results_are_categorized_by_built_in_rules_.6f0454")}</span></div>}
           </div>
         </div>
       </div>
 
       <footer className="cleanup-selection-bar">
-        <div><strong>{selectedCount ? text(`已选择 ${selectedCount} 项`, `${selectedCount} selected`) : text('未选择清理项', 'No cleanup items selected')}</strong><span>{selectedCount ? text(`预计释放 ${formatBytes(selectedBytes)}`, `Estimated ${formatBytes(selectedBytes)}`) : text('勾选经过验证的项目后再执行', 'Select verified items before cleanup')}</span></div>
-        <button type="button" className="primary-button" disabled={!(category === 'terminal' ? selectedTerminalFindings.length : selectedSelections.length) || scanBusy} onClick={() => category === 'terminal' ? onDirectTerminalFixes(selectedTerminalFindings) : onDirectActions(selectedSelections)}>{category === 'terminal' ? <Wrench size={16} /> : <Trash2 size={16} />}{category === 'terminal' ? text('优化所选启动项', 'Optimize selected') : storageMode === 'safe' ? text('清理所选项目', 'Clean selected') : text('确认并清理', 'Review and clean')}</button>
+        <div><strong>{selectedCount ? text("legacy.selected.8b32a5", { p0: selectedCount }) : text("legacy.no_cleanup_items_selected.738dd4")}</strong><span>{selectedCount ? text("legacy.estimated.319482", { p0: formatBytes(selectedBytes) }) : text("legacy.select_verified_items_before_cleanup.dee553")}</span></div>
+        <button type="button" className="primary-button" disabled={!(category === 'terminal' ? selectedTerminalFindings.length : selectedSelections.length) || scanBusy} onClick={() => category === 'terminal' ? onDirectTerminalFixes(selectedTerminalFindings) : onDirectActions(selectedSelections)}>{category === 'terminal' ? <Wrench size={16} /> : <Trash2 size={16} />}{category === 'terminal' ? text("legacy.optimize_selected.013af8") : storageMode === 'safe' ? text("legacy.clean_selected.f5ecf7") : text("legacy.review_and_clean.cac520")}</button>
       </footer>
     </section>
   )

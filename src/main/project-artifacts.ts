@@ -48,7 +48,7 @@ const ARTIFACT_LABELS = new Map<string, { zh: string; en: string }>([
 ])
 
 const MAX_SCAN_DEPTH = 5
-const MAX_PROJECT_ROOTS = 160
+const MAX_VISITED_DIRECTORIES = 20_000
 const DAY_MS = 86_400_000
 
 export interface ProjectArtifact {
@@ -108,7 +108,7 @@ async function discoverFromRoot(
   depth: number,
   now: number
 ): Promise<void> {
-  if (depth > MAX_SCAN_DEPTH || seenRoots.size >= MAX_PROJECT_ROOTS) return
+  if (depth > MAX_SCAN_DEPTH || seenRoots.size >= MAX_VISITED_DIRECTORIES) return
   let realRoot: string
   try {
     const stats = await fs.lstat(root)
@@ -152,7 +152,7 @@ async function discoverFromRoot(
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.isSymbolicLink() || entry.name === '.git' || ARTIFACT_LABELS.has(entry.name)) continue
     await discoverFromRoot(path.join(realRoot, entry.name), results, seenRoots, depth + 1, now)
-    if (seenRoots.size >= MAX_PROJECT_ROOTS) return
+    if (seenRoots.size >= MAX_VISITED_DIRECTORIES) return
   }
 }
 
@@ -164,7 +164,7 @@ export async function discoverProjectArtifacts(
   const seenRoots = new Set<string>()
   for (const root of projectRoots(home)) {
     await discoverFromRoot(root, results, seenRoots, 0, now)
-    if (seenRoots.size >= MAX_PROJECT_ROOTS) break
+    if (seenRoots.size >= MAX_VISITED_DIRECTORIES) break
   }
   return results
 }

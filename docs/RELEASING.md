@@ -8,10 +8,12 @@ GitHub Actions is the only supported path for publishing Memento packages. Devel
 | --- | --- | --- |
 | macOS | Intel x64 | DMG |
 | macOS | Apple Silicon arm64 | DMG |
+| Windows | x64 / arm64 | NSIS installer |
+| Linux | x64 / arm64 | AppImage / DEB |
 
-Full scanning and cleanup are macOS-specific. Windows and Linux packages are built only as temporary Actions artifacts for Renderer and shell portability checks; they are not copied into public Releases. Public macOS packages are signed with the project Developer ID Application identity, notarized by Apple, and stapled before upload.
+The portable storage and process adapters are described in [Cross-platform rebuild](CROSS_PLATFORM_REBUILD.md). Release CI builds and collects every platform. Native `beforePack` compilation matches the package architecture and includes `native/source-revision.json` in Resources. Each build runner needs Rust and its native platform compiler.
 
-In-app updates publish two signed-app macOS ZIPs with blockmaps and one merged `latest-mac.yml`. Together with the two DMGs and `SHA256SUMS.txt`, a complete public release has eight assets. The checksum manifest intentionally covers only the two user-facing DMGs.
+Public macOS packages must be Developer ID signed, notarized and stapled. A complete public release has **19 assets**: eight installers (two DMG, two EXE, two AppImage, two DEB), two signed-app macOS ZIPs, four updater blockmaps, four update manifests and `SHA256SUMS.txt`. The checksum manifest covers eight installers. macOS and Windows manifests merge both architectures; Linux publishes x64 and arm64 manifests separately.
 
 ## Change Checklist
 
@@ -30,6 +32,7 @@ Documentation-only maintenance does not create a new application package unless 
 ```bash
 npm ci
 npm test
+npm run native:test
 npm run typecheck
 npm run build
 npm run scan:smoke
@@ -55,7 +58,7 @@ npm run ui:smoke -- http://127.0.0.1:4174
 Build the required local package with the exact project identity qualifier:
 
 ```bash
-CSC_NAME='Beijing Digital Union Network Technology Co., Ltd. (6EDPX6CD7U)' npm run dist:mac -- --x64
+CSC_NAME='Beijing Digital Union Network Technology Co., Ltd. (6EDPX6CD7U)' npm run dist:mac -- --x64 --config.mac.notarize=false
 ```
 
 The local bundle check verifies the disk image, bundled version, executable architecture, and strict application signature. Record the DMG checksum after any signing or stapling step:
@@ -66,9 +69,9 @@ scripts/verify-mac-dmg.sh x64 "release/Memento-${version}-x64.dmg" bundle
 shasum -a 256 "release/Memento-${version}-x64.dmg"
 ```
 
-The `bundle` mode also checks the application identifier; verify the Developer ID authority and Team ID separately as listed below. A local Developer ID-signed app can pass these checks without notarization credentials. The public workflow uses `developer-id` mode with `APPLE_SIGNING_IDENTITY` and `APPLE_TEAM_ID`; that stricter mode additionally requires the signed DMG, Gatekeeper acceptance, and valid stapled tickets on both the app and DMG. The local build and public CI build can have different checksums; use the Release's `SHA256SUMS.txt` for downloaded public installers.
+Use `developer-id-local` with `APPLE_SIGNING_IDENTITY` and `APPLE_TEAM_ID` to require the Developer ID on both the app and signed DMG without requiring notarization. The `bundle` mode also checks the application identifier; verify the Developer ID authority and Team ID separately as listed below. A local Developer ID-signed app can pass these checks without notarization credentials. The public workflow uses `developer-id` mode with `APPLE_SIGNING_IDENTITY` and `APPLE_TEAM_ID`; that stricter mode additionally requires the signed DMG, Gatekeeper acceptance, and valid stapled tickets on both the app and DMG. The local build and public CI build can have different checksums; use the Release's `SHA256SUMS.txt` for downloaded public installers.
 
-Before committing, verify all of the following:
+Commit the verified source, rebuild so `source-revision.json` records a clean commit, then verify all of the following:
 
 - `hdiutil verify` accepts `release/Memento-<version>-x64.dmg`.
 - The mounted `Memento.app` reports the same version as `package.json`.
@@ -84,10 +87,10 @@ Before committing, verify all of the following:
 1. Merge the verified source into `main` and push `main`.
 2. Read the version from `package.json` and create the matching annotated tag.
 3. Push the tag and monitor the `Release` workflow through publication.
-4. Confirm that the GitHub Release contains exactly eight expected macOS installers, updater payloads, metadata files, and `SHA256SUMS.txt`.
-5. Confirm that `SHA256SUMS.txt` has exactly two DMG entries and does not include itself.
+4. Confirm that the GitHub Release contains exactly 19 expected platform installers, updater payloads, metadata files, and `SHA256SUMS.txt`.
+5. Confirm that `SHA256SUMS.txt` has exactly eight installer entries and does not include itself.
 6. Confirm that both macOS DMGs pass Gatekeeper and contain valid stapled notarization tickets.
-7. Confirm that `latest-mac.yml` contains both architecture-specific ZIPs and that no Windows or Linux package or manifest is present.
+7. Confirm that `latest-mac.yml` contains both architecture-specific ZIPs and validate the Windows/Linux manifests and matching architecture packages.
 
 ```bash
 git switch main
@@ -101,3 +104,11 @@ git push origin "v${version}"
 The workflow rejects a pushed tag that does not exactly match `package.json`. A manual `workflow_dispatch` runs validation and the same native build matrix, retains temporary Actions artifacts for 14 days, and intentionally does not create a public release.
 
 Do not reuse or move an existing release tag. Fix the source, increment the version, and publish a new tag.
+
+For a local signed DMG, sign the final disk image with the full Developer ID Application identity, then run:
+
+```sh
+APPLE_SIGNING_IDENTITY='Developer ID Application: Beijing Digital Union Network Technology Co., Ltd. (6EDPX6CD7U)' APPLE_TEAM_ID=6EDPX6CD7U scripts/verify-mac-dmg.sh x64 release/Memento-1.0.6-x64.dmg developer-id-local
+```
+
+`MEMENTO_SMOKE_EXECUTABLE` can point `electron:smoke` at the packaged application executable. The smoke creates only its own test files and an isolated user profile. Local notarization is optional; public notarization and stapling remain mandatory.

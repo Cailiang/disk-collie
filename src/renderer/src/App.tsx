@@ -1,3 +1,5 @@
+import { ProcessWorkspace } from './ProcessWorkspace'
+import { StorageWorkspace, type StorageView } from './StorageWorkspace'
 import { CheckCircle2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
@@ -65,7 +67,7 @@ import {
   localizedDemoResult
 } from './demo'
 import { withoutDiskUsageNode } from './disk-usage-tree'
-import { I18nProvider } from './i18n'
+import { I18nProvider, useI18n } from './i18n'
 import {
   appendWorkspaceConversation,
   latestWorkspaceConversationRuns
@@ -453,9 +455,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   const overviewMetricsRef = useRef<OverviewMetrics | null>(null)
   const resultRef = useRef<ScanResult | null>(null)
   const automaticScanStarted = useRef(false)
-  const appText = (chinese: string, english: string): string => (
-    settings.language === 'en-US' ? english : chinese
-  )
+  const { text: appText } = useI18n()
 
   const defaultProvider = useMemo(
     () => providers.find((provider) => provider.isDefault) ?? providers[0] ?? null,
@@ -484,7 +484,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   }, [settings.language])
 
   useEffect(() => {
-    if (view !== 'overview' || overviewPaused) return
+    if (!['overview', 'processes'].includes(view) || overviewPaused) return
     void refreshOverview()
     const interval = window.setInterval(() => void refreshOverview(), 2_500)
     return () => window.clearInterval(interval)
@@ -661,26 +661,26 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   }
 
   useEffect(() => {
-    if (view === 'disk' && !diskUsage && !diskUsageBusy) void scanDiskUsage()
+    // StorageWorkspace owns the shared native index.
   }, [diskUsage, diskUsageBusy, scanDiskUsage, view])
 
   const revealDiskUsageNode = (id: string): void => {
     if (!window.memento) {
-      setToast(appText('已在 Finder 中显示', 'Shown in Finder'))
+      setToast(appText("legacy.shown_in_finder.9e6532"))
       return
     }
     void window.memento.revealDiskUsageNode(id).catch((error) => {
-      setToast(error instanceof Error ? error.message : appText('无法显示磁盘项目', 'Could not reveal the disk item.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_reveal_the_disk_item.c9b1cc"))
     })
   }
 
   const revealCandidate = (candidate: ScanCandidate): void => {
     if (!window.memento) {
-      setToast(appText('已打开所在目录', 'Location opened'))
+      setToast(appText("legacy.location_opened.66170e"))
       return
     }
     void window.memento.revealCandidateLocation(candidate.id).catch((error) => {
-      setToast(error instanceof Error ? error.message : appText('无法打开项目目录', 'Could not open the item location.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_open_the_item_location.2ac631"))
     })
   }
 
@@ -693,9 +693,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       else await new Promise((resolve) => window.setTimeout(resolve, 420))
       setDiskUsage((current) => current ? withoutDiskUsageNode(current, node.id) : current)
       setPendingDiskUsageTrash(null)
-      setToast(appText(`“${node.name}”已移到废纸篓`, `"${node.name}" was moved to Trash.`))
+      setToast(appText("legacy.was_moved_to_trash.c949ae", { p0: node.name }))
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法将磁盘项目移到废纸篓', 'Could not move the disk item to Trash.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_move_the_disk_item_to_trash.479eaa"))
     } finally {
       setDiskUsageTrashBusy(false)
     }
@@ -730,7 +730,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       !result &&
       !scanBusy &&
       !automaticScanStarted.current &&
-      (view === 'overview' || view === 'health' || view === 'apps' || view === 'terminal' || view === 'agent')
+      (view === 'terminal' || view === 'agent')
     ) {
       automaticScanStarted.current = true
       void scanNow()
@@ -855,10 +855,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   const askDiskUsageNode = async (node: DiskUsageNode): Promise<void> => {
     if (!resultRef.current && !await scanNow()) return
     startAgentRun(
-      appText(
-        `分析磁盘目录“${node.name}”（${node.location}）。只读分析它的用途和当前使用状态，不要直接修改。`,
-        `Analyze the disk directory "${node.name}" (${node.location}) in read-only mode. Explain its purpose and current usage without changing it.`
-      ),
+      appText("legacy.analyze_the_disk_directory_in_read_only_mo.799f18", { p0: node.name, p1: node.location }),
       { isolated: true, origin: { view: 'disk' }, diskUsageNodeId: node.id }
     )
   }
@@ -866,10 +863,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   const askOverviewProcess = async (process: OverviewProcess): Promise<void> => {
     if (!resultRef.current && !await scanNow()) return
     startAgentRun(
-      appText(
-        `分析实时进程“${process.name}”（PID ${process.pid}，CPU ${process.cpuPercent.toFixed(1)}%，内存 ${formatBytes(process.memoryBytes)}）。说明它的用途和是否值得关注，并明确给出“退出进程”和“强制退出进程”两个需要确认的操作，不要直接执行。`,
-        `Analyze the live process "${process.name}" (PID ${process.pid}, CPU ${process.cpuPercent.toFixed(1)}%, memory ${formatBytes(process.memoryBytes)}). Explain its purpose and whether it needs attention, then provide both confirmable actions: quit process and force quit process. Do not execute either action directly.`
-      ),
+      appText("legacy.analyze_the_live_process_pid_cpu_memory_ex.12b26e", { p0: process.name, p1: process.pid, p2: process.cpuPercent.toFixed(1), p3: formatBytes(process.memoryBytes) }),
       {
         isolated: true,
         origin: { view: 'overview' },
@@ -890,9 +884,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     try {
       if (window.memento) await window.memento.copyOverviewProcessName(name)
       else await navigator.clipboard?.writeText(name)
-      setToast(appText('已复制进程名称', 'Process name copied'))
+      setToast(appText("legacy.process_name_copied.dd0e31"))
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('复制失败', 'Copy failed'))
+      setToast(error instanceof Error ? error.message : appText("legacy.copy_failed.4fa5d3"))
     }
   }
 
@@ -900,9 +894,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     try {
       if (window.memento) await window.memento.copyOverviewProcessPid(pid)
       else await navigator.clipboard?.writeText(String(pid))
-      setToast(appText('已复制进程 PID', 'Process PID copied'))
+      setToast(appText("legacy.process_pid_copied.467451"))
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('复制失败', 'Copy failed'))
+      setToast(error instanceof Error ? error.message : appText("legacy.copy_failed.4fa5d3"))
     }
   }
 
@@ -915,14 +909,14 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       ))
       await refreshOverview(true)
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('进程操作失败', 'Process action failed'))
+      setToast(error instanceof Error ? error.message : appText("legacy.process_action_failed.0c4ce8"))
     }
   }
 
   const executePlan = async (): Promise<void> => {
     if (!activeRun || !selectedPlanIds.size) return
     if (scanBusy) {
-      setToast(appText('请等待当前体检完成后再执行', 'Wait for the current scan to finish before running actions.'))
+      setToast(appText("legacy.wait_for_the_current_scan_to_finish_before.7ecaa6"))
       return
     }
     const runId = activeRun.id
@@ -1035,7 +1029,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const requestDirectAction = (candidate: ScanCandidate, operation: CandidateOperation): void => {
     if (scanBusy) {
-      setToast(appText('请等待当前体检完成后再操作', 'Wait for the current scan to finish before running an action.'))
+      setToast(appText("legacy.wait_for_the_current_scan_to_finish_before.5a304b"))
       return
     }
     setPendingDirectAction({
@@ -1055,7 +1049,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   const requestDirectActions = (selections: CleanupSelection[]): void => {
     if (!selections.length) return
     if (scanBusy) {
-      setToast(appText('请等待当前扫描完成后再操作', 'Wait for the current scan to finish before running actions.'))
+      setToast(appText("legacy.wait_for_the_current_scan_to_finish_before.ceafd4"))
       return
     }
     const reversible = selections.every(({ operation }) => operation.reversible)
@@ -1066,9 +1060,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       candidateIds: selections.map(({ candidate }) => candidate.id),
       kind: 'action',
       verificationMode,
-      subject: appText(`${selections.length} 项清理规则`, `${selections.length} cleanup items`),
-      label: appText(`清理所选 ${selections.length} 项`, `Clean ${selections.length} selected items`),
-      consequence: appText('只执行当前扫描注册的确定性清理操作；执行前主进程会再次校验每个目标。', 'Only deterministic cleanup actions registered by the current scan will run. The main process validates every target again before execution.'),
+      subject: appText("legacy.cleanup_items.6501cd", { p0: selections.length }),
+      label: appText("legacy.clean_selected_items.aa11e8", { p0: selections.length }),
+      consequence: appText("legacy.only_deterministic_cleanup_actions_registe.083ac1"),
       reversible,
       estimatedBytes: selections.reduce((sum, { candidate, operation }) => sum + (operation.estimatedBytes ?? candidate.sizeBytes ?? 0), 0),
       itemLabels: selections.map(({ candidate, operation }) => ({ id: operation.id, label: `${candidate.name} · ${operation.label}` }))
@@ -1079,7 +1073,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     const fixes = findings.map((finding) => finding.fix).filter((fix): fix is NonNullable<typeof fix> => Boolean(fix))
     if (!fixes.length) return
     if (scanBusy) {
-      setToast(appText('请等待当前扫描完成后再操作', 'Wait for the current scan to finish before running an action.'))
+      setToast(appText("legacy.wait_for_the_current_scan_to_finish_before.603e6c"))
       return
     }
     setPendingDirectAction({
@@ -1087,9 +1081,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       ids: fixes.map((fix) => fix.id),
       kind: 'terminal-fix',
       verificationMode: 'scan',
-      subject: appText(`${fixes.length} 项命令行启动优化`, `${fixes.length} terminal startup optimizations`),
-      label: appText(`优化所选 ${fixes.length} 项`, `Optimize ${fixes.length} selected items`),
-      consequence: appText('修改前会自动备份 shell 配置，完成后会重新扫描验证。', 'Shell configuration is backed up before editing, followed by a fresh verification scan.'),
+      subject: appText("legacy.terminal_startup_optimizations.e66f85", { p0: fixes.length }),
+      label: appText("legacy.optimize_selected_items.4244c8", { p0: fixes.length }),
+      consequence: appText("legacy.shell_configuration_is_backed_up_before_ed.4c5efc"),
       reversible: true,
       estimatedBytes: 0,
       itemLabels: fixes.map((fix) => ({ id: fix.id, label: `${findings.find((finding) => finding.fix?.id === fix.id)?.title ?? fix.id} · ${fix.label}` }))
@@ -1110,7 +1104,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       progress: 8,
       itemIds: actionIds,
       items: pendingExecutionItems(action.itemLabels ?? actionIds.map((id) => ({ id, label: id }))),
-      detail: appText(`正在执行“${action.label}”。`, `Running "${action.label}".`)
+      detail: appText("legacy.running.d701be", { p0: action.label })
     })
     await waitForNextPaint()
     try {
@@ -1122,7 +1116,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
             window.setTimeout(() => resolve(actionIds.map((id) => ({
               id,
               ok: true,
-              message: appText('操作完成', 'Action completed')
+              message: appText("legacy.action_completed.a4b7ae")
             }))), 520)
           })
       const completedCount = results.filter((item) => item.ok).length
@@ -1139,8 +1133,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
           return { ...item, status: result?.ok ? 'completed' as const : 'failed' as const, message: result?.message }
         }),
         detail: action.verificationMode === 'local'
-          ? appText('正在确认删除结果并更新当前列表。', 'Confirming the deletion and updating the current list.')
-          : appText('正在重新体检并验证结果。', 'Scanning again to verify the result.')
+          ? appText("legacy.confirming_the_deletion_and_updating_the_c.c9d30a")
+          : appText("legacy.scanning_again_to_verify_the_result.3c8c71")
       })
       if (action.verificationMode === 'local') {
         const completedCandidateIds = new Set<string>()
@@ -1222,7 +1216,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     } catch (error) {
       const message = error instanceof Error
         ? error.message
-        : appText('操作或复检未能完成', 'The action or verification did not complete.')
+        : appText("legacy.the_action_or_verification_did_not_complet.49293f")
       setExecutionState({
         phase: 'failed',
         verificationMode: action.verificationMode,
@@ -1244,7 +1238,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     if (!agentOrigin) return
     if (agentOrigin.view === 'overview') {
       setAgentOrigin(null)
-      setView('overview')
+      setView('processes')
       return
     }
     if (agentOrigin.view === 'disk') {
@@ -1354,13 +1348,10 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
           (candidate.operations ?? []).some((operation) => operation.id === application.action?.id)
         ))
       } : current)
-      setToast(appText(
-        `${application.name} 已加入忽略列表`,
-        `${application.name} was added to Ignored items.`
-      ))
+      setToast(appText("legacy.was_added_to_ignored_items.7ed23e", { p0: application.name }))
       setPendingApplicationIgnore(null)
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法更新忽略列表', 'Could not update Ignored items.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_update_ignored_items.df01ee"))
     } finally {
       setIgnoreBusy(false)
     }
@@ -1379,13 +1370,10 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       setResult((current) => current
         ? { ...current, candidates: current.candidates.filter((candidate) => candidate.id !== pendingIgnore.id) }
         : current)
-      setToast(appText(
-        `${pendingIgnore.name} 已加入忽略列表`,
-        `${pendingIgnore.name} was added to Ignored items.`
-      ))
+      setToast(appText("legacy.was_added_to_ignored_items.7ed23e", { p0: pendingIgnore.name }))
       setPendingIgnore(null)
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法更新忽略列表', 'Could not update Ignored items.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_update_ignored_items.df01ee"))
     } finally {
       setIgnoreBusy(false)
     }
@@ -1400,9 +1388,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
           ? { storageWhitelist: settings.storageWhitelist.filter((item) => item !== value) }
           : { applicationWhitelist: settings.applicationWhitelist.filter((item) => item !== value) })
       await scanNow()
-      setToast(appText('已恢复检测', 'Detection restored.'))
+      setToast(appText("legacy.detection_restored.531f0a"))
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法恢复检测', 'Could not restore detection.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_restore_detection.58cb35"))
     } finally {
       setRestoreBusyValue(null)
     }
@@ -1412,9 +1400,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     setOpeningApplicationId(application.id)
     try {
       if (window.memento) await window.memento.openApplication(application.id)
-      setToast(appText(`已打开 ${application.name}`, `Opened ${application.name}.`))
+      setToast(appText("legacy.opened.c3d642", { p0: application.name }))
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法打开应用', 'Could not open the application.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_open_the_application.f7a0ec"))
     } finally {
       setOpeningApplicationId(null)
     }
@@ -1430,14 +1418,14 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
           : { status: 'updated' as const }
       if (outcome.status === 'updated') {
         await scanNow()
-        setToast(appText(`${application.name} 已更新`, `${application.name} was updated.`))
+        setToast(appText("legacy.was_updated.df1b36", { p0: application.name }))
       } else {
         setToast(outcome.destination === 'app-store'
-          ? appText(`已打开 App Store，请完成 ${application.name} 的更新后重新检查。`, `The App Store is open. Finish updating ${application.name}, then check again.`)
-          : appText(`已打开 ${application.name} 的更新入口，请完成更新后重新检查。`, `${application.name}'s updater is open. Finish the update, then check again.`))
+          ? appText("legacy.the_app_store_is_open_finish_updating_then.469610", { p0: application.name })
+          : appText("legacy.s_updater_is_open_finish_the_update_then_c.bbd318", { p0: application.name }))
       }
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('应用更新失败', 'Application update failed.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.application_update_failed.dad306"))
     } finally {
       setUpdatingApplicationId(null)
     }
@@ -1448,25 +1436,19 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       if (window.memento) await window.memento.openSystemSettings(section)
       else setView('settings')
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法打开系统设置', 'Could not open System Settings.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_open_system_settings.12e03c"))
     }
   }
 
   const openActivityMonitorNetwork = async (): Promise<void> => {
     try {
-      setToast(appText(
-        '正在打开活动监视器。自动选择“网络”面板只需要辅助功能权限来点击该标签。',
-        'Opening Activity Monitor. Accessibility is only needed to click the Network tab automatically.'
-      ))
+      setToast(appText("legacy.opening_activity_monitor_accessibility_is_.e648fb"))
       const selected = window.memento ? await window.memento.openActivityMonitorNetwork() : true
       if (!selected) {
-        setToast(appText(
-          '活动监视器已打开。若要自动切换到“网络”面板，请在“系统设置 → 隐私与安全性 → 辅助功能”中允许 Memento。此权限仅用于点击活动监视器的“网络”标签。',
-          'Activity Monitor is open. To switch to the Network panel automatically, allow Memento in System Settings → Privacy & Security → Accessibility. This permission is only used to click Activity Monitor’s Network tab.'
-        ))
+        setToast(appText("legacy.activity_monitor_is_open_to_switch_to_the_.5f87e8"))
       }
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法打开活动监视器', 'Could not open Activity Monitor.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_open_activity_monitor.a8ed91"))
     }
   }
 
@@ -1474,7 +1456,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     try {
       if (window.memento) await window.memento.revealTerminalFinding(finding.id)
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法打开终端配置', 'Could not open the terminal configuration.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_open_the_terminal_configuration.78bcbe"))
     }
   }
 
@@ -1498,9 +1480,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         setRunStatusMessage('')
       }
       setPendingHistoryDelete(null)
-      setToast(appText(`已删除 ${selectedRuns.length} 条任务记录`, `${selectedRuns.length} task records deleted.`))
+      setToast(appText("legacy.task_records_deleted.6917a3", { p0: selectedRuns.length }))
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法删除任务记录', 'Could not delete task history.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_delete_task_history.12795a"))
     } finally {
       setHistoryDeleteBusy(false)
     }
@@ -1514,12 +1496,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       if (window.memento) await window.memento.deleteMaintenanceRuns([...selectedIds])
       setMaintenanceRuns((current) => current.filter((run) => !selectedIds.has(run.id)))
       setPendingMaintenanceDelete(null)
-      setToast(appText(
-        `已删除 ${selectedIds.size} 条维护审计记录`,
-        `${selectedIds.size} maintenance audit records deleted.`
-      ))
+      setToast(appText("legacy.maintenance_audit_records_deleted.ae52d1", { p0: selectedIds.size }))
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法删除维护记录', 'Could not delete maintenance history.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_delete_maintenance_history.44d741"))
     } finally {
       setHistoryDeleteBusy(false)
     }
@@ -1527,11 +1506,11 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const revealMaintenanceRecovery = (operationRecordId: string): void => {
     if (!window.memento) {
-      setToast(appText('已打开恢复位置', 'Recovery location opened.'))
+      setToast(appText("legacy.recovery_location_opened.437d64"))
       return
     }
     void window.memento.revealMaintenanceRecovery(operationRecordId).catch((error) => {
-      setToast(error instanceof Error ? error.message : appText('无法打开恢复位置', 'Could not open the recovery location.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_open_the_recovery_location.ea570c"))
     })
   }
 
@@ -1547,17 +1526,14 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
             window.setTimeout(() => resolve([{
               id: actionId,
               ok: true,
-              message: appText('操作完成', 'Operation completed')
+              message: appText("legacy.operation_completed.4a9496")
             }]), 650)
           })
       const failure = results.find((item) => !item.ok)
       if (failure) throw new Error(failure.message)
       setRemovingApplicationId(application.id)
       setPendingUninstall(null)
-      setToast(appText(
-        `${application.name} 已移到废纸篓`,
-        `${application.name} was moved to the Trash.`
-      ))
+      setToast(appText("legacy.was_moved_to_the_trash.efff51", { p0: application.name }))
       const exitDuration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 20 : 420
       await new Promise<void>((resolve) => window.setTimeout(resolve, exitDuration))
       setResult((current) => current ? {
@@ -1567,7 +1543,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       setRemovingApplicationId(null)
       if (window.memento) void scanNow()
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法卸载应用', 'Could not uninstall the application.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_uninstall_the_application.da57bc"))
     } finally {
       setUninstallBusy(false)
     }
@@ -1621,7 +1597,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       await refreshProviders()
       return provider
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法保存供应商', 'Could not save the provider.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_save_the_provider.e8bd50"))
       throw error
     }
   }
@@ -1632,14 +1608,14 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         ? await window.memento.testAgentProvider(input)
         : {
             ok: true,
-            message: appText('连接成功，模型支持工具调用', 'Connected. The model supports tool calling.'),
+            message: appText("legacy.connected_the_model_supports_tool_calling.27451d"),
             toolCalling: true,
             testedAt: new Date().toISOString()
           }
       if (window.memento) await refreshProviders()
       return tested
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('连接测试失败', 'Connection test failed.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.connection_test_failed.e28922"))
       throw error
     }
   }
@@ -1648,9 +1624,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     try {
       if (window.memento) await window.memento.deleteAgentProvider(id)
       setProviders((current) => current.filter((provider) => provider.id !== id))
-      setToast(appText('供应商配置已删除', 'Provider configuration deleted.'))
+      setToast(appText("legacy.provider_configuration_deleted.3da99c"))
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法删除供应商', 'Could not delete the provider.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_delete_the_provider.fda080"))
       throw error
     }
   }
@@ -1663,13 +1639,10 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       setProviders(next)
       const provider = next.find((item) => item.id === id)
       setToast(provider
-        ? appText(
-            `${provider.name} 已设为默认供应商，新任务将使用 ${provider.model}`,
-            `${provider.name} is now the default provider. New tasks use ${provider.model}.`
-          )
-        : appText('默认供应商已更新', 'Default provider updated.'))
+        ? appText("legacy.is_now_the_default_provider_new_tasks_use.58cad4", { p0: provider.name, p1: provider.model })
+        : appText("legacy.default_provider_updated.71e836"))
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法更新默认模型', 'Could not update the default model.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_update_the_default_model.f6e00b"))
       throw error
     }
   }
@@ -1681,28 +1654,16 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         : { sourcesFound: 4, detected: 4, imported: 2, rejected: 2, removed: 0 }
       await refreshProviders()
       const removedText = imported.removed > 0
-        ? appText(
-            `；同时移除 ${imported.removed} 个先前错误导入的配置`,
-            `; ${imported.removed} previously imported invalid configurations removed`
-          )
+        ? appText("legacy.previously_imported_invalid_configurations.5cb8fe", { p0: imported.removed })
         : ''
       setToast(imported.sourcesFound === 0
-        ? appText(
-            `没有找到 Claude、Codex、Gemini 或 Grok 配置${removedText}`,
-            `No Claude, Codex, Gemini, or Grok configuration was found${removedText}.`
-          )
+        ? appText("legacy.no_claude_codex_gemini_or_grok_configurati.931651", { p0: removedText })
         : imported.detected === imported.rejected
-          ? appText(
-              `发现的本机 AI 配置均未通过密钥、服务地址和模型校验，已全部过滤${removedText}`,
-              `All discovered local AI configurations failed credential, endpoint, or model validation and were filtered out${removedText}.`
-            )
-          : appText(
-              `发现 ${imported.detected} 个配置，新增或更新 ${imported.imported} 个，过滤 ${imported.rejected} 个无效配置${removedText}`,
-              `${imported.detected} configurations found; ${imported.imported} added or updated and ${imported.rejected} invalid configurations filtered out${removedText}.`
-            ))
+          ? appText("legacy.all_discovered_local_ai_configurations_fai.a98bba", { p0: removedText })
+          : appText("legacy.configurations_found_added_or_updated_and_.0e124d", { p0: imported.detected, p1: imported.imported, p2: imported.rejected, p3: removedText }))
       return imported
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法扫描本机 AI 配置', 'Could not scan local AI configurations.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_scan_local_ai_configurations.51ec20"))
       throw error
     }
   }
@@ -1714,24 +1675,15 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         : { databaseFound: true, detected: 2, imported: 1, rejected: 1, removed: 0 }
       await refreshProviders()
       setToast(!imported.databaseFound
-        ? appText('没有找到本地 CC Switch 配置', 'No local CC Switch configuration was found.')
+        ? appText("legacy.no_local_cc_switch_configuration_was_found.6bbb4d")
         : imported.detected === 0
-          ? appText(
-              'CC Switch 中没有可校验的完整配置',
-              'CC Switch has no complete configuration to validate.'
-            )
+          ? appText("legacy.cc_switch_has_no_complete_configuration_to.e4e25b")
           : imported.detected === imported.rejected
-            ? appText(
-                'CC Switch 配置均未通过密钥、服务地址和模型校验，已全部过滤',
-                'All CC Switch configurations failed credential, endpoint, or model validation and were filtered out.'
-              )
-            : appText(
-                `已复制 ${imported.imported} 个 CC Switch 配置，过滤 ${imported.rejected} 个无效配置。复制后可在 Memento 中自由修改。`,
-                `${imported.imported} CC Switch configurations were copied; ${imported.rejected} invalid configurations were filtered out. Copies can be edited freely in Memento.`
-              ))
+            ? appText("legacy.all_cc_switch_configurations_failed_creden.e74f2c")
+            : appText("legacy.cc_switch_configurations_were_copied_inval.b1dde1", { p0: imported.imported, p1: imported.rejected }))
       return imported
     } catch (error) {
-      setToast(error instanceof Error ? error.message : appText('无法导入 CC Switch', 'Could not import CC Switch.'))
+      setToast(error instanceof Error ? error.message : appText("legacy.could_not_import_cc_switch.9c34ee"))
       throw error
     }
   }
@@ -1758,7 +1710,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         phase: 'error',
         downloadPercent: null,
         checkedAt: new Date().toISOString(),
-        error: error instanceof Error ? error.message : appText('无法检查更新', 'Could not check for updates.')
+        error: error instanceof Error ? error.message : appText("legacy.could_not_check_for_updates.09e020")
       }))
     }
   }
@@ -1773,7 +1725,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         ...current,
         phase: 'error',
         downloadPercent: null,
-        error: error instanceof Error ? error.message : appText('无法安装更新', 'Could not install the update.')
+        error: error instanceof Error ? error.message : appText("legacy.could_not_install_the_update.6f0bb8")
       } : current)
     })
   }
@@ -1828,19 +1780,19 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     setRunStatusMessage('')
   }
   const agentOriginLabel = agentOrigin?.view === 'overview'
-    ? appText('概览', 'Overview')
+    ? appText('nav.processes')
     : agentOrigin?.view === 'apps'
-    ? appText('应用管理', 'Applications')
+    ? appText("legacy.applications.516cc6")
     : agentOrigin?.view === 'disk'
-      ? appText('磁盘分析', 'Disk analysis')
+      ? appText("legacy.disk_analysis.045d77")
     : agentOrigin?.view === 'terminal'
-      ? appText('命令行启动优化', 'Terminal startup')
+      ? appText("legacy.terminal_startup.54e632")
     : agentOrigin?.view === 'health'
       ? agentOrigin.tab === 'services'
-        ? appText('后台服务', 'Services')
+        ? appText("legacy.services.c83843")
         : agentOrigin.tab === 'terminal'
-          ? appText('终端诊断', 'Terminal')
-          : appText('存储空间', 'Storage')
+          ? appText("legacy.terminal.19bb19")
+          : appText("legacy.storage.3a8df2")
       : null
 
   const openAgentApplication = (id: string): void => {
@@ -1871,29 +1823,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       }}
       onInstallUpdate={installUpdate}
     >
-      {view === 'overview' && <OverviewPage metrics={overviewMetrics} applications={result?.applications ?? []} applicationsLoading={scanBusy && !result} applicationScanProgress={scanBusy && !result ? progress?.progress ?? null : null} busy={overviewBusy} paused={overviewPaused} error={overviewError} onRefresh={() => void refreshOverview(true)} onPausedChange={setOverviewPaused} onAskProcess={(process) => void askOverviewProcess(process)} onCopyProcessName={(name) => void copyOverviewProcessName(name)} onCopyProcessPid={(pid) => void copyOverviewProcessPid(pid)} onTerminateProcess={(process, force) => void terminateOverviewProcess(process, force)} onOpenApplications={(filter = 'all') => { setApplicationEntryFilter(filter); setView('apps') }} onOpenDisk={() => setView('disk')} onOpenSystemSettings={(section) => void openSystemSettings(section)} onOpenActivityMonitorNetwork={() => void openActivityMonitorNetwork()} />}
+      {view === 'processes' && <ProcessWorkspace metrics={overviewMetrics} paused={overviewPaused} error={overviewError} onPause={setOverviewPaused} onAsk={(p) => void askOverviewProcess(p)} onCopyName={(name) => void copyOverviewProcessName(name)} onCopyPid={(pid) => void copyOverviewProcessPid(pid)} onTerminate={(p,force) => void terminateOverviewProcess(p,force)} />}
       {view === 'agent' && <AgentPage scan={result} run={activeRun} conversationRuns={conversationRuns} workspaceRuns={workspaceRuns} statusMessage={runStatusMessage} selectedPlanIds={selectedPlanIds} providerConfigured={Boolean(defaultProvider)} addingOperationId={addingOperationId} openingApplicationId={openingApplicationId} returnLabel={agentOriginLabel} onSubmit={startAgentRun} onSelectWorkspaceRun={selectWorkspaceRun} onCloseWorkspaceRun={closeWorkspaceRun} onNewTask={() => { setActiveRun(null); activeRunId.current = null; setSelectedPlanIds(new Set()); setRunStatusMessage(''); setAgentOrigin(null) }} onOpenHistory={() => setView('history')} onOpenSettings={() => setView('settings')} onReturn={returnToAgentOrigin} onOpenApplication={openAgentApplication} onAddPlanItem={(id) => void addAgentPlanItem(id)} onTogglePlanItem={(id) => setSelectedPlanIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })} onExecutePlan={() => void executePlan()} onDiscardPlan={discardPlan} />}
-      {view === 'health' && <HealthPage
-        result={result}
-        settings={settings}
-        scanBusy={scanBusy}
-        progress={progress}
-        storageMode={storageMode}
-        restoreTarget={restoreTarget?.view === 'health' ? restoreTarget : null}
-        onRestoreComplete={() => setRestoreTarget(null)}
-        onScan={() => void scanNow()}
-        onStorageModeChange={changeStorageMode}
-        onRevealCandidate={revealCandidate}
-        onAgentPrompt={(prompt, origin: HealthAgentOrigin) => startAgentRun(prompt, { isolated: true, origin: { view: 'health', ...origin } })}
-        onDirectAction={requestDirectAction}
-        onDirectActions={requestDirectActions}
-        selectedIds={cleanupSelectedIds}
-        onSelectedIdsChange={setCleanupSelectedIds}
-        onDirectTerminalFixes={requestDirectTerminalFixes}
-        onRevealTerminalFinding={(finding) => void revealTerminalFinding(finding)}
-        onIgnore={setPendingIgnore}
-        onManageIgnored={openIgnoredManager}
-      />}
       {view === 'terminal' && <HealthPage
         standaloneTerminal
         result={result}
@@ -1916,9 +1847,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         onIgnore={setPendingIgnore}
         onManageIgnored={openIgnoredManager}
       />}
-      {view === 'apps' && <ApplicationsPage applications={result?.applications ?? []} hasResult={Boolean(result)} loading={scanBusy || (!result && !scanError)} progress={progress} error={scanError} openingId={openingApplicationId} removingId={removingApplicationId} updatingId={updatingApplicationId} initialFilter={applicationEntryFilter} restoreTarget={restoreTarget?.view === 'apps' ? restoreTarget : null} onRestoreComplete={() => setRestoreTarget(null)} ignoredCount={settings.applicationWhitelist.length} onOpen={(application) => void openApplication(application)} onUpdate={(application) => void updateApplication(application)} onUninstall={setPendingUninstall} onIgnore={setPendingApplicationIgnore} onManageIgnored={() => openIgnoredManager('applications')} onAgentPrompt={(prompt, origin) => startAgentRun(prompt, { isolated: true, origin: { view: 'apps', ...origin } })} onScan={() => void scanNow()} />}
-      {view === 'disk' && <DiskAnalysisPage result={diskUsage} progress={diskUsageProgress} busy={diskUsageBusy} error={diskUsageError} onScan={() => void scanDiskUsage()} onCancel={cancelDiskUsageScan} onReveal={revealDiskUsageNode} onAskAI={(node) => void askDiskUsageNode(node)} onRequestTrash={setPendingDiskUsageTrash} />}
-      {view === 'history' && <HistoryPage runs={runs} maintenanceRuns={maintenanceRuns} onOpenRun={(run) => { setActiveRun(run); activeRunId.current = run.id; setSelectedPlanIds(new Set()); setView('agent') }} onDeleteRuns={setPendingHistoryDelete} onDeleteMaintenanceRuns={setPendingMaintenanceDelete} onRevealRecovery={revealMaintenanceRecovery} />}
+      <div style={{ display: ['overview','health','large','duplicates','disk','privacy','apps','history'].includes(view) ? undefined : 'none' }}>
+        <StorageWorkspace view={(['overview','health','large','duplicates','disk','privacy','apps','history'].includes(view) ? view : 'overview') as StorageView} metrics={overviewMetrics} onNavigate={setView} historyChildren={<HistoryPage runs={runs} maintenanceRuns={maintenanceRuns} onOpenRun={(run) => { setActiveRun(run); activeRunId.current = run.id; setSelectedPlanIds(new Set()); setView('agent') }} onDeleteRuns={setPendingHistoryDelete} onDeleteMaintenanceRuns={setPendingMaintenanceDelete} onRevealRecovery={revealMaintenanceRecovery} />} />
+      </div>
       {view === 'settings' && <SettingsPage settings={settings} providers={providers} appVersion={appVersion} updateState={updateState} onUpdateSettings={updateSettings} onDiscoverModels={discoverProviderModels} onSaveProvider={saveProvider} onTestProvider={testProvider} onDeleteProvider={deleteProvider} onSetDefaultProvider={setDefaultProvider} onImportLocalAi={importLocalAiConfigurations} onImportCcSwitch={importCcSwitchProviders} onCheckUpdates={checkForUpdates} onManageIgnored={() => openIgnoredManager()} onToast={setToast} />}
 
       {pendingDirectAction && <DirectActionConfirmDialog action={pendingDirectAction} onClose={() => setPendingDirectAction(null)} onConfirm={() => void executeDirectAction()} />}

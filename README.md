@@ -1,116 +1,50 @@
-# Memento Agent
+# Memento
 
-[![Release](https://github.com/Cailiang/memento-client/actions/workflows/release.yml/badge.svg)](https://github.com/Cailiang/memento-client/actions/workflows/release.yml)
+A local desktop workspace for making space: large files, verified duplicates, an interactive disk map, cache cleanup, privacy, and application removal. Process management and the user-configured AI Agent remain first-class tools.
 
-Memento is a local desktop maintenance agent. It combines deterministic device inspection and cleanup tools with a model configured by the user. The model can explain findings and prepare an action plan, but Memento executes only registered operations that the user reviews and confirms.
+[简体中文](README_ZH.md) · [Architecture and comparison](docs/CROSS_PLATFORM_REBUILD.md) · [Development](docs/LOCAL_AGENT_DEVELOPMENT.md) · [Packaging](docs/RELEASING.md)
 
-[简体中文](README_ZH.md) | [Latest release](https://github.com/Cailiang/memento-client/releases/latest)
+## The workspace
 
-## Capabilities
+- **Overview:** available disk space, direct task entry points, completed cleanup totals and recent activity. Trash totals are shown separately from permanently cleaned caches.
+- **Smart cleanup:** explicit cache/developer/log rules for each OS; no automatic selections. Cache removal is permanent and requires confirmation.
+- **Large files:** size and name filters over one shared native index. Personal files move to the system Trash after review.
+- **Duplicates:** size → samples → complete BLAKE3 hashes. Hard links and cloud placeholders are excluded. At least one copy must remain, and contents are checked again before removal.
+- **Space explorer:** interactive treemap, folder drill-down, breadcrumbs and a list alternative. The index covers the chosen folder on one filesystem; unreadable/skipped entries and limits are visible.
+- **Privacy:** supported browser history and recent-document records, including existing SQLite sidecars. Browsers must be closed. Passwords, cookies and personal documents are excluded.
+- **Applications:** macOS bundle and related-file inspection, optional associated data, protected system apps; Windows/Linux hand off package removal to the OS uninstaller/package manager.
+- **Processes:** live memory/CPU usage, search, pause, details, copy name/PID, confirmed quit/force-quit and AI explanation.
+- **AI assistant:** your own provider and model; deterministic evidence, registered actions, an explicit confirmation plan and encrypted local credentials. No hosted Memento backend.
+- **Activity / Settings:** a persistent cleanup record, existing Agent conversations and maintenance ledger, theme, language, providers and application updates.
 
-- **AI assistant:** describe a maintenance goal in plain language, inspect structured results, review a proposed plan, and verify the outcome.
-- **Overview:** inspect health, CPU, GPU, memory, battery, disk, network, application counts, and a larger live process list in one quiet workspace. Disk availability follows macOS's native capacity estimate, including purgeable space, and is displayed in decimal GB. CPU and memory cards jump to descending process views; Disk opens Disk analysis; Battery opens System Settings and Network opens Activity Monitor's Network panel. Filter processes by User or System, see matching application logos including Memento when available, ask the local Agent about a process and receive confirmable quit or force-quit actions, copy its name/PID, and quit only non-system processes with a revalidated action. The process list holds its current order while you interact with it so live refreshes do not move the action menu.
-- **Cleanup:** scan rebuildable data by system, application, browser, developer, log, device, and background-service categories; safe items are preselected while review items remain opt-in. Outside-rule clues expose a separately confirmed move-to-Trash action when a registered target is available, and AI explanations preserve your cleanup selection when you return. Cleanup runs show a fast per-item animation and keep failed entries visible with their error and a retry action.
-- **Terminal startup:** review shell startup and PATH findings with registered fixes in a first-class module alongside Applications and Disk analysis. Open the related configuration for review and confirm fixes that create a backup before applying. Diagnostics without a registered fix are excluded from the optimization list.
-- **Applications:** inspect installed applications and metadata, see a staged loading view while the inventory is scanned, check Homebrew Cask, receipt-backed Mac App Store, and Sparkle appcast sources (including the DuckDuckGo release fallback), distinguish updates Memento can install from updates that need an external updater, click an application card to open it, ignore an app, and move supported apps to Trash after confirmation.
-- **Disk analysis:** browse storage hierarchically and use validated opaque node operations to reveal a directory, ask AI for an explanation, or move it to Trash.
-- **Activity:** audit every direct, Agent, disk-browser, terminal, and recovery operation in one local maintenance ledger; Agent conversations remain available on a separate tab.
-- **Settings:** manage model providers, automatic background updates, window behavior, ignored items, theme, and language.
+## Stack and platforms
 
-## Safety Model
+Electron + React + TypeScript provide the shell and existing model integrations. An independently implemented Rust sidecar owns read-only indexing, metadata aggregation, duplicate verification and portable system inspection. macOS uses `getattrlistbulk` with a standard traversal fallback; Windows/Linux use bounded parallel native traversal. Directory and large-file queries reuse the same index and are paginated.
 
-Memento does not give the model a general shell or unrestricted filesystem access.
+macOS, Windows and Linux adapters and x64/arm64 packaging are configured. macOS x64 is locally runtime tested. Windows native code is also cross-compile checked locally; Windows/Linux runtime verification is assigned to the three-OS CI workflow. macOS terminal/startup/service internals remain platform-specific. See the capability matrix and validation boundaries in the architecture document.
 
-1. Deterministic scanners create a device snapshot and register the operations valid for that snapshot.
-2. Read-only Agent tools expose compact findings and opaque operation IDs.
-3. The model can select only observed IDs when preparing structured results or a plan.
-4. The user chooses the plan items and confirms them in a destructive-action dialog.
-5. The Electron main process revalidates every operation before execution and verifies the result afterward.
+## Develop and verify
 
-Every scan candidate carries explicit confidence, stable reason codes, and estimate quality. Weak ownership clues do not reduce system health, increase safely reclaimable space, or affect the sidebar count. The deterministic scan and direct cleanup workflow work without a model provider; AI is used only when the user asks for explanation or plan generation.
+Requires Node ≥22.13, npm and Rust ≥1.88. Packaging needs the target platform toolchain; macOS packages require the project Developer ID.
 
-Ignored storage, service, and application items are removed from scan results, executable operations, and Agent context. API keys remain in the main process and are never returned to the Renderer or included in model prompts.
-
-## Platform Support
-
-| Platform | Status |
-| --- | --- |
-| macOS | Supported product: scanning, analysis, cleanup, signed packaging, and updates |
-| Windows / Linux | Internal CI portability builds only; not published or supported as maintenance products |
-
-## Quick Start
-
-Requirements:
-
-- macOS for device scanning and cleanup
-- Node.js 22.13 or later
-- npm
-
-```bash
+```sh
 npm ci
 npm run dev
-```
-
-The application opens on the local Overview. No model is required for live metrics, deterministic rule scanning, categorized selection, confirmed batch cleanup, or maintenance history. Configure a provider in **Settings** only when an item needs AI explanation or plan generation. Choose OpenAI, Anthropic, Google Gemini, DeepSeek, Grok/xAI, Antigravity, or a custom OpenAI-compatible endpoint; Memento supplies the protocol, official endpoint, and a tested recommended model for named providers.
-
-On its first local-configuration scan, Memento reads API configurations from `~/.claude`, `~/.codex`, `~/.gemini`, and `~/.grok`. Before importing, it uses the provider's read-only model catalog to validate the credential, endpoint, and configured model. Malformed, incomplete, unauthorized, OAuth-only, unsupported session-token, and unavailable-model configurations are filtered out; a new scan also removes previously imported local configurations that no longer pass validation.
-
-CC Switch is optional. When Memento first detects complete provider configurations in its local database, it asks once whether to import them. Accepted configurations pass the same model-catalog validation and become independent, editable, encrypted copies in Memento. Settings offers **Copy CC Switch configurations** for an explicit retry; copying again can replace the corresponding imported row with the current source values, but it never removes earlier copies because the source was deleted or failed validation. There is no background synchronization or write-back to CC Switch.
-
-Application update checks use Homebrew Cask, receipt-backed Mac App Store lookup, and Sparkle feeds. App Store detection works without `mas`; without it, installation opens the App Store. If DuckDuckGo's appcast provides no newer version or cannot be reached, Memento checks its official GitHub macOS release tags and marks a detected update for the app's external updater. See [Application update discovery](docs/LOCAL_AGENT_DEVELOPMENT.md#43-application-update-discovery) for source selection and installation boundaries.
-
-## Verification
-
-```bash
+npm run dev:web -- --port 4178
 npm test
-npm run typecheck
+npm run native:test
 npm run build
 npm run scan:smoke
 npm run electron:smoke
-npm run audit:runtime
+npm run ui:smoke -- http://127.0.0.1:4178
 ```
 
-Start the web development server in one terminal:
+The browser preview uses explicit demo data and is labeled **Demo workspace**. The packaged app always uses the local IPC/native engine; it never substitutes demo results on errors.
 
-```bash
-npm run dev:web -- --port 4174 --strictPort
-```
+Language catalogs are in `src/shared/locales`. Add a catalog and register its locale in `src/shared/localization.ts`. The language selector and settings validation follow that registry. Catalog parity and interpolation are tested; missing keys fall back to English. Dates and numbers use `Intl`.
 
-Then run the browser UI smoke test in a second terminal:
+## File operations
 
-```bash
-npm run ui:smoke -- http://127.0.0.1:4174
-```
+The Renderer sends IDs, never mutation paths or shell commands. The main process checks selection scope, generation, registered identity and path components again. Personal files and app bundles go to Trash; narrowly scoped caches/history are permanently removed only after a separate confirmation. System/app-data directories are protected in the large-file browser. Cleanup records report processed bytes as estimates; they do not claim newly available disk space. Local scans do not upload file contents. Asking the AI sends the existing compact maintenance context to your configured provider.
 
-`npm run audit:runtime` checks dependencies shipped with the application. Use `npm run audit` when development and packaging dependencies should also be included.
-
-## Local Data
-
-Memento stores settings, providers, conversations, plans, tool calls, and the unified maintenance ledger in a local SQLite database under Electron's application data directory. Recovery references and private paths remain local and are not returned through history-list IPC. API keys are encrypted with AES-256-GCM using a separate local master key with restricted permissions.
-
-This protects credentials from accidental exposure in the Renderer, database, prompts, and logs. It does not claim to protect against an attacker who can read the complete application data directory and process memory.
-
-## Documentation
-
-- [Local Agent architecture and development](docs/LOCAL_AGENT_DEVELOPMENT.md)
-- [Release process](docs/RELEASING.md)
-- [Security policy](SECURITY.md)
-- [Contributing](CONTRIBUTING.md)
-- [Changelog](CHANGELOG.md)
-- [Current release notes](RELEASE_NOTES.md)
-
-## Distribution
-
-The `Release` GitHub Actions workflow builds the following packages from a matching `v*` tag:
-
-| Platform | Architectures | Packages |
-| --- | --- | --- |
-| macOS | Intel x64, Apple Silicon arm64 | DMG |
-
-Memento checks for updates hourly. A new version downloads in the background, then an **Update** button appears beside the sidebar version; selecting it installs the downloaded package and restarts the app without a separate update popup. The updater exits the app explicitly even when the optional keep-in-menu-bar setting is enabled.
-
-Each GitHub Release contains two DMGs, two signed-app updater ZIPs, two blockmaps, `latest-mac.yml`, and `SHA256SUMS.txt` (eight assets total). The checksum manifest contains exactly the two DMGs. Windows and Linux builds remain temporary GitHub Actions artifacts for portability checks and are excluded from public Release collection. macOS packages are signed with the project's Developer ID Application certificate, notarized by Apple, and stapled before upload.
-
-## License
-
-[MIT](LICENSE)
+Memento remains MIT licensed. MangoDisk was studied as a GPL-3.0 reference; its source and assets were not incorporated.

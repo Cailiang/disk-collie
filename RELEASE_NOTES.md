@@ -1,3 +1,25 @@
+# Memento 1.0.6 — 重新找回空间 / A lighter workspace
+
+## 简体中文
+
+- 全新首页与清晰导航：大文件、重复文件、空间分析、隐私、应用卸载和清理记录。
+- 原生 Rust 扫描核心与共享索引，macOS 批量读取、完整内容去重和可取消的扫描进度。
+- 应用关联文件逐项检查，关联数据默认不选；缓存永久清理与文件移到废纸篓使用不同确认说明。
+- 保留进程管理和现有 AI 接入方式；中英文资源可扩展，支持浅色／深色主题。
+- 接入 Windows／Linux 平台适配与构建。macOS x64 已本机运行验证；其他平台的运行验证仍由 CI 承担。Windows／Linux 应用卸载使用系统工具。
+- 整理体积是估算；废纸篓未清空前仍占用磁盘。隐私目前覆盖支持浏览器的默认配置，清理前需要退出浏览器。
+
+## English
+
+- Rebuilt home, navigation, large files, verified duplicates, space map, privacy, app associations and cleanup history.
+- Independent Rust scanning/index engine with macOS bulk metadata, staged full-content hashing, progress and cancellation.
+- Explicit per-file app review, associated data unselected by default, distinct permanent-cache and Trash confirmation flows.
+- Preserved user-configured AI and process management; extensible Chinese/English catalogs and light/dark themes.
+- Windows/Linux adapters and packaging are configured. macOS x64 is runtime verified locally; other platform runtime checks remain in CI. Package removal on Windows/Linux uses the OS tools.
+- Processed sizes are estimates; Trash still occupies disk space. Privacy supports listed default browser profiles and requires browsers to be closed.
+
+---
+
 # Memento Agent 1.0.5 - DuckDuckGo CDN 回退 / DuckDuckGo CDN Fallback
 
 ## 简体中文

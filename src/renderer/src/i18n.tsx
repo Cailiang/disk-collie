@@ -1,16 +1,20 @@
 import { createContext, useContext } from 'react'
 import type { AppLanguage } from '../../shared/app-settings'
+import { translate, localeCatalogs } from '../../shared/localization'
+export { translate, localeCatalogs, supportedLocales } from '../../shared/localization'
 
 interface I18nValue {
   language: AppLanguage
   locale: string
-  text: (chinese: string, english: string) => string
+  text: (key: string, valuesOrEnglish?: string | Record<string, string | number>) => string
+  t: (key: string, values?: Record<string, string | number>) => string
 }
 
 const I18nContext = createContext<I18nValue>({
   language: 'zh-CN',
   locale: 'zh-CN',
-  text: (chinese) => chinese
+  text: (key) => translate('zh-CN', key),
+  t: (key, values) => translate('zh-CN', key, values)
 })
 
 export function I18nProvider({
@@ -25,7 +29,10 @@ export function I18nProvider({
       value={{
         language,
         locale: language,
-        text: (chinese, english) => language === 'en-US' ? english : chinese
+        text: (key, valuesOrEnglish) => typeof valuesOrEnglish === 'string'
+          ? localeCatalogs[language]?.[key] ?? (language === 'zh-CN' ? key : valuesOrEnglish)
+          : translate(language, key, valuesOrEnglish),
+        t: (key, values) => translate(language, key, values)
       }}
     >
       {children}

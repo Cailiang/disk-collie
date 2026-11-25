@@ -129,17 +129,14 @@ export function DiskUsageBrowser({
         <span className={busy ? 'disk-browser-empty-icon is-scanning' : 'disk-browser-empty-icon'}>
           {busy ? <LoaderCircle className="spinner" size={23} /> : <HardDrive size={23} />}
         </span>
-        <strong>{busy ? text('正在扫描 Macintosh HD', 'Scanning Macintosh HD') : text('尚未扫描磁盘', 'Disk not scanned yet')}</strong>
+        <strong>{busy ? text("legacy.scanning_macintosh_hd.354ddc") : text("legacy.disk_not_scanned_yet.7d0f26")}</strong>
         <small>{busy && progress
-          ? text(
-              `${progress.scannedEntries.toLocaleString()} 个项目 · ${elapsedLabel(progress.elapsedMs, language)}`,
-              `${progress.scannedEntries.toLocaleString()} items · ${elapsedLabel(progress.elapsedMs, language)}`
-            )
-          : text('Macintosh HD 主数据卷', 'Macintosh HD data volume')}</small>
+          ? text("legacy.items.17d7c2", { p0: progress.scannedEntries.toLocaleString(), p1: elapsedLabel(progress.elapsedMs, language) })
+          : text("legacy.macintosh_hd_data_volume.af5162")}</small>
         {busy && progress && <span className="disk-current-path">{progress.currentLocation}</span>}
         {error && <p className="error-copy" role="alert">{error}</p>}
         <button type="button" className={busy ? 'secondary-button' : 'primary-button'} onClick={busy ? onCancel : onScan}>
-          {busy ? <><Square size={13} />{text('停止扫描', 'Stop scan')}</> : <><RefreshCw size={15} />{text('开始扫描', 'Start scan')}</>}
+          {busy ? <><Square size={13} />{text("legacy.stop_scan.e1b77e")}</> : <><RefreshCw size={15} />{text("legacy.start_scan.2d67c2")}</>}
         </button>
       </div>
     )
@@ -154,30 +151,24 @@ export function DiskUsageBrowser({
       <div className={`disk-scan-status ${busy ? 'is-scanning' : ''}`} role="status" aria-live="polite">
         <span className="disk-scan-status-mark">{busy ? <LoaderCircle className="spinner" size={15} /> : <HardDrive size={15} />}</span>
         <div><strong>{busy
-          ? progress?.message ?? text('正在异步扫描磁盘', 'Scanning the disk asynchronously')
-          : text('磁盘扫描已完成', 'Disk scan completed')}</strong><small>{busy && progress
-          ? text(
-              `${progress.scannedEntries.toLocaleString()} 个项目 · ${elapsedLabel(progress.elapsedMs, language)}`,
-              `${progress.scannedEntries.toLocaleString()} items · ${elapsedLabel(progress.elapsedMs, language)}`
-            )
-          : text(
-              `${result.scannedEntries.toLocaleString()} 个项目 · 跳过 ${result.inaccessibleEntries.toLocaleString()} 个无权限位置`,
-              `${result.scannedEntries.toLocaleString()} items · ${result.inaccessibleEntries.toLocaleString()} inaccessible locations skipped`
-            )}</small></div>
+          ? progress?.message ?? text("legacy.scanning_the_disk_asynchronously.1f77d5")
+          : text("legacy.disk_scan_completed.f6bfed")}</strong><small>{busy && progress
+          ? text("legacy.items.17d7c2", { p0: progress.scannedEntries.toLocaleString(), p1: elapsedLabel(progress.elapsedMs, language) })
+          : text("legacy.items_inaccessible_locations_skipped.60e653", { p0: result.scannedEntries.toLocaleString(), p1: result.inaccessibleEntries.toLocaleString() })}</small></div>
         <div className="disk-scan-actions">
-          <button type="button" className="icon-button" onClick={() => setFullscreen((value) => !value)} title={fullscreen ? text('退出全屏', 'Exit fullscreen') : text('全屏浏览', 'Browse fullscreen')} aria-label={fullscreen ? text('退出全屏', 'Exit fullscreen') : text('全屏浏览', 'Browse fullscreen')}>
+          <button type="button" className="icon-button" onClick={() => setFullscreen((value) => !value)} title={fullscreen ? text("legacy.exit_fullscreen.3e9a1d") : text("legacy.browse_fullscreen.5637ed")} aria-label={fullscreen ? text("legacy.exit_fullscreen.3e9a1d") : text("legacy.browse_fullscreen.5637ed")}>
             {fullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
           </button>
           <button type="button" className="secondary-button" onClick={busy ? onCancel : onScan}>
-            {busy ? <><Square size={13} />{text('停止', 'Stop')}</> : <><RefreshCw size={14} />{text('重新扫描', 'Scan again')}</>}
+            {busy ? <><Square size={13} />{text("legacy.stop.ddd2f6")}</> : <><RefreshCw size={14} />{text("legacy.scan_again.bc5e14")}</>}
           </button>
         </div>
       </div>
 
       <div className="disk-browser-head">
         <div className="disk-selection-copy"><strong>{selectedNode.location}</strong><small>{childLabel(selectedNode, language)}</small></div>
-        <div className="disk-selection-size"><strong>{formatBytes(selectedNode.sizeBytes)}</strong><small>{text(`占扫描容量 ${percentage.toFixed(1)}%`, `${percentage.toFixed(1)}% of scanned size`)}</small></div>
-        <button type="button" className="secondary-button" onClick={() => onReveal(selectedNode.id)}><FolderOpen size={14} />{text('在 Finder 中显示', 'Show in Finder')}</button>
+        <div className="disk-selection-size"><strong>{formatBytes(selectedNode.sizeBytes)}</strong><small>{text("legacy.of_scanned_size.a3252c", { p0: percentage.toFixed(1) })}</small></div>
+        <button type="button" className="secondary-button" onClick={() => onReveal(selectedNode.id)}><FolderOpen size={14} />{text("legacy.show_in_finder.277d34")}</button>
       </div>
       <div className="disk-capacity-track" aria-hidden="true"><span style={{ width: `${percentage}%` }} /></div>
 
@@ -212,17 +203,17 @@ export function DiskUsageBrowser({
               </button>
             ))}
             {column.parent.omittedChildCount > 0 && (
-              <div className="disk-omitted-row"><span>{text(`其余 ${column.parent.omittedChildCount} 项`, `${column.parent.omittedChildCount} more items`)}</span><strong>{formatBytes(column.parent.omittedSizeBytes)}</strong></div>
+              <div className="disk-omitted-row"><span>{text("legacy.more_items.a970ee", { p0: column.parent.omittedChildCount })}</span><strong>{formatBytes(column.parent.omittedSizeBytes)}</strong></div>
             )}
-            {!column.nodes.length && <div className="disk-column-empty">{text('没有大于显示阈值的子项', 'No children above the display threshold')}</div>}
+            {!column.nodes.length && <div className="disk-column-empty">{text("legacy.no_children_above_the_display_threshold.c4a5a1")}</div>}
           </div>
         ))}
       </div>
-      <div className="disk-browser-foot"><span>{text(`显示不小于 ${formatBytes(result.minimumDisplayBytes)} 的项目`, `Showing items at least ${formatBytes(result.minimumDisplayBytes)}`)}</span></div>
+      <div className="disk-browser-foot"><span>{text("legacy.showing_items_at_least.c19644", { p0: formatBytes(result.minimumDisplayBytes) })}</span></div>
       {contextMenu && <div className="disk-context-menu" role="menu" style={{ left: contextMenu.x, top: contextMenu.y }} onPointerDown={(event) => event.stopPropagation()}>
-        <button type="button" role="menuitem" onClick={() => { onReveal(contextMenu.node.id); setContextMenu(null) }}><FolderOpen size={14} />{text('在 Finder 中显示', 'Show in Finder')}</button>
-        {contextMenu.node.kind === 'directory' && <button type="button" role="menuitem" onClick={() => { onAskAI(contextMenu.node); setContextMenu(null) }}><Sparkles size={14} />{text('询问 AI', 'Ask AI')}</button>}
-        {canTrashNode(contextMenu.node) && <button type="button" role="menuitem" className="is-danger" onClick={() => { onRequestTrash(contextMenu.node); setContextMenu(null) }}><Trash2 size={14} />{text('移到废纸篓', 'Move to Trash')}</button>}
+        <button type="button" role="menuitem" onClick={() => { onReveal(contextMenu.node.id); setContextMenu(null) }}><FolderOpen size={14} />{text("legacy.show_in_finder.277d34")}</button>
+        {contextMenu.node.kind === 'directory' && <button type="button" role="menuitem" onClick={() => { onAskAI(contextMenu.node); setContextMenu(null) }}><Sparkles size={14} />{text("legacy.ask_ai.8b825f")}</button>}
+        {canTrashNode(contextMenu.node) && <button type="button" role="menuitem" className="is-danger" onClick={() => { onRequestTrash(contextMenu.node); setContextMenu(null) }}><Trash2 size={14} />{text("legacy.move_to_trash.488326")}</button>}
       </div>}
     </div>
   )

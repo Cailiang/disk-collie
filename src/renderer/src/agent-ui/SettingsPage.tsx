@@ -1,3 +1,4 @@
+import { supportedLocales } from '../../../shared/localization'
 import {
   Check,
   ChevronRight,
@@ -182,7 +183,7 @@ export function SettingsPage({
   const discoverModels = useCallback(async (input: DiscoverAgentModelsInput): Promise<void> => {
     const sequence = ++discoverySequence.current
     setModelState('loading')
-    setModelMessage(text('正在获取模型列表', 'Fetching available models'))
+    setModelMessage(text("legacy.fetching_available_models.581d71"))
     try {
       const result = await onDiscoverModels(input)
       if (sequence !== discoverySequence.current) return
@@ -200,7 +201,7 @@ export function SettingsPage({
       if (sequence !== discoverySequence.current) return
       setAvailableModels([])
       setModelState('error')
-      setModelMessage(error instanceof Error ? error.message : text('无法获取模型列表', 'Could not fetch models'))
+      setModelMessage(error instanceof Error ? error.message : text("legacy.could_not_fetch_models.e3c31b"))
     }
   }, [onDiscoverModels, text])
 
@@ -212,7 +213,7 @@ export function SettingsPage({
       discoverySequence.current += 1
       setAvailableModels([])
       setModelState('idle')
-      setModelMessage(text('填写服务地址和请求密钥后自动获取', 'Enter the base URL and API key to fetch models'))
+      setModelMessage(text("legacy.enter_the_base_url_and_api_key_to_fetch_mo.a668f4"))
       return
     }
     const timeout = window.setTimeout(() => {
@@ -273,7 +274,7 @@ export function SettingsPage({
       const saved = await onSaveProvider(draft)
       setSelectedId(saved.id)
       setDraft((current) => ({ ...current, id: saved.id, apiKey: '' }))
-      onToast(text('供应商配置已加密保存', 'Provider saved with encrypted credentials'))
+      onToast(text("legacy.provider_saved_with_encrypted_credentials.8d9b7a"))
     } catch {
       // App owns the user-facing error toast.
     } finally {
@@ -283,10 +284,7 @@ export function SettingsPage({
 
   const testConnection = async (): Promise<void> => {
     setBusy('test')
-    setConnectionMessage(text(
-      `正在验证 ${draft.model} 的工具调用`,
-      `Testing tool calling with ${draft.model}`
-    ))
+    setConnectionMessage(text("legacy.testing_tool_calling_with.98a1af", { p0: draft.model }))
     setConnectionOk(null)
     try {
       const result = await onTestProvider(draft)
@@ -294,7 +292,7 @@ export function SettingsPage({
       setConnectionOk(result.ok)
       onToast(result.message)
     } catch (error) {
-      const message = error instanceof Error ? error.message : text('连接测试失败', 'Connection test failed')
+      const message = error instanceof Error ? error.message : text("legacy.connection_test_failed.102c4a")
       setConnectionMessage(message)
       setConnectionOk(false)
     } finally {
@@ -304,7 +302,7 @@ export function SettingsPage({
 
   const updateSettings = (input: UpdateAppSettingsInput): void => {
     void onUpdateSettings(input).catch((error) => {
-      onToast(error instanceof Error ? error.message : text('无法更新设置', 'Could not update settings'))
+      onToast(error instanceof Error ? error.message : text("legacy.could_not_update_settings.07fbcc"))
     })
   }
 
@@ -355,38 +353,38 @@ export function SettingsPage({
   }
 
   const connectionLabel = busy === 'test'
-    ? text('测试中', 'Testing')
+    ? text("legacy.testing.b8baea")
     : connectionOk === true
-      ? text('已连接', 'Connected')
+      ? text("legacy.connected.8537c4")
       : connectionOk === false
-        ? text('测试失败', 'Test failed')
+        ? text("legacy.test_failed.48c093")
         : selected?.connectionState === 'connected'
-          ? text('已连接', 'Connected')
+          ? text("legacy.connected.8537c4")
           : selected?.connectionState === 'failed'
-            ? text('测试失败', 'Test failed')
-            : text('未测试', 'Not tested')
+            ? text("legacy.test_failed.48c093")
+            : text("legacy.not_tested.f3970c")
   const connectionClass = connectionOk === true || (!connectionMessage && selected?.connectionState === 'connected')
     ? 'safe'
     : connectionOk === false || (!connectionMessage && selected?.connectionState === 'failed')
       ? 'review'
       : ''
   const updateDescription = updateBusy || updateState?.phase === 'checking'
-    ? text('正在检查新版本…', 'Checking for updates…')
+    ? text("legacy.checking_for_updates.f66330")
     : updateState?.phase === 'available' && updateState.latestVersion
-      ? text(`发现 v${updateState.latestVersion}，正在准备后台下载`, `Memento v${updateState.latestVersion} was found. Preparing the background download.`)
+      ? text("legacy.memento_v_was_found_preparing_the_backgrou.a76b14", { p0: updateState.latestVersion })
       : updateState?.phase === 'downloading' && updateState.latestVersion
-        ? text(`发现 v${updateState.latestVersion}，正在后台下载 ${updateState.downloadPercent ?? 0}%`, `Downloading Memento v${updateState.latestVersion} in the background: ${updateState.downloadPercent ?? 0}%`)
+        ? text("legacy.downloading_memento_v_in_the_background.be1f93", { p0: updateState.latestVersion, p1: updateState.downloadPercent ?? 0 })
         : updateState?.phase === 'downloaded' && updateState.latestVersion
-          ? text(`v${updateState.latestVersion} 已下载，点击版本号旁的更新按钮安装`, `Memento v${updateState.latestVersion} is ready. Use the update button beside the version to install it.`)
+          ? text("legacy.memento_v_is_ready_use_the_update_button_b.257a82", { p0: updateState.latestVersion })
           : updateState?.phase === 'installing'
-            ? text('正在安装新版本，Memento 即将重启', 'Installing the update. Memento will restart shortly.')
+            ? text("legacy.installing_the_update_memento_will_restart.079d43")
             : updateState?.phase === 'error'
-              ? updateState.error ?? text('检查更新失败，请稍后重试', 'Could not check for updates. Try again later.')
+              ? updateState.error ?? text("legacy.could_not_check_for_updates_try_again_late.7be665")
               : updateState?.phase === 'unsupported'
-                ? text('当前安装包不支持应用内自动更新', 'This package does not support in-app updates.')
+                ? text("legacy.this_package_does_not_support_in_app_updat.0127f5")
                 : updateState?.checkedAt
-                  ? text('已是最新版本', 'Memento is up to date.')
-                  : text('等待首次自动检查', 'Waiting for the first automatic check')
+                  ? text("legacy.memento_is_up_to_date.5ae588")
+                  : text("legacy.waiting_for_the_first_automatic_check.058bad")
   const updateCheckDisabled = updateBusy || Boolean(updateState && [
     'checking',
     'available',
@@ -397,76 +395,70 @@ export function SettingsPage({
   const activePreset = PROVIDER_PRESETS.get(presetId)!
   const selectableModels = [...new Set([draft.model, ...availableModels])].filter(Boolean)
   const defaultProviderNote = selected?.isDefault
-    ? text(
-        `Agent 新任务将使用 ${draft.name || selected.name} · ${draft.model}。`,
-        `New Agent tasks use ${draft.name || selected.name} · ${draft.model}.`
-      )
+    ? text("legacy.new_agent_tasks_use.2e1a4e", { p0: draft.name || selected.name, p1: draft.model })
     : selected
-      ? text(
-          `设为默认后，Agent 新任务将使用 ${draft.name || selected.name} · ${draft.model}。`,
-          `After making this the default, new Agent tasks use ${draft.name || selected.name} · ${draft.model}.`
-        )
-      : text('保存后可将这个配置设为默认供应商。', 'Save this configuration before making it the default.')
+      ? text("legacy.after_making_this_the_default_new_agent_ta.31f178", { p0: draft.name || selected.name, p1: draft.model })
+      : text("legacy.save_this_configuration_before_making_it_t.14eefa")
 
   return (
     <section className="page content-page is-active">
       <div className="settings-layout">
         <section className="settings-section provider-settings-section">
           <div className="settings-label">
-            <h2>{text('模型供应商', 'Model providers')}</h2>
-            <p>{text('自动读取本机已经配置好的 Claude、Codex、Gemini 和 Grok；只有密钥、服务地址和模型通过连接校验的配置才会加入列表。CC Switch 只在首次检测到时询问一次，也可以在这里手动导入。导入后会成为 Memento 的独立副本，修改不会跟随 CC Switch。', 'Read configured Claude, Codex, Gemini, and Grok credentials from this Mac. Only configurations whose credentials, endpoint, and model pass connection validation are added. CC Switch is offered once when it is first detected, and can also be imported manually here. Imported providers are independent Memento copies and never follow CC Switch changes.')}</p>
+            <h2>{text("legacy.model_providers.f9be3a")}</h2>
+            <p>{text("legacy.read_configured_claude_codex_gemini_and_gr.506fa1")}</p>
             <div className="provider-import-actions">
-              <button type="button" className="secondary-button" disabled={localImportBusy || ccSwitchBusy} onClick={() => void importLocalAi()}>{localImportBusy ? <LoaderCircle className="spinner" size={14} /> : <ScanSearch size={14} />}{localImportBusy ? text('正在扫描', 'Scanning') : text('扫描本机 AI 配置', 'Scan local AI configurations')}</button>
-              <button type="button" className="quiet-button" disabled={localImportBusy || ccSwitchBusy} onClick={() => void importCcSwitch()}>{ccSwitchBusy ? <LoaderCircle className="spinner" size={14} /> : <Download size={14} />}{ccSwitchBusy ? text('正在复制', 'Copying') : text('复制 CC Switch 配置', 'Copy CC Switch configurations')}</button>
+              <button type="button" className="secondary-button" disabled={localImportBusy || ccSwitchBusy} onClick={() => void importLocalAi()}>{localImportBusy ? <LoaderCircle className="spinner" size={14} /> : <ScanSearch size={14} />}{localImportBusy ? text("legacy.scanning.95cde7") : text("legacy.scan_local_ai_configurations.abec64")}</button>
+              <button type="button" className="quiet-button" disabled={localImportBusy || ccSwitchBusy} onClick={() => void importCcSwitch()}>{ccSwitchBusy ? <LoaderCircle className="spinner" size={14} /> : <Download size={14} />}{ccSwitchBusy ? text("legacy.copying.ed1d55") : text("legacy.copy_cc_switch_configurations.94e749")}</button>
             </div>
           </div>
           <div className="provider-manager">
-            <aside className="provider-list-pane" aria-label={text('已配置供应商', 'Configured providers')}>
-              <div className="provider-list-header"><span>{text(`${providers.length} 个配置`, `${providers.length} configured`)}</span><button type="button" className="icon-button" onClick={selectNew} title={text('添加供应商', 'Add provider')} aria-label={text('添加供应商', 'Add provider')}><Plus size={15} /></button></div>
+            <aside className="provider-list-pane" aria-label={text("legacy.configured_providers.bbd5e6")}>
+              <div className="provider-list-header"><span>{text("legacy.configured.d58429", { p0: providers.length })}</span><button type="button" className="icon-button" onClick={selectNew} title={text("legacy.add_provider.f00c8d")} aria-label={text("legacy.add_provider.f00c8d")}><Plus size={15} /></button></div>
               <div className="provider-list">
                 {providers.map((provider) => (
                   <button key={provider.id} type="button" className={`provider-item ${selectedId === provider.id ? 'is-active' : ''}`} onClick={() => setSelectedId(provider.id)} aria-pressed={selectedId === provider.id}>
                     <span className="provider-mark">{provider.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span>
                     <span><strong>{provider.name}</strong><small>{provider.model}{providerSource(provider.id) ? ` · ${text(...providerSource(provider.id)!)}` : ''}</small></span>
-                    {provider.isDefault && <span className="default-chip">{text('默认', 'Default')}</span>}
+                    {provider.isDefault && <span className="default-chip">{text("legacy.default.58cd59")}</span>}
                   </button>
                 ))}
-                {selectedId === 'new' && <button type="button" className="provider-item is-active"><span className="provider-mark">+</span><span><strong>{text('新供应商', 'New provider')}</strong><small>{text('尚未保存', 'Not saved')}</small></span></button>}
+                {selectedId === 'new' && <button type="button" className="provider-item is-active"><span className="provider-mark">+</span><span><strong>{text("legacy.new_provider.669cfd")}</strong><small>{text("legacy.not_saved.058ce5")}</small></span></button>}
               </div>
             </aside>
 
             <div className="provider-editor">
               <div className="provider-editor-header">
-                <div><strong>{draft.name || text('新供应商', 'New provider')}</strong><small>{text(...activePreset.label)}{selected && providerSource(selected.id) ? ` · ${text(...providerSource(selected.id)!)}` : ''}</small></div>
+                <div><strong>{draft.name || text("legacy.new_provider.669cfd")}</strong><small>{text(...activePreset.label)}{selected && providerSource(selected.id) ? ` · ${text(...providerSource(selected.id)!)}` : ''}</small></div>
                 <span className={`risk-label ${connectionClass}`}>{connectionLabel}</span>
               </div>
               <form className="provider-form" onSubmit={(event) => { event.preventDefault(); void save() }}>
-                {connectionOk === false && connectionMessage && <div className="provider-error-panel" role="alert"><strong>{text('连接测试失败', 'Connection test failed')}</strong><p>{connectionMessage}</p></div>}
-                {modelState === 'error' && modelMessage && <div className="provider-error-panel" role="alert"><strong>{text('模型列表获取失败', 'Could not fetch models')}</strong><p>{modelMessage}</p></div>}
-                <div className="field"><label htmlFor="provider-preset">{text('供应商', 'Provider')}</label><select id="provider-preset" value={presetId} onChange={(event) => selectPreset(event.target.value as ProviderPresetId)}>{PROVIDER_CATALOG.map((preset) => <option key={preset.id} value={preset.id}>{preset.id === 'custom' && presetId === 'custom' && draft.type !== 'openai-compatible' ? text('已导入 / 自定义配置', 'Imported / custom configuration') : text(...preset.label)}</option>)}</select></div>
-                <div className="field"><label htmlFor="provider-name">{text('配置名称', 'Configuration name')}</label><input id="provider-name" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} autoComplete="off" /></div>
-                <div className="field is-wide"><label htmlFor="provider-key">{text('请求密钥', 'API key')}</label><div className="secret-field"><input id="provider-key" type={secretVisible ? 'text' : 'password'} value={draft.apiKey ?? ''} onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })} placeholder={selected?.keyHint ?? 'sk-...'} autoComplete="new-password" /><button type="button" onClick={() => setSecretVisible((value) => !value)} title={text('显示或隐藏密钥', 'Show or hide key')} aria-label={text('显示或隐藏密钥', 'Show or hide key')}>{secretVisible ? <EyeOff size={15} /> : <Eye size={15} />}</button></div></div>
-                <div className="recommended-model"><span><strong>{text('Memento 推荐模型', 'Memento recommended model')}</strong><small>{text('随应用版本更新；已保存的配置不会被静默切换', 'Updated with Memento; saved configurations are never switched silently')}</small></span><code>{activePreset.recommendedModel || draft.model || text('手动选择', 'Choose manually')}</code></div>
+                {connectionOk === false && connectionMessage && <div className="provider-error-panel" role="alert"><strong>{text("legacy.connection_test_failed.102c4a")}</strong><p>{connectionMessage}</p></div>}
+                {modelState === 'error' && modelMessage && <div className="provider-error-panel" role="alert"><strong>{text("legacy.could_not_fetch_models.5d46ed")}</strong><p>{modelMessage}</p></div>}
+                <div className="field"><label htmlFor="provider-preset">{text("legacy.provider.de4d34")}</label><select id="provider-preset" value={presetId} onChange={(event) => selectPreset(event.target.value as ProviderPresetId)}>{PROVIDER_CATALOG.map((preset) => <option key={preset.id} value={preset.id}>{preset.id === 'custom' && presetId === 'custom' && draft.type !== 'openai-compatible' ? text("legacy.imported_custom_configuration.38fdfa") : text(...preset.label)}</option>)}</select></div>
+                <div className="field"><label htmlFor="provider-name">{text("legacy.configuration_name.5c730a")}</label><input id="provider-name" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} autoComplete="off" /></div>
+                <div className="field is-wide"><label htmlFor="provider-key">{text("legacy.api_key.0e7ee4")}</label><div className="secret-field"><input id="provider-key" type={secretVisible ? 'text' : 'password'} value={draft.apiKey ?? ''} onChange={(event) => setDraft({ ...draft, apiKey: event.target.value })} placeholder={selected?.keyHint ?? 'sk-...'} autoComplete="new-password" /><button type="button" onClick={() => setSecretVisible((value) => !value)} title={text("legacy.show_or_hide_key.6662fc")} aria-label={text("legacy.show_or_hide_key.6662fc")}>{secretVisible ? <EyeOff size={15} /> : <Eye size={15} />}</button></div></div>
+                <div className="recommended-model"><span><strong>{text("legacy.memento_recommended_model.97801d")}</strong><small>{text("legacy.updated_with_memento_saved_configurations_.10bae7")}</small></span><code>{activePreset.recommendedModel || draft.model || text("legacy.choose_manually.686104")}</code></div>
                 <details className="provider-advanced">
-                  <summary><ChevronRight size={14} />{text('高级设置', 'Advanced settings')}</summary>
+                  <summary><ChevronRight size={14} />{text("legacy.advanced_settings.c3d603")}</summary>
                   <div className="provider-advanced-grid">
-                    {presetId === 'custom' && <div className="field is-wide"><label htmlFor="provider-url">{text('服务地址', 'Base URL')}</label><input id="provider-url" type="url" value={draft.baseUrl} onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })} placeholder="https://api.example.com/v1" /></div>}
-                    <div className="field is-wide model-field"><label htmlFor="provider-model">{text('模型', 'Model')}</label><div className="model-picker">
-                      {manualModel ? <input id="provider-model" value={draft.model} onChange={(event) => setDraft({ ...draft, model: event.target.value })} placeholder="model-name" autoComplete="off" /> : <select id="provider-model" value={draft.model} onChange={(event) => setDraft({ ...draft, model: event.target.value })} disabled={modelState === 'loading'}>{selectableModels.length ? selectableModels.map((model) => <option key={model} value={model}>{model}</option>) : <option value="">{modelState === 'loading' ? text('正在获取模型…', 'Fetching models…') : text('等待获取模型', 'Waiting for models')}</option>}</select>}
-                      <button type="button" className="icon-button" onClick={() => void discoverModels({ id: draft.id, type: draft.type, baseUrl: draft.baseUrl, apiKey: draft.apiKey })} disabled={!discoveryReady || modelState === 'loading'} title={text('重新获取模型', 'Refresh models')} aria-label={text('重新获取模型', 'Refresh models')}><RefreshCw className={modelState === 'loading' ? 'spinner' : ''} size={14} /></button>
-                    </div><div className={`field-help ${modelState === 'error' ? 'is-error' : ''}`} role="status">{modelState === 'loading' && <LoaderCircle className="spinner" size={11} />}<span>{modelState === 'error' ? text('获取失败，完整信息见上方', 'Fetch failed. See the full error above.') : modelMessage}</span><button type="button" onClick={() => setManualModel((value) => !value)}>{manualModel ? text('使用模型列表', 'Use model list') : text('手动填写模型 ID', 'Enter model ID')}</button></div></div>
-                    <p className="provider-advanced-note">{presetId === 'custom' ? text(`接口协议由导入配置或供应商类型自动确定：${text(...PROVIDER_LABELS[draft.type])}。`, `The API protocol is determined automatically from the imported configuration or provider: ${text(...PROVIDER_LABELS[draft.type])}.`) : text(`官方服务地址由 Memento 管理：${activePreset.baseUrl}`, `Memento manages the official endpoint: ${activePreset.baseUrl}`)}</p>
+                    {presetId === 'custom' && <div className="field is-wide"><label htmlFor="provider-url">{text("legacy.base_url.bfd5ea")}</label><input id="provider-url" type="url" value={draft.baseUrl} onChange={(event) => setDraft({ ...draft, baseUrl: event.target.value })} placeholder="https://api.example.com/v1" /></div>}
+                    <div className="field is-wide model-field"><label htmlFor="provider-model">{text("legacy.model.64177c")}</label><div className="model-picker">
+                      {manualModel ? <input id="provider-model" value={draft.model} onChange={(event) => setDraft({ ...draft, model: event.target.value })} placeholder="model-name" autoComplete="off" /> : <select id="provider-model" value={draft.model} onChange={(event) => setDraft({ ...draft, model: event.target.value })} disabled={modelState === 'loading'}>{selectableModels.length ? selectableModels.map((model) => <option key={model} value={model}>{model}</option>) : <option value="">{modelState === 'loading' ? text("legacy.fetching_models.9f4ae5") : text("legacy.waiting_for_models.305256")}</option>}</select>}
+                      <button type="button" className="icon-button" onClick={() => void discoverModels({ id: draft.id, type: draft.type, baseUrl: draft.baseUrl, apiKey: draft.apiKey })} disabled={!discoveryReady || modelState === 'loading'} title={text("legacy.refresh_models.4db6b6")} aria-label={text("legacy.refresh_models.4db6b6")}><RefreshCw className={modelState === 'loading' ? 'spinner' : ''} size={14} /></button>
+                    </div><div className={`field-help ${modelState === 'error' ? 'is-error' : ''}`} role="status">{modelState === 'loading' && <LoaderCircle className="spinner" size={11} />}<span>{modelState === 'error' ? text("legacy.fetch_failed_see_the_full_error_above.5dff5c") : modelMessage}</span><button type="button" onClick={() => setManualModel((value) => !value)}>{manualModel ? text("legacy.use_model_list.f52602") : text("legacy.enter_model_id.aaf8c3")}</button></div></div>
+                    <p className="provider-advanced-note">{presetId === 'custom' ? text("legacy.the_api_protocol_is_determined_automatical.eefe07", { p0: text(...PROVIDER_LABELS[draft.type]) }) : text("legacy.memento_manages_the_official_endpoint.004e73", { p0: activePreset.baseUrl })}</p>
                   </div>
                 </details>
                 <p className="default-provider-note">{defaultProviderNote}</p>
                 <div className="provider-form-actions">
                   <div>
-                    <button type="button" className="quiet-button" disabled={!selected || selected.isDefault || busy !== null} onClick={() => { if (!selected) return; setBusy('default'); void onSetDefaultProvider(selected.id).catch(() => undefined).finally(() => setBusy(null)) }}><CircleCheck size={15} />{selected?.isDefault ? text('当前默认供应商', 'Current default provider') : text('设为默认供应商', 'Set as default provider')}</button>
-                    <button type="button" className="danger-button" disabled={!selected || selected.isDefault || busy !== null} onClick={() => selected && setPendingDelete(selected)} title={selected?.isDefault ? text('请先将另一个供应商设为默认', 'Make another provider the default first') : undefined}><Trash2 size={15} />{text('删除配置', 'Delete configuration')}</button>
+                    <button type="button" className="quiet-button" disabled={!selected || selected.isDefault || busy !== null} onClick={() => { if (!selected) return; setBusy('default'); void onSetDefaultProvider(selected.id).catch(() => undefined).finally(() => setBusy(null)) }}><CircleCheck size={15} />{selected?.isDefault ? text("legacy.current_default_provider.20abc7") : text("legacy.set_as_default_provider.ada00f")}</button>
+                    <button type="button" className="danger-button" disabled={!selected || selected.isDefault || busy !== null} onClick={() => selected && setPendingDelete(selected)} title={selected?.isDefault ? text("legacy.make_another_provider_the_default_first.996064") : undefined}><Trash2 size={15} />{text("legacy.delete_configuration.9829c2")}</button>
                   </div>
                   <div>
-                    <button type="button" className="secondary-button" onClick={() => void testConnection()} disabled={busy !== null || modelState === 'loading' || !draft.model.trim()}>{busy === 'test' ? <LoaderCircle className="spinner" size={15} /> : <PlugZap size={15} />}{busy === 'test' ? text('测试中', 'Testing') : text('测试连接', 'Test connection')}</button>
-                    <button type="submit" className="primary-button" disabled={busy !== null || modelState === 'loading' || !draft.model.trim()}>{busy === 'save' ? <LoaderCircle className="spinner" size={15} /> : <Save size={15} />}{text('保存配置', 'Save configuration')}</button>
+                    <button type="button" className="secondary-button" onClick={() => void testConnection()} disabled={busy !== null || modelState === 'loading' || !draft.model.trim()}>{busy === 'test' ? <LoaderCircle className="spinner" size={15} /> : <PlugZap size={15} />}{busy === 'test' ? text("legacy.testing.b8baea") : text("legacy.test_connection.322673")}</button>
+                    <button type="submit" className="primary-button" disabled={busy !== null || modelState === 'loading' || !draft.model.trim()}>{busy === 'save' ? <LoaderCircle className="spinner" size={15} /> : <Save size={15} />}{text("legacy.save_configuration.4cde2a")}</button>
                   </div>
                 </div>
               </form>
@@ -475,33 +467,33 @@ export function SettingsPage({
         </section>
 
         <section className="settings-section">
-          <div className="settings-label"><h2>{text('软件更新', 'Software update')}</h2><p>{text('Memento 每小时自动检查新版本，并在后台完成下载。', 'Memento checks hourly and downloads new versions in the background.')}</p></div>
-          <div className="setting-row software-update-row"><span className="update-status-copy"><strong>{text(`当前版本 v${appVersion}`, `Current version v${appVersion}`)}</strong><small role={updateState?.phase === 'error' ? 'alert' : 'status'} aria-live={updateState?.phase === 'error' ? 'assertive' : 'polite'}>{updateDescription}</small></span><button type="button" className="secondary-button update-check-button" disabled={updateCheckDisabled} onClick={() => void checkUpdates()}>{updateBusy || updateState?.phase === 'checking' ? <LoaderCircle className="spinner" size={14} /> : <RefreshCw size={14} />}{updateBusy || updateState?.phase === 'checking' ? text('检查中', 'Checking') : text('立即检查', 'Check now')}</button></div>
+          <div className="settings-label"><h2>{text("legacy.software_update.68248c")}</h2><p>{text("legacy.memento_checks_hourly_and_downloads_new_ve.3e2f38")}</p></div>
+          <div className="setting-row software-update-row"><span className="update-status-copy"><strong>{text("legacy.current_version_v.3f4911", { p0: appVersion })}</strong><small role={updateState?.phase === 'error' ? 'alert' : 'status'} aria-live={updateState?.phase === 'error' ? 'assertive' : 'polite'}>{updateDescription}</small></span><button type="button" className="secondary-button update-check-button" disabled={updateCheckDisabled} onClick={() => void checkUpdates()}>{updateBusy || updateState?.phase === 'checking' ? <LoaderCircle className="spinner" size={14} /> : <RefreshCw size={14} />}{updateBusy || updateState?.phase === 'checking' ? text("legacy.checking.3bc3a3") : text("legacy.check_now.851baa")}</button></div>
         </section>
 
         <section className="settings-section">
-          <div className="settings-label"><h2>{text('窗口行为', 'Window behavior')}</h2><p>{text('控制启动和关闭窗口后的行为。', 'Control launch and close behavior.')}</p></div>
+          <div className="settings-label"><h2>{text("legacy.window_behavior.85b958")}</h2><p>{text("legacy.control_launch_and_close_behavior.21c065")}</p></div>
           <div>
-            <label className="setting-row"><span><strong>{text('登录时启动', 'Launch at login')}</strong><small>{text('登录 macOS 后自动打开 Memento', 'Open Memento after signing in')}</small></span><span className="switch"><input type="checkbox" checked={settings.launchAtLogin} onChange={(event) => updateSettings({ launchAtLogin: event.target.checked })} /><span /></span></label>
-            <label className="setting-row"><span><strong>{text('关闭后驻留菜单栏', 'Keep in menu bar')}</strong><small>{text('关闭主窗口后仍可从菜单栏打开', 'Reopen after closing the main window')}</small></span><span className="switch"><input type="checkbox" checked={settings.closeToTray} onChange={(event) => updateSettings({ closeToTray: event.target.checked })} /><span /></span></label>
+            <label className="setting-row"><span><strong>{text("legacy.launch_at_login.297159")}</strong><small>{text("legacy.open_memento_after_signing_in.4fcaeb")}</small></span><span className="switch"><input type="checkbox" checked={settings.launchAtLogin} onChange={(event) => updateSettings({ launchAtLogin: event.target.checked })} /><span /></span></label>
+            <label className="setting-row"><span><strong>{text("legacy.keep_in_menu_bar.fbbce3")}</strong><small>{text("legacy.reopen_after_closing_the_main_window.8d3db1")}</small></span><span className="switch"><input type="checkbox" checked={settings.closeToTray} onChange={(event) => updateSettings({ closeToTray: event.target.checked })} /><span /></span></label>
           </div>
         </section>
 
         <section className="settings-section">
-          <div className="settings-label"><h2>{text('忽略列表', 'Ignored items')}</h2><p>{text('电脑体检和 Agent 都不会处理这些项目。', 'Health checks and Agent skip these items.')}</p></div>
-          <div className="ignored-setting-summary"><div><strong>{text(`已忽略 ${settings.storageWhitelist.length + settings.serviceWhitelist.length + settings.applicationWhitelist.length} 项`, `${settings.storageWhitelist.length + settings.serviceWhitelist.length + settings.applicationWhitelist.length} ignored`)}</strong><small>{text(`存储空间 ${settings.storageWhitelist.length} 项 · 后台服务 ${settings.serviceWhitelist.length} 项 · 应用 ${settings.applicationWhitelist.length} 项`, `${settings.storageWhitelist.length} storage · ${settings.serviceWhitelist.length} services · ${settings.applicationWhitelist.length} applications`)}</small></div><button type="button" className="secondary-button" onClick={onManageIgnored}><ListFilter size={15} />{text('管理', 'Manage')}</button></div>
+          <div className="settings-label"><h2>{text("legacy.ignored_items.988cce")}</h2><p>{text("legacy.health_checks_and_agent_skip_these_items.b18681")}</p></div>
+          <div className="ignored-setting-summary"><div><strong>{text("legacy.ignored.95e27a", { p0: settings.storageWhitelist.length + settings.serviceWhitelist.length + settings.applicationWhitelist.length })}</strong><small>{text("legacy.storage_services_applications.2ac5f9", { p0: settings.storageWhitelist.length, p1: settings.serviceWhitelist.length, p2: settings.applicationWhitelist.length })}</small></div><button type="button" className="secondary-button" onClick={onManageIgnored}><ListFilter size={15} />{text("legacy.manage.233004")}</button></div>
         </section>
 
         <section className="settings-section">
-          <div className="settings-label"><h2>{text('外观', 'Appearance')}</h2><p>{text('选择界面配色，切换立即生效。', 'Choose a color palette.')}</p></div>
-          <div className="theme-options" role="radiogroup" aria-label={text('外观', 'Appearance')}>
+          <div className="settings-label"><h2>{text("legacy.appearance.cab005")}</h2><p>{text("legacy.choose_a_color_palette.520434")}</p></div>
+          <div className="theme-options" role="radiogroup" aria-label={text("legacy.appearance.cab005")}>
             {THEMES.map((theme) => <button key={theme.id} type="button" role="radio" aria-checked={settings.theme === theme.id} className={`theme-option theme-${theme.id} ${settings.theme === theme.id ? 'is-selected' : ''}`} onClick={() => updateSettings({ theme: theme.id })}><span className="theme-swatches"><i /><i /><i /></span><strong>{text(...theme.label)}</strong><Check size={14} /></button>)}
           </div>
         </section>
 
         <section className="settings-section">
-          <div className="settings-label"><h2>{text('语言', 'Language')}</h2><p>{text('应用界面和 Agent 回复使用同一语言。', 'The app and Agent use the same language.')}</p></div>
-          <div className="setting-row"><span><strong>{text('界面语言', 'Interface language')}</strong><small>{text('更改后立即生效', 'Applies immediately')}</small></span><select value={settings.language} onChange={(event) => updateSettings({ language: event.target.value as AppLanguage })}><option value="zh-CN">简体中文</option><option value="en-US">English</option></select></div>
+          <div className="settings-label"><h2>{text("legacy.language.53ceee")}</h2><p>{text("legacy.the_app_and_agent_use_the_same_language.20e525")}</p></div>
+          <div className="setting-row"><span><strong>{text("legacy.interface_language.5d69db")}</strong><small>{text("legacy.applies_immediately.d0b75b")}</small></span><select aria-label="Language" value={settings.language} onChange={(event) => updateSettings({ language: event.target.value as AppLanguage })}>{supportedLocales.map((locale) => <option key={locale.id} value={locale.id}>{locale.name}</option>)}</select></div>
         </section>
       </div>
       {pendingDelete && <DeleteProviderDialog provider={pendingDelete} busy={busy === 'delete'} onClose={() => busy !== 'delete' && setPendingDelete(null)} onConfirm={() => void deleteProvider()} />}

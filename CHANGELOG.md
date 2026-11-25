@@ -4,6 +4,26 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.6 - 2026-11-25
+
+### English
+
+- Rebuilt the storage product around large files, fully verified duplicates, an interactive treemap, explicit cache/privacy cleanup, application associations and persistent cleanup achievements.
+- Added an independent Rust index with macOS bulk metadata, bounded workers, staged BLAKE3 hashing, cancellation, path/identity revalidation and portable Windows/Linux adapters.
+- Retained user-configured AI, encrypted provider editing, confirmed plans and process management; added a dedicated live process workspace.
+- Centralized Chinese/English resources, extracted 584 existing messages, added fallback/interpolation validation, redesigned navigation and verified four viewport layouts.
+- Updated Zod and smol-toml to patched releases after the runtime audit.
+- Added native architecture-aware packaging, three-OS verification and complete cross-platform release artifact collection. Windows/Linux runtime validation remains a CI boundary; app removal there uses the system package manager.
+
+### 简体中文
+
+- 以释放空间为核心重建首页、大文件、重复文件、可下钻空间分布图、缓存／隐私清理、关联文件卸载和持久化整理记录。
+- 独立实现 Rust 索引，支持 macOS 批量元数据、有界并发、分阶段 BLAKE3 校验、取消、路径／身份复核与 Windows／Linux 适配。
+- 保留自选模型、加密供应商配置与确认计划，进程管理改为独立实时工作区。
+- 中英文资源集中管理，迁移 584 处既有文案，增加回退与插值校验；重设计导航并验证四种窗口尺寸。
+- 将 Zod 与 smol-toml 更新到已修复的版本，通过运行时依赖审计。
+- 增加按架构构建原生核心、三系统验证和全平台发布资产收集；Windows／Linux 运行验证由 CI 承担，卸载交由系统软件管理器。
+
 ## 1.0.5 - 2026-10-05
 
 ### English

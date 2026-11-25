@@ -1,10 +1,10 @@
 # Memento Local Agent Development
 
-This document describes the implementation that ships in Memento Agent. It is an architecture reference, not a future design proposal.
+This document describes the retained AI runtime and deterministic maintenance internals. The current storage product, platform matrix and UI contract are documented in [Cross-platform rebuild](CROSS_PLATFORM_REBUILD.md).
 
 ## 1. Product Baseline
 
-The repository is self-contained. The production Renderer under `src/renderer/src/agent-ui/`, current project documentation, component tests, and the four-viewport UI smoke test together define the UI contract. Changes to layout, copy, density, responsive behavior, or interaction must update the affected implementation, documentation, and automated coverage in the same change; no sibling prototype repository is required.
+The repository is self-contained. The production Renderer under `src/renderer/src/` (the new storage/process workspace plus retained Agent/settings modules), current project documentation, component tests, and the four-viewport UI smoke test together define the UI contract. Changes to layout, copy, density, responsive behavior, or interaction must update the affected implementation, documentation, and automated coverage in the same change; no sibling prototype repository is required.
 
 The old Renderer, hosted AI analysis, Memento Server, OAuth flow, AI Gateway protocol, and Gateway examples are not compatibility surfaces. The rebuild reuses only deterministic local capabilities that remain useful: scanning, storage cleanup, Homebrew cleanup, background-service handling, app inventory, terminal fixes, path validation, and operation registries.
 
@@ -12,7 +12,8 @@ The old Renderer, hosted AI analysis, Memento Server, OAuth flow, AI Gateway pro
 
 ```text
 React Renderer
-  Overview / Cleanup / Applications / Disk analysis / Terminal startup
+  Home / Cleanup / Large files / Duplicates / Space explorer / Privacy
+  Applications / Processes / Terminal
   AI assistant / Activity / Settings
                |
                | typed, narrow IPC
@@ -98,11 +99,11 @@ Memento checks the stable GitHub release tag after startup and every hour. If th
 
 ## 4.2 Release Automation
 
-`.github/workflows/release.yml` is the only supported path for publishing GitHub Release binaries. It validates the tag and package metadata, runs tests and type checking, and builds macOS x64/arm64 plus Windows/Linux portability targets. Only `macos-*` Actions artifacts enter public collection. `collect-release-artifacts.ts` publishes two DMGs, two signed-app ZIPs, two blockmaps, one merged `latest-mac.yml`, and `SHA256SUMS.txt`: eight public assets with exactly two DMG checksums. Windows and Linux outputs remain temporary internal CI artifacts until those platforms have real maintenance capabilities.
+`.github/workflows/release.yml` validates metadata and builds macOS, Windows and Linux for x64/arm64. The collector expects 19 assets: eight installers, six updater payloads/blockmaps, four manifests and SHA256SUMS.txt with eight installer hashes. The new native sidecar is built for each package architecture; see [Release process](RELEASING.md).
 
 Tag-triggered runs create or safely update the bilingual GitHub Release from `RELEASE_NOTES.md`. Manual dispatches run the same validation and build matrix but intentionally stop at temporary Actions artifacts. macOS builds import the project Developer ID certificate into an isolated temporary keychain, sign and notarize the app, produce both DMG and ZIP targets, then separately sign, notarize, staple, and verify the final DMG. The signed app inside the ZIP is the payload used by Squirrel.Mac. The end-to-end operator checklist is in [Release process](RELEASING.md).
 
-## 4.3 Application Update Discovery
+## 4.3 Retained Agent Application Update Discovery
 
 Installed-application updates are discovered during the application scan, separately from Memento's own hourly updater. `scanner.ts` checks Homebrew Cask, Mac App Store, and application-provided Sparkle feeds concurrently, then selects an eligible Homebrew result, an App Store result, or a Sparkle result in that order. Receipt-backed applications use the App Store result when available and can still use Sparkle when the store reports no valid update.
 
@@ -200,30 +201,11 @@ The Renderer also removes a newly ignored row immediately. Restoring detection u
 
 ## 8. Renderer Contract
 
-The application opens on Overview and starts live local metric sampling plus a deterministic scan before any model is required. The five primary modules are Overview, Cleanup, Applications, Disk analysis, and Terminal startup. Secondary navigation is labeled AI assistant, Activity, and Settings, backed by the Agent, History, and Settings pages. AI remains an optional per-item explanation and planning entry point and routes to provider setup only when invoked without a configured provider.
+The app opens on the storage homepage. It does not start a full-home index or the old maintenance scan automatically. The grouped sidebar exposes Smart cleanup, Large files, Duplicates, Space explorer, Privacy, Applications, Processes, Terminal and AI. Storage history includes a disclosure for existing Agent conversations and the maintenance ledger. The new workspace is implemented in `StorageWorkspace.tsx`, `ProcessWorkspace.tsx`, `agent-ui/Shell.tsx` and `workspace.css`.
 
-The production Renderer uses `Shell.tsx` and page components under `src/renderer/src/agent-ui/`. Cleanup and Terminal startup share `HealthPage.tsx`; the `health` view key is an internal name for Cleanup.
+New storage scanning uses the Rust sidecar through `StorageService`, independent of the retained macOS Agent evidence scanner. Native indexing is on demand; focused cache/privacy scans happen when their page is opened. All new selections start empty. Related application data is optional. Main-process operation validation remains authoritative. AI credentials and planning continue to use the existing runtime and store described above. Portable Agent evidence uses the new OS cache rules and application inventory; macOS-only service/terminal fixes are not presented as portable operations.
 
-Concurrent Agent starts are kept in a Renderer workspace list even when they use isolated conversation IDs. The compact task switcher displays each run's persisted state and changes the active conversation without cancelling or replacing other runs. Completion events update background tasks in place; recently completed workspace tasks remain available within the eight-item local workspace window unless their history record is deleted.
-
-- Dialogs trap focus, close with Escape when idle, restore previous focus, and block backdrop closing during execution.
-- Async buttons disable repeated submission and show a spinner.
-- Dynamic scan and Agent states use live regions.
-- Agent waits use a phase-aware estimated progress surface. Confirmed execution paints its 8% initial state before IPC starts; execution events advance the first phase and actual scan progress drives verification from 44% through 96%. It reaches 100% only on completion or failure.
-- Layouts cover full sidebar, compact sidebar, bottom navigation, tablet, and phone widths.
-- `prefers-reduced-motion` reduces all non-essential transitions.
-- Application icons are requested lazily and only for target paths registered by the current scan.
-- Conversation turns remain visible together, while SQLite keeps their compact focus and pending-plan context available to subsequent runs.
-- Task history has local live search across prompts, provider/model names, status, response, and error text. Deletion is confirmed in the Renderer and handled in the main process. Deleting `agent_runs` cascades to `tool_calls`; active runs are rejected, and completed system changes are not undone.
-- Cleanup presents deterministic findings by stable category and trust level. Safe operations are selected by default but still require one batch confirmation; review-required operations are opt-in. Weak outside-rule clues remain visibly labeled, and a clue with a registered target can be selected or moved to Trash only through the same explicit confirmation path as other review operations. Background services remain in Cleanup, while Terminal startup is a first-class primary module alongside Applications and Disk analysis. Cleanup selection lives above the page component so opening an isolated AI explanation and returning to Cleanup preserves the pending checks. The selection bar sends every chosen opaque action ID in one request, then removes only candidates whose operations completed successfully. Direct cleanup uses a per-item progress animation; completed and failed entries stay visible at the end, and failed registered operations can be retried without reselecting the whole batch. Disk analysis remains a separate surface: `disk-usage-scanner.ts` launches `/usr/bin/du -akx` against `/System/Volumes/Data` when available, streams real scan counters over a dedicated IPC event, supports cancellation, and retains entries of at least 5 MB. The resulting tree sorts siblings by size, caps a single folder at 200 visible children with an aggregate remainder, and registers opaque reveal/Trash IDs. Trash targets are revalidated with real paths and protected-root rules in the main process. Native Trash failures fall back to a collision-safe move and request administrator authorization only for filesystem permission errors. After success, `disk-usage-tree.ts` removes the subtree and adjusts visible ancestor sizes; the main process unregisters only that target and its descendants, leaving siblings available for consecutive removal. No automatic full scan follows Trash. Disk-analysis paths never enter the Cleanup action registry.
-- Overview disk availability uses the macOS Foundation volume capacity keys through a local `osascript` call, so the displayed value follows the system's available-capacity estimate, including purgeable space. The raw `df` free value remains available for fallback and diagnostics; disk cards use decimal storage units to match macOS. Activity Monitor Network navigation uses Accessibility only for the final UI click that selects the Network panel; if permission is unavailable, Activity Monitor still opens and the Renderer explains the setting path and limited purpose.
-- Structured application results use a logo grid with last-used time and size; while the first inventory scan is running, the page shows a live phase message and animated skeleton cards instead of an empty application list. A later refresh keeps the existing list visible and adds a compact progress row. Storage, service, and terminal results use compact rows. Their buttons reference only registered application or operation IDs.
-- Model prose is parsed by `react-markdown` with GFM and soft-line-break support. Common model bullet characters are normalized into semantic lists, raw HTML remains disabled, and links are rendered as inert labels. The Renderer never uses `dangerouslySetInnerHTML` or model-generated HTML.
-- Cleanup rows expose AI only as an explanation action. The generated prompt explicitly separates verified facts from inference and forbids direct execution; cleanup selection and execution remain deterministic.
-- Storage, service, and application pages open their own ignored-item tab directly; Settings retains the combined manager.
-- Preload initialization must not touch the DOM before `DOMContentLoaded`; losing the preload API silently activates browser demo data instead of real device data.
-
-Web development mode uses deterministic demo scan data and an in-memory demo Provider so every page and dialog can be visually tested without touching the computer. Overview includes an animated application-scan progress bar, application analysis counts, direct card navigation, matching process logos, name/CPU/memory sorting, User/System filters, local Agent prompts with registered quit and force-quit operations, name/PID clipboard actions, and user-process termination. The process list holds its current snapshot while the pointer or keyboard focus is inside the panel, so the live monitor cannot move an action target mid-interaction. The main process revalidates the live PID, owner, and system path before registering or executing graceful or force termination; system and other-user processes remain protected. Overview starts the application inventory scan so counts and icons are available on first load, including Memento's own bundle icon. Application cards open the validated application target when clicked or keyboard-activated; the standalone Open action is intentionally absent. Application analysis shortcuts can open Applications with the unused or updates filter selected. System process labels use the danger color to distinguish protected processes. Application inventory follows the source selection and installation boundaries in [Application Update Discovery](#43-application-update-discovery), and cards expose whether each update can run in Memento or must open an external updater. Network navigation opens Activity Monitor and selects its Network panel when Accessibility permits. Terminal diagnostics without a safe edit are kept out of the actionable optimization list.
+The new UI uses centralized locale catalogs and English fallback. The compatibility formatter for dynamic legacy maintenance diagnostics is retained. Theme, reduced motion, four viewport checks, keyboard navigation and modal focus are part of the product contract.
 
 ## 9. Adding a Capability
 
@@ -256,8 +238,4 @@ npm run audit:runtime
 git diff --check
 ```
 
-Start the web development server with `npm run dev:web -- --port 4174 --strictPort`, then run `npm run ui:smoke -- http://127.0.0.1:4174`. It captures all eight views at four viewports and exercises first-run Overview routing, trust-separated cleanup views, structured Agent results, disk-directory Ask AI, both history tabs, application-result grids, plan confirmation, application filtering, actionable terminal findings, and provider editing. The Electron smoke test launches the production output and requires the preload API, real application inventory, and at least one real application icon; this prevents browser demo data from masking a main/preload regression.
-
-Use `npm run audit:runtime` as the release boundary because it audits dependencies shipped inside the application. Use `npm run audit` to inspect the complete development tree. Record actionable findings in the release work instead of preserving a version-specific audit snapshot in this architecture document.
-
-Every user-requested code or UI change requires a patch-version bump, changelog and release-note update, Developer ID-signed Intel x64 DMG build, mounted-image and bundle-signature verification, bundled version and `x86_64` architecture check, SHA-256 calculation, and a source commit. Public packages additionally require successful Apple notarization, ticket stapling, and Gatekeeper assessment. The complete checklist is maintained in `AGENTS.md` and [Release process](RELEASING.md).
+Start `npm run dev:web -- --port 4178 --strictPort`, then `npm run ui:smoke -- http://127.0.0.1:4178`. The test captures twelve pages at four viewports and exercises storage confirmations, duplicate survivor protection, application data selection, process-to-AI navigation, English and dark mode. The Electron smoke uses the production main/preload/Renderer, real metrics/inventory, an isolated owned storage fixture and a real Trash operation; it also verifies encrypted provider-key editing against a loopback provider. Run `npm run native:test` and `npm run scan:smoke` for metadata, content verification and scanner evidence. Packaging and public release checks are in [Release process](RELEASING.md).

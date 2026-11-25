@@ -1,0 +1,32 @@
+name: Cross-platform verification
+on:
+  push:
+    branches: [main, 'rebuild/**']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15-intel, windows-2022, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22.x
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: npm run native:test
+      - run: npm test
+      - run: npm run build
+      - run: node scripts/native-smoke.mjs
+      - name: Real Electron smoke
+        if: runner.os != 'Linux'
+        run: npm run electron:smoke
+      - name: Real Electron smoke (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run electron:smoke

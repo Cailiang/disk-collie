@@ -40,9 +40,9 @@ async function createFixture(root: string): Promise<void> {
     ['macos-arm64', `Memento-${version}-arm64.dmg`],
     ['windows-x64', `Memento-${version}-x64.exe`],
     ['windows-arm64', `Memento-${version}-arm64.exe`],
-    ['linux-x64', `Memento-${version}-x86_64.AppImage`],
+    ['linux-x64', `Memento-${version}-x64.AppImage`],
     ['linux-arm64', `Memento-${version}-arm64.AppImage`],
-    ['linux-x64', `Memento-${version}-amd64.deb`],
+    ['linux-x64', `Memento-${version}-x64.deb`],
     ['linux-arm64', `Memento-${version}-arm64.deb`]
   ]
   for (const [runner, name] of installers) await addArtifact(root, runner, name)
@@ -66,8 +66,8 @@ async function createFixture(root: string): Promise<void> {
   await addArtifact(root, 'windows-x64', 'latest.yml', manifest([`Memento-${version}-x64.exe`]))
   await addArtifact(root, 'windows-arm64', 'latest.yml', manifest([`Memento-${version}-arm64.exe`]))
   await addArtifact(root, 'linux-x64', 'latest-linux.yml', manifest([
-    `Memento-${version}-x86_64.AppImage`,
-    `Memento-${version}-amd64.deb`
+    `Memento-${version}-x64.AppImage`,
+    `Memento-${version}-x64.deb`
   ]))
   await addArtifact(root, 'linux-arm64', 'latest-linux-arm64.yml', manifest([
     `Memento-${version}-arm64.AppImage`,
@@ -76,7 +76,7 @@ async function createFixture(root: string): Promise<void> {
 }
 
 describe('release artifact collector', () => {
-  it('publishes only macOS installers and updater payloads', async () => {
+  it('publishes every platform installer, updater payload and checksum', async () => {
     temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'memento-release-test-'))
     const artifacts = path.join(temporaryDirectory, 'artifacts')
     const output = path.join(temporaryDirectory, 'dist')
@@ -84,7 +84,7 @@ describe('release artifact collector', () => {
 
     await collectReleaseArtifacts(artifacts, output, version)
 
-    expect(await readdir(output)).toHaveLength(8)
+    expect(await readdir(output)).toHaveLength(19)
     const macManifest = load(await readFile(path.join(output, 'latest-mac.yml'), 'utf8')) as {
       files: Array<{ url: string }>
     }
@@ -95,11 +95,11 @@ describe('release artifact collector', () => {
     const outputNames = await readdir(output)
     expect(outputNames).toContain(`Memento-${version}-x64.dmg`)
     expect(outputNames).toContain(`Memento-${version}-arm64.dmg`)
-    expect(outputNames.some((name) => /\.(exe|AppImage|deb)$/.test(name))).toBe(false)
-    expect(outputNames).not.toContain('latest.yml')
-    expect(outputNames).not.toContain('latest-linux.yml')
+    expect(outputNames.filter((name) => /\.(exe|AppImage|deb)$/.test(name))).toHaveLength(6)
+    expect(outputNames).toContain('latest.yml')
+    expect(outputNames).toContain('latest-linux.yml')
     const checksums = (await readFile(path.join(output, 'SHA256SUMS.txt'), 'utf8')).trim().split('\n')
-    expect(checksums).toHaveLength(2)
+    expect(checksums).toHaveLength(8)
     expect(checksums.every((line) => !line.includes('.zip') && !line.includes('.blockmap'))).toBe(true)
     expect(checksums.some((line) => line.endsWith(`Memento-${version}-x64.dmg`))).toBe(true)
     expect(checksums.some((line) => line.endsWith(`Memento-${version}-arm64.dmg`))).toBe(true)

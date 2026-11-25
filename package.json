@@ -1,6 +1,6 @@
 {
   "name": "memento",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "author": {
     "name": "Cailiang",
@@ -9,22 +9,25 @@
   "description": "A local desktop maintenance Agent with user-configured models and confirmed actions.",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "npm run native:build && electron-vite dev",
     "dev:web": "vite --config vite.renderer.config.ts --host 127.0.0.1",
     "icon": "node scripts/generate-icon.mjs",
-    "build": "npm run typecheck && electron-vite build",
+    "build": "npm run native:build && npm run typecheck && electron-vite build",
     "dist:mac": "npm run build && electron-builder --mac dmg zip --publish never",
     "dist:win": "npm run build && electron-builder --win nsis --publish never",
     "dist:linux": "npm run build && electron-builder --linux AppImage deb --publish never",
     "preview": "electron-vite preview",
-    "scan:smoke": "vite-node scripts/smoke-scan.ts",
+    "scan:smoke": "vite-node scripts/smoke-scan.ts && node scripts/native-smoke.mjs",
     "electron:smoke": "node scripts/electron-smoke.mjs",
     "ui:smoke": "node scripts/visual-smoke.mjs",
     "release:collect": "vite-node --script scripts/collect-release-artifacts.ts",
     "audit": "npm audit --registry=https://registry.npmjs.org",
     "audit:runtime": "npm audit --omit=dev --registry=https://registry.npmjs.org",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "native:build": "node scripts/build-native.mjs",
+    "native:test": "cargo test --manifest-path native/Cargo.toml",
+    "native:smoke": "node scripts/native-smoke.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.23",
@@ -39,8 +42,8 @@
     "react-markdown": "^10.1.0",
     "remark-breaks": "^4.0.0",
     "remark-gfm": "^4.0.1",
-    "smol-toml": "^1.7.1",
-    "zod": "^4.4.3"
+    "smol-toml": "^1.9.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
@@ -89,6 +92,10 @@
       {
         "from": "build/icon.png",
         "to": "icon.png"
+      },
+      {
+        "from": "build/native/${arch}",
+        "to": "native"
       }
     ],
     "mac": {
@@ -115,6 +122,17 @@
         "AppImage",
         "deb"
       ]
-    }
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "appImage": {
+      "artifactName": "${productName}-${version}-${arch}.AppImage"
+    },
+    "deb": {
+      "artifactName": "${productName}-${version}-${arch}.deb"
+    },
+    "beforePack": "scripts/prepare-native.cjs"
   }
 }

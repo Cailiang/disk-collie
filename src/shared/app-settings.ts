@@ -1,4 +1,5 @@
-export type AppLanguage = 'zh-CN' | 'en-US'
+import { supportedLocales, type LocaleId } from './localization'
+export type AppLanguage = LocaleId
 export type AppTheme =
   | 'porcelain'
   | 'graphite'
@@ -36,7 +37,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   applicationWhitelist: []
 }
 
-const APP_LANGUAGES = new Set<AppLanguage>(['zh-CN', 'en-US'])
+const APP_LANGUAGES = new Set<AppLanguage>(supportedLocales.map((locale) => locale.id))
 const APP_THEMES = new Set<AppTheme>([
   'porcelain',
   'graphite',

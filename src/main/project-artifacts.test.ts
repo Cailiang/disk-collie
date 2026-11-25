@@ -9,6 +9,17 @@ import {
 } from './project-artifacts'
 
 describe('project artifact cleanup', () => {
+  it('does not let unrelated early folders hide projects in a later root', async () => {
+    const home=await fs.mkdtemp(path.join(os.tmpdir(),'memento-project-scope-'))
+    try {
+      await fs.mkdir(path.join(home,'Projects'),{recursive:true})
+      await Promise.all(Array.from({length:170},(_,i)=>fs.mkdir(path.join(home,'Projects',`empty-${i}`))))
+      const project=path.join(home,'src','real-project')
+      await fs.mkdir(path.join(project,'node_modules'),{recursive:true})
+      await fs.writeFile(path.join(project,'package.json'),'{}')
+      expect((await discoverProjectArtifacts(home)).some((v)=>v.projectName==='real-project')).toBe(true)
+    } finally { await fs.rm(home,{recursive:true,force:true}) }
+  })
   it('finds rebuildable project directories and skips protected outputs', async () => {
     const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-project-artifacts-'))
     try {

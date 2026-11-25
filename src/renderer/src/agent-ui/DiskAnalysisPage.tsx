@@ -26,7 +26,7 @@ export function DiskAnalysisPage({
   const { text } = useI18n()
   return (
     <section className="page content-page disk-analysis-page is-active">
-      <div className="page-command-bar"><span className="page-command-summary">{text('按目录查看磁盘占用；删除操作始终需要确认并移到废纸篓。', 'Inspect disk usage by directory. Deletion always requires confirmation and moves items to Trash.')}</span></div>
+      <div className="page-command-bar"><span className="page-command-summary">{text("legacy.inspect_disk_usage_by_directory_deletion_a.c14228")}</span></div>
       <DiskUsageBrowser result={result} progress={progress} busy={busy} error={error} onScan={onScan} onCancel={onCancel} onReveal={onReveal} onAskAI={onAskAI} onRequestTrash={onRequestTrash} />
     </section>
   )

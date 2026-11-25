@@ -1,182 +1,21 @@
-import {
-  AppWindow,
-  Archive,
-  HardDrive,
-  History,
-  LayoutDashboard,
-  LoaderCircle,
-  Monitor,
-  RefreshCw,
-  Settings2,
-  Sparkles,
-  SquareTerminal,
-  Trash2
-} from 'lucide-react'
+import { AppWindow, Archive, Copy, File, HardDrive, History, House, Layers3, LoaderCircle, Monitor, RefreshCw, Settings2, ShieldCheck, Sparkles, SquareTerminal, Activity } from 'lucide-react'
 import type { AgentProvider } from '../../../shared/agent-types'
 import type { AppUpdateState } from '../../../shared/types'
 import { useI18n } from '../i18n'
 
-export type AgentViewKey = 'overview' | 'health' | 'apps' | 'disk' | 'terminal' | 'agent' | 'history' | 'settings'
+export type AgentViewKey = 'overview' | 'health' | 'large' | 'duplicates' | 'privacy' | 'processes' | 'apps' | 'disk' | 'terminal' | 'agent' | 'history' | 'settings'
 
-export function Shell({
-  activeView,
-  provider,
-  healthCount,
-  applicationCount,
-  terminalCount,
-  appVersion,
-  updateState,
-  hostname,
-  osVersion,
-  onNavigate,
-  onInstallUpdate,
-  children
-}: {
-  activeView: AgentViewKey
-  provider: AgentProvider | null
-  healthCount: number
-  applicationCount: number
-  terminalCount: number
-  appVersion: string
-  updateState: AppUpdateState | null
-  hostname: string
-  osVersion: string
-  onNavigate: (view: AgentViewKey) => void
-  onInstallUpdate: () => void
-  children: React.ReactNode
-}): React.JSX.Element {
-  const { text } = useI18n()
-  const navigation: Array<{
-    id: AgentViewKey
-    label: [string, string]
-    icon: typeof Sparkles
-    count?: number
-  }> = [
-    { id: 'overview', label: ['概览', 'Overview'], icon: LayoutDashboard },
-    { id: 'health', label: ['清理', 'Cleanup'], icon: Trash2, count: healthCount },
-    { id: 'apps', label: ['应用管理', 'Applications'], icon: AppWindow, count: applicationCount },
-    { id: 'disk', label: ['磁盘分析', 'Disk analysis'], icon: HardDrive },
-    { id: 'terminal', label: ['命令行启动优化', 'Terminal startup'], icon: SquareTerminal, count: terminalCount }
-  ]
-  const utilities: Array<{
-    id: Extract<AgentViewKey, 'agent' | 'history' | 'settings'>
-    label: [string, string]
-    icon: typeof Sparkles
-  }> = [
-    { id: 'agent', label: ['AI 助手', 'AI assistant'], icon: Sparkles },
-    { id: 'history', label: ['操作记录', 'Activity'], icon: History },
-    { id: 'settings', label: ['设置', 'Settings'], icon: Settings2 }
-  ]
-  const showUpdateControl = updateState && [
-    'available',
-    'downloading',
-    'downloaded',
-    'installing'
-  ].includes(updateState.phase)
-  const updateReady = updateState?.phase === 'downloaded'
-  const updateLabel = updateState?.phase === 'downloading'
-    ? `${updateState.downloadPercent ?? 0}%`
-    : updateState?.phase === 'downloaded'
-      ? text('更新', 'Update')
-      : updateState?.phase === 'installing'
-        ? text('安装中', 'Installing')
-        : text('准备中', 'Preparing')
-  const updateTitle = updateReady
-    ? text('安装新版本并重启 Memento', 'Install the update and restart Memento')
-    : updateState?.phase === 'downloading'
-      ? text(`正在后台下载新版本 ${updateState.downloadPercent ?? 0}%`, `Downloading the update in the background: ${updateState.downloadPercent ?? 0}%`)
-      : updateState?.phase === 'installing'
-        ? text('正在安装新版本', 'Installing the update')
-        : text('正在准备后台下载', 'Preparing the background download')
-
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark"><Archive size={18} /></span>
-          <div className="brand-copy">
-            <strong>Memento</strong>
-            <span className="brand-meta" role="status" aria-live="polite">
-              <span className="brand-version">v{appVersion}</span>
-              {showUpdateControl && (
-                <button
-                  type="button"
-                  className="brand-update-button"
-                  disabled={!updateReady}
-                  onClick={onInstallUpdate}
-                  title={updateTitle}
-                  aria-label={updateTitle}
-                >
-                  {updateReady
-                    ? <RefreshCw size={11} />
-                    : <LoaderCircle className="spinner" size={11} />}
-                  <span>{updateLabel}</span>
-                </button>
-              )}
-            </span>
-          </div>
-        </div>
-
-        <nav className="nav-list" aria-label={text('主要导航', 'Main navigation')}>
-          {navigation.map((item) => {
-            const Icon = item.icon
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={`nav-button ${activeView === item.id ? 'is-active' : ''}`}
-                onClick={() => onNavigate(item.id)}
-                title={text(...item.label)}
-                aria-current={activeView === item.id ? 'page' : undefined}
-              >
-                <Icon size={18} />
-                <span>{text(...item.label)}</span>
-                {item.count !== undefined && item.count > 0 && <small className="nav-badge">{item.count}</small>}
-              </button>
-            )
-          })}
-        </nav>
-
-        <div className="sidebar-footer">
-          <nav className="utility-nav" aria-label={text('辅助功能', 'Utilities')}>
-            {utilities.map((item) => {
-              const Icon = item.icon
-              return <button key={item.id} type="button" className={`utility-button ${activeView === item.id ? 'is-active' : ''}`} onClick={() => onNavigate(item.id)} title={text(...item.label)} aria-current={activeView === item.id ? 'page' : undefined}><Icon size={15} /><span>{text(...item.label)}</span></button>
-            })}
-          </nav>
-          <div className="provider-state">
-            <span className={`status-dot ${provider?.connectionState === 'connected' ? '' : 'is-muted'}`} />
-            <div>
-              <strong>{provider ? `${provider.name} · ${provider.model}` : text('尚未配置模型', 'No model configured')}</strong>
-              <small>{provider
-                ? text(
-                    `默认模型 · ${provider.connectionState === 'connected' ? '已连接' : '未测试'}`,
-                    `Default · ${provider.connectionState === 'connected' ? 'Connected' : 'Not tested'}`
-                  )
-                : text('请前往设置', 'Open Settings')}</small>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      <div className="workspace">
-        <header className="topbar">
-          <div className="device-status">
-            <span><Monitor size={15} /></span>
-            <div>
-              <strong>{hostname || text('这台 Mac', 'This Mac')}</strong>
-              <small>{text(`macOS ${osVersion || '--'} · 本机状态`, `macOS ${osVersion || '--'} · Local Mac`)}</small>
-            </div>
-          </div>
-          <nav className="topbar-tools" aria-label={text('辅助功能', 'Utilities')}>
-            {utilities.map((item) => {
-              const Icon = item.icon
-              return <button key={item.id} type="button" className={`icon-button ${activeView === item.id ? 'is-active' : ''}`} onClick={() => onNavigate(item.id)} title={text(...item.label)} aria-label={text(...item.label)}><Icon size={15} /></button>
-            })}
-          </nav>
-        </header>
-        <main className="page-stack">{children}</main>
-      </div>
-    </div>
-  )
+export function Shell({ activeView, provider, appVersion, updateState, hostname, osVersion, onNavigate, onInstallUpdate, children }: {
+  activeView: AgentViewKey; provider: AgentProvider | null; healthCount:number; applicationCount:number; terminalCount:number;
+  appVersion:string; updateState:AppUpdateState|null; hostname:string; osVersion:string;
+  onNavigate:(view:AgentViewKey)=>void; onInstallUpdate:()=>void; children:React.ReactNode
+}):React.JSX.Element {
+  const {t}=useI18n()
+  const storage=[{id:'health',key:'cleanup',icon:Sparkles},{id:'large',key:'large',icon:File},{id:'duplicates',key:'duplicates',icon:Copy},{id:'disk',key:'disk',icon:HardDrive},{id:'privacy',key:'privacy',icon:ShieldCheck},{id:'apps',key:'apps',icon:AppWindow}] as const
+  const tools=[{id:'processes',key:'processes',icon:Activity},{id:'terminal',key:'terminal',icon:SquareTerminal},{id:'agent',key:'agent',icon:Sparkles}] as const
+  const utility=[{id:'history',key:'history',icon:History},{id:'settings',key:'settings',icon:Settings2}] as const
+  const nav=(item:{id:AgentViewKey;key:string;icon:typeof House}):React.JSX.Element=><button key={item.id} type="button" className={`nav-button ${activeView===item.id?'is-active':''}`} title={t(`nav.${item.key}`)} aria-current={activeView===item.id?'page':undefined} onClick={()=>onNavigate(item.id)}><item.icon size={18}/><span>{t(`nav.${item.key}`)}</span>{activeView===item.id&&<i/>}</button>
+  const platform=window.memento?.platform
+  const platformName=platform==='darwin'?'macOS':platform==='win32'?'Windows':platform==='linux'?'Linux':''
+  return <div className="app-shell"><a className="space-skip" href="#main-content">{t('nav.skip')}</a><aside className="sidebar"><div className="brand"><span className="brand-mark"><Layers3 size={23}/></span><div className="brand-copy"><strong>Memento<span>®</span></strong><span className="brand-meta"><span className="brand-version">v{appVersion}</span>{updateState?.phase==='downloaded'?<button className="brand-update-button" aria-label="Install update" onClick={onInstallUpdate}><RefreshCw size={12}/></button>:updateState?.phase==='downloading'?<LoaderCircle className="spinner" size={12}/>:null}</span></div></div><nav className="nav-list" aria-label={t('nav.main')}>{nav({id:'overview',key:'home',icon:House})}<div className="space-nav-label">{t('nav.storage')}</div>{storage.map(nav)}<div className="space-nav-label">{t('nav.tools')}</div>{tools.map(nav)}</nav><div className="sidebar-footer"><nav className="utility-nav" aria-label={t('nav.utilities')}>{utility.map(nav)}</nav><button className="provider-state" onClick={()=>onNavigate('settings')}><span className={`status-dot ${provider?.connectionState==='connected'?'':'is-muted'}`}/><div><strong>{provider?provider.name:t('nav.model')}</strong><small>{provider?provider.model:t('nav.noModel')}</small></div><Settings2 size={14}/></button></div></aside><div className="workspace"><header className="topbar"><div className="device-status"><Monitor size={15}/><strong>{hostname||t('nav.device')}</strong><span>{platformName} {osVersion}</span></div><div className="space-topbar-right"><span className="space-local-indicator"/>{!window.memento?t('nav.demo'):t('nav.local')}</div></header><main className="page-stack" id="main-content" tabIndex={-1}>{children}</main></div></div>
 }

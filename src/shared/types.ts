@@ -1,3 +1,4 @@
+import type { StorageApi } from './storage-types'
 export type ScanSection = 'services' | 'storage' | 'applications' | 'terminal'
 
 import type { MementoAgentApi } from './agent-types'
@@ -368,7 +369,7 @@ export interface AppUpdateState {
   error: string | null
 }
 
-export interface MementoApi extends MementoAgentApi, MementoSettingsApi {
+export interface MementoApi extends MementoAgentApi, MementoSettingsApi, StorageApi {
   getVersion: () => Promise<string>
   getUpdateState: () => Promise<AppUpdateState>
   checkForUpdates: () => Promise<AppUpdateState>
