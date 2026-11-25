@@ -1,3 +1,17 @@
+# Memento 1.0.7 — 紧凑工作区与扫描改进
+
+- 删除大段页面说明，必要说明收进可点击问号；大文件支持类型筛选。
+- 重复文件、隐私、卸载关联文件改成可展开层级；应用显示真实图标。
+- 空间分析改为左目录树、右分布图，默认分析系统磁盘并包含 Users。
+- 恢复进程图标、表头双向排序、用户／系统筛选与行内操作。
+- 取消 200 万项上限，压缩索引；重复扫描按可见条件分阶段校验并缓存同会话结果。默认 ≥200 KB，隐藏目录和个人应用数据可勾选纳入。
+- 本机默认重复扫描 12.70 秒（52 万项、816 组）；完整个人目录 213 万项／60.77 秒；系统磁盘 368 万项／99.77 秒。整盘仍较慢；无权限与跳过位置可在问号中查看。不是与 MangoDisk 的同条件基准。
+- 个人文件进入系统废纸篓，删除前重校验完整内容并至少保留一份；缓存／历史永久删除仍需确认。
+
+English: compact data workspaces, on-demand Help, file-type filters, expandable results and inline process actions. The compact native index removes the two-million-entry cutoff. Focused duplicate scans default to ≥200 KB with optional hidden/app-data coverage; full-drive scans still take substantially longer. Local measurements and scope limitations are documented in the architecture report.
+
+---
+
 # Memento 1.0.6 — 重新找回空间 / A lighter workspace
 
 ## 简体中文

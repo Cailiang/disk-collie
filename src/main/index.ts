@@ -1686,7 +1686,15 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('memento:get-process-icon', async (_event, command: string) => {
     const target = applicationBundleFromProcessCommand(command)
-    return target ? readApplicationIcon(target) : null
+    if (target) return readApplicationIcon(target)
+    // Portable processes report executable paths; Electron resolves their OS icon.
+    if (process.platform === 'darwin' || typeof command !== 'string' || command.length > 2000 || !path.isAbsolute(command)) return null
+    try {
+      const metadata = lstatSync(command)
+      if (!metadata.isFile() || metadata.isSymbolicLink()) return null
+      const icon = await app.getFileIcon(command, { size: 'normal' })
+      return icon.isEmpty() ? null : icon.toDataURL()
+    } catch { return null }
   })
   ipcMain.handle('memento:open-application', async (_event, id: string) => {
     if (typeof id !== 'string' || id.length > 100) {

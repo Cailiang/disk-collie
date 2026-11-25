@@ -10,7 +10,7 @@ use std::{
     time::{Instant, UNIX_EPOCH},
 };
 
-const MAX_ENTRIES: usize = 2_000_000;
+const NONE: u32 = u32::MAX;
 #[cfg(target_os = "macos")]
 mod macos_bulk;
 
@@ -166,8 +166,9 @@ fn file_identity(_path: &Path, m: &Metadata) -> Result<(String, u64, u64), Strin
         let info = unsafe { info.assume_init() };
         return Ok((
             format!(
-                "{}:{}:{}",
-                info.dwVolumeSerialNumber, info.nFileIndexHigh, info.nFileIndexLow
+                "{}:{}",
+                info.dwVolumeSerialNumber,
+                ((info.nFileIndexHigh as u64) << 32) | info.nFileIndexLow as u64
             ),
             info.nNumberOfLinks as u64,
             m.len(),
@@ -185,110 +186,222 @@ fn emit(v: Value) {
     let _ = out.flush();
 }
 
+// Paths are reconstructed only for visible results and I/O. One compact record per
+// retained item, with linked child lists, avoids millions of full path allocations.
+struct Record {
+    name: Box<str>,
+    parent: u32,
+    first: u32,
+    next: u32,
+    directory: bool,
+    size: u64,
+    allocated: u64,
+    modified: u64,
+    volume: u64,
+    file: u64,
+    links: u64,
+}
+impl Record {
+    fn from(e: &Entry) -> Self {
+        let mut identity = e.identity.split(':').map(|v| v.parse::<u64>().unwrap_or(0));
+        Self {
+            name: e.name.clone().into_boxed_str(),
+            parent: e.parent.map(|v| v as u32).unwrap_or(NONE),
+            first: NONE,
+            next: NONE,
+            directory: e.directory,
+            size: e.size,
+            allocated: e.allocated,
+            modified: e.modified,
+            volume: identity.next().unwrap_or(0),
+            file: identity.next().unwrap_or(0),
+            links: e.links,
+        }
+    }
+}
 #[derive(Default)]
 struct Index {
-    entries: Vec<Entry>,
+    entries: Vec<Record>,
+    root: String,
+    visited: usize,
     errors: usize,
     skipped: usize,
-    limited: bool,
     elapsed: u128,
     generation: u64,
+    mode: String,
+    hashes: std::sync::Mutex<HashMap<(u64, u64, u64, u64, bool), String>>,
 }
-
 impl Index {
+    #[cfg(test)]
     fn scan(&mut self, root: &str, request: u64) -> Result<Value, String> {
+        self.scan_options(root, request, &json!({}))
+    }
+    fn scan_options(&mut self, root: &str, request: u64, options: &Value) -> Result<Value, String> {
         let started = Instant::now();
         let root = fs::canonicalize(root).map_err(|e| e.to_string())?;
         #[cfg(windows)]
         let root = {
-            let value = root.to_string_lossy();
-            // Use ordinary shell-compatible paths in IPC, including UNC shares.
-            let value = if let Some(unc) = value.strip_prefix(r"\\?\UNC\") {
+            let v = root.to_string_lossy();
+            std::path::PathBuf::from(if let Some(unc) = v.strip_prefix(r"\\?\UNC\") {
                 format!(r"\\{unc}")
             } else {
-                value.strip_prefix(r"\\?\").unwrap_or(&value).to_string()
-            };
-            std::path::PathBuf::from(value)
+                v.strip_prefix(r"\\?\").unwrap_or(&v).to_string()
+            })
         };
         if !root.is_dir() {
             return Err("Choose a directory".into());
         }
-        self.entries.clear();
+        self.entries = Vec::new();
+        self.root = root.to_string_lossy().into();
         self.errors = 0;
         self.skipped = 0;
-        self.limited = false;
+        self.visited = 1;
         self.generation += 1;
-        self.entries.push(inspect(&root, 0, None)?);
-        let mut pending = vec![0usize];
+        self.mode = options["mode"].as_str().unwrap_or("analysis").to_string();
+        let minimum = if self.mode == "large" {
+            10 * 1024 * 1024
+        } else {
+            options["minimum"].as_u64().unwrap_or(200 * 1024)
+        };
+        let include_hidden = options["includeHidden"].as_bool().unwrap_or(false);
+        let excluded: Vec<_> = options["excludePaths"]
+            .as_array()
+            .map(|v| v.iter().filter_map(|v| v.as_str()).collect())
+            .unwrap_or_default();
+        self.entries.push(Record::from(&inspect(&root, 0, None)?));
+        #[allow(unused_mut)] // mutated only for macOS system/Data firmlinks below
+        let mut volumes = HashSet::from([self.entries[0].volume]);
+        // APFS firmlinks can cross from the system volume to Data. Traverse their
+        // ordinary paths once; never descend through /System/Volumes aliases.
+        #[cfg(target_os = "macos")]
+        if root == Path::new("/") {
+            if let Ok(e) = inspect(Path::new("/Users"), 0, None) {
+                volumes.insert(Record::from(&e).volume);
+            }
+        }
+        let mut directories = HashSet::from([(self.entries[0].volume, self.entries[0].file)]);
+        let mut hardlinks = HashSet::new();
+        let mut pending = std::collections::VecDeque::from([0usize]);
         let mut last = Instant::now();
-        while !pending.is_empty() && self.entries.len() < MAX_ENTRIES {
-            let end = pending.len().min(128);
-            let batch: Vec<_> = pending
-                .drain(..end)
-                .map(|id| (id, self.entries[id].path.clone()))
+        while !pending.is_empty() {
+            let batch: Vec<_> = (0..pending.len().min(128))
+                .filter_map(|_| pending.pop_front())
+                .map(|id| (id, self.path(id)))
                 .collect();
             let results: Vec<_> = batch
                 .par_iter()
-                .map(|(parent, directory)| read_directory(Path::new(directory), *parent))
+                .map(|(id, p)| read_directory(Path::new(p), *id))
                 .collect();
             for (children, errors, skipped) in results {
                 self.errors += errors;
                 self.skipped += skipped;
-                for mut entry in children {
-                    if self.entries.len() >= MAX_ENTRIES {
-                        self.limited = true;
-                        break;
-                    }
-                    if entry.identity.split(':').next()
-                        != self.entries[0].identity.split(':').next()
-                    {
+                for entry in children {
+                    self.visited += 1;
+                    let mut record = Record::from(&entry);
+                    let parent = record.parent as usize;
+                    if !volumes.contains(&record.volume) {
                         self.skipped += 1;
                         continue;
                     }
-                    entry.id = self.entries.len();
                     if entry.directory {
-                        pending.push(entry.id);
+                        if (root == Path::new("/")
+                            && (entry.path == "/System/Volumes" || entry.path == "/Volumes"))
+                            || excluded.contains(&entry.path.as_str())
+                            || ((self.mode == "duplicates" || self.mode == "large")
+                                && !include_hidden
+                                && entry.name.starts_with('.'))
+                            || !directories.insert((record.volume, record.file))
+                        {
+                            self.skipped += 1;
+                            continue;
+                        }
+                    } else {
+                        if record.links > 1 && !hardlinks.insert((record.volume, record.file)) {
+                            record.allocated = 0;
+                        }
+                        let retain = self.mode == "analysis"
+                            || (record.size >= minimum
+                                && (self.mode != "duplicates"
+                                    || (record.links == 1 && entry.name != ".DS_Store")));
+                        if !retain {
+                            self.entries[parent].size =
+                                self.entries[parent].size.saturating_add(record.size);
+                            self.entries[parent].allocated = self.entries[parent]
+                                .allocated
+                                .saturating_add(record.allocated);
+                            continue;
+                        }
                     }
-                    self.entries.push(entry);
+                    let id = self.entries.len();
+                    if id >= NONE as usize {
+                        return Err("Index exceeds addressable memory".into());
+                    }
+                    record.next = self.entries[parent].first;
+                    self.entries[parent].first = id as u32;
+                    if record.directory {
+                        pending.push_back(id)
+                    }
+                    self.entries.push(record);
                 }
             }
-            if last.elapsed().as_millis() >= 150 {
+            if last.elapsed().as_millis() >= 120 {
                 emit(
-                    json!({"event":"progress", "request":request, "phase":"indexing", "entries":self.entries.len(), "errors":self.errors, "skipped":self.skipped, "elapsedMs":started.elapsed().as_millis(), "path":batch.last().map(|v| &v.1)}),
+                    json!({"event":"progress","request":request,"phase":"indexing","entries":self.visited,"errors":self.errors,"skipped":self.skipped,"elapsedMs":started.elapsed().as_millis(),"path":batch.last().map(|v|&v.1)}),
                 );
                 last = Instant::now();
             }
         }
-        self.limited |= !pending.is_empty();
-        // Count hard-linked data once. Both names remain visible, but aren't duplicate candidates.
-        let mut identities = HashSet::new();
-        for entry in &mut self.entries {
-            if !entry.directory && !identities.insert(entry.identity.clone()) {
-                entry.allocated = 0;
-            }
-        }
         for i in (1..self.entries.len()).rev() {
-            let entry = &self.entries[i];
-            let (parent, size, allocated) = (entry.parent.unwrap(), entry.size, entry.allocated);
-            self.entries[parent].size = self.entries[parent].size.saturating_add(size);
-            self.entries[parent].allocated =
-                self.entries[parent].allocated.saturating_add(allocated);
+            let e = &self.entries[i];
+            let (p, s, a) = (e.parent as usize, e.size, e.allocated);
+            self.entries[p].size = self.entries[p].size.saturating_add(s);
+            self.entries[p].allocated = self.entries[p].allocated.saturating_add(a);
         }
         self.elapsed = started.elapsed().as_millis();
         Ok(self.summary())
     }
+    fn path(&self, id: usize) -> String {
+        let mut parts = Vec::new();
+        let mut current = id;
+        while current != 0 {
+            let e = &self.entries[current];
+            parts.push(e.name.as_ref());
+            current = e.parent as usize;
+        }
+        let mut p = std::path::PathBuf::from(&self.root);
+        for part in parts.iter().rev() {
+            p.push(part)
+        }
+        p.to_string_lossy().into()
+    }
     fn summary(&self) -> Value {
-        json!({"generation":self.generation,"root":self.entries.first(),"entries":self.entries.len(),"errors":self.errors,"skipped":self.skipped,"limited":self.limited,"elapsedMs":self.elapsed})
+        json!({"generation":self.generation,"root":if self.entries.is_empty(){None}else{self.get(0).ok()},"entries":self.visited,"retained":self.entries.len(),"errors":self.errors,"skipped":self.skipped,"limited":false,"elapsedMs":self.elapsed,"mode":self.mode})
     }
-    fn get(&self, id: usize) -> Result<&Entry, String> {
-        self.entries.get(id).ok_or("Unknown index entry".into())
+    fn get(&self, id: usize) -> Result<Entry, String> {
+        let e = self.entries.get(id).ok_or("Unknown index entry")?;
+        Ok(Entry {
+            id,
+            parent: if e.parent == NONE {
+                None
+            } else {
+                Some(e.parent as usize)
+            },
+            name: e.name.to_string(),
+            path: self.path(id),
+            directory: e.directory,
+            size: e.size,
+            allocated: e.allocated,
+            modified: e.modified,
+            identity: format!("{}:{}", e.volume, e.file),
+            links: e.links,
+        })
     }
-    fn validate(&self, id: usize) -> Result<&Entry, String> {
+    fn validate(&self, id: usize) -> Result<Entry, String> {
         let old = self.get(id)?;
         let path = Path::new(&old.path);
         for component in path.ancestors() {
-            let metadata = fs::symlink_metadata(component).map_err(|e| e.to_string())?;
-            if offline_or_link(&metadata) {
+            let m = fs::symlink_metadata(component).map_err(|e| e.to_string())?;
+            if offline_or_link(&m) {
                 return Err("Path changed or became a link".into());
             }
         }
@@ -300,12 +413,16 @@ impl Index {
         }
         Ok(old)
     }
+    #[cfg(test)]
     fn duplicates(&self, request: u64) -> Result<Value, String> {
+        self.duplicates_minimum(request, 1024)
+    }
+    fn duplicates_minimum(&self, request: u64, minimum: u64) -> Result<Value, String> {
         let started = Instant::now();
         let mut by_size: HashMap<u64, Vec<usize>> = HashMap::new();
-        for entry in &self.entries {
-            if !entry.directory && entry.size >= 1024 && entry.links == 1 {
-                by_size.entry(entry.size).or_default().push(entry.id);
+        for (id, e) in self.entries.iter().enumerate() {
+            if !e.directory && e.size >= minimum && e.links == 1 {
+                by_size.entry(e.size).or_default().push(id)
             }
         }
         let candidates: Vec<_> = by_size
@@ -313,35 +430,25 @@ impl Index {
             .filter(|v| v.len() > 1)
             .flatten()
             .collect();
-        emit(
-            json!({"event":"progress","request":request,"phase":"sampling","entries":candidates.len(),"elapsedMs":0}),
-        );
-        let samples: Vec<_> = candidates
-            .par_iter()
-            .filter_map(|id| self.hash(*id, true).ok().map(|hash| (hash, *id)))
-            .collect();
+        let samples = self.hash_stage(&candidates, true, request, "sampling", started);
         let mut by_sample: HashMap<(u64, String), Vec<usize>> = HashMap::new();
         for (hash, id) in samples {
             by_sample
                 .entry((self.entries[id].size, hash))
                 .or_default()
-                .push(id);
+                .push(id)
         }
         let candidates: Vec<_> = by_sample
             .into_values()
             .filter(|v| v.len() > 1)
             .flatten()
             .collect();
-        emit(
-            json!({"event":"progress","request":request,"phase":"hashing","entries":candidates.len(),"elapsedMs":started.elapsed().as_millis()}),
-        );
-        let hashes: Vec<_> = candidates
-            .par_iter()
-            .filter_map(|id| self.hash(*id, false).ok().map(|hash| (hash, *id)))
-            .collect();
-        let mut groups: HashMap<String, Vec<&Entry>> = HashMap::new();
+        let hashes = self.hash_stage(&candidates, false, request, "hashing", started);
+        let mut groups: HashMap<String, Vec<Entry>> = HashMap::new();
         for (hash, id) in hashes {
-            groups.entry(hash).or_default().push(&self.entries[id]);
+            if let Ok(e) = self.get(id) {
+                groups.entry(hash).or_default().push(e)
+            }
         }
         let mut result: Vec<_> = groups
             .into_iter()
@@ -355,10 +462,57 @@ impl Index {
         result.sort_by_key(|v| std::cmp::Reverse(v["reclaimable"].as_u64().unwrap_or(0)));
         Ok(json!({"groups":result,"elapsedMs":started.elapsed().as_millis()}))
     }
+    fn hash_stage(
+        &self,
+        ids: &[usize],
+        sample: bool,
+        request: u64,
+        phase: &str,
+        started: Instant,
+    ) -> Vec<(String, usize)> {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Mutex,
+        };
+        let done = AtomicUsize::new(0);
+        let last = Mutex::new(Instant::now());
+        emit(
+            json!({"event":"progress","request":request,"phase":phase,"entries":0,"total":ids.len(),"elapsedMs":started.elapsed().as_millis()}),
+        );
+        ids.par_iter().filter_map(|id|{let result=self.hash_file(*id,sample,false).ok().map(|hash|(hash,*id));let n=done.fetch_add(1,Ordering::Relaxed)+1;if let Ok(mut clock)=last.try_lock(){if clock.elapsed().as_millis()>=120 || n==ids.len(){emit(json!({"event":"progress","request":request,"phase":phase,"entries":n,"total":ids.len(),"elapsedMs":started.elapsed().as_millis()}));*clock=Instant::now();}}result}).collect()
+    }
     fn hash(&self, id: usize, sample: bool) -> Result<String, String> {
-        let entry = self.validate(id)?;
+        self.hash_file(id, sample, true)
+    }
+    fn hash_file(&self, id: usize, sample: bool, strict: bool) -> Result<String, String> {
+        let entry = if strict {
+            self.validate(id)?
+        } else {
+            self.get(id)?
+        };
         if entry.directory {
             return Err("Not a file".into());
+        }
+        // Discovery uses descriptor metadata; mutation always validates every path
+        // component and bypasses this session cache, including the surviving copy.
+        let key = (
+            self.entries[id].volume,
+            self.entries[id].file,
+            entry.size,
+            entry.modified,
+            sample,
+        );
+        let fresh = inspect(Path::new(&entry.path), id, entry.parent)?;
+        if fresh.identity != entry.identity
+            || fresh.size != entry.size
+            || fresh.modified != entry.modified
+        {
+            return Err("File changed".into());
+        }
+        if !strict {
+            if let Some(hash) = self.hashes.lock().unwrap().get(&key) {
+                return Ok(hash.clone());
+            }
         }
         let mut options = fs::OpenOptions::new();
         options.read(true);
@@ -369,18 +523,26 @@ impl Index {
         }
         let mut file = options.open(&entry.path).map_err(|e| e.to_string())?;
         let before = file.metadata().map_err(|e| e.to_string())?;
-        if file_identity(Path::new(&entry.path), &before)?.0 != entry.identity
+        if offline_or_link(&before)
+            || file_identity(Path::new(&entry.path), &before)?.0 != entry.identity
             || before.len() != entry.size
+            || before
+                .modified()
+                .ok()
+                .and_then(|v| v.duration_since(UNIX_EPOCH).ok())
+                .map(|v| v.as_nanos() as u64)
+                .unwrap_or(0)
+                != entry.modified
         {
             return Err("File changed".into());
         }
         let mut hash = blake3::Hasher::new();
-        let mut buffer = vec![0u8; if sample { 8192 } else { 256 * 1024 }];
+        let mut buffer = vec![0u8; if sample { 16 * 1024 } else { 1024 * 1024 }];
         if sample {
             for offset in [
                 0,
-                entry.size.saturating_sub(8192) / 2,
-                entry.size.saturating_sub(8192),
+                entry.size.saturating_sub(16384) / 2,
+                entry.size.saturating_sub(16384),
             ] {
                 file.seek(SeekFrom::Start(offset))
                     .map_err(|e| e.to_string())?;
@@ -400,8 +562,18 @@ impl Index {
         if before.len() != after.len() || before.modified().ok() != after.modified().ok() {
             return Err("File changed while hashing".into());
         }
-        self.validate(id)?;
-        Ok(hash.finalize().to_hex().to_string())
+        if strict {
+            self.validate(id)?;
+        }
+        let hash = hash.finalize().to_hex().to_string();
+        if !strict {
+            let mut cache = self.hashes.lock().unwrap();
+            if cache.len() >= 100_000 {
+                cache.clear()
+            }
+            cache.insert(key, hash.clone());
+        }
+        Ok(hash)
     }
 }
 
@@ -461,40 +633,66 @@ fn terminate(pid: u32, force: bool) -> Result<Value, String> {
 fn handle(index: &mut Index, req: &Request) -> Result<Value, String> {
     let id = req.args["id"].as_u64().unwrap_or(0) as usize;
     match req.command.as_str() {
-        "scan" => index.scan(
+        "scan" => index.scan_options(
             req.args["root"].as_str().ok_or("Missing root")?,
             req.request,
+            &req.args,
         ),
         "summary" => Ok(index.summary()),
         "children" => {
-            let mut children: Vec<_> = index
-                .entries
-                .iter()
-                .filter(|e| e.parent == Some(id))
-                .collect();
-            children.sort_by_key(|e| std::cmp::Reverse(e.size));
+            index.get(id)?;
+            let mut children = Vec::new();
+            let mut child = index.entries[id].first;
+            while child != NONE {
+                children.push(child as usize);
+                child = index.entries[child as usize].next;
+            }
+            children.sort_by_key(|i| std::cmp::Reverse(index.entries[*i].size));
             Ok(
-                json!({"parent":index.get(id)?,"items":children.into_iter().skip(req.args["offset"].as_u64().unwrap_or(0) as usize).take(200).collect::<Vec<_>>()}),
+                json!({"parent":index.get(id)?,"items":children.into_iter().skip(req.args["offset"].as_u64().unwrap_or(0) as usize).take(200).filter_map(|i|index.get(i).ok()).collect::<Vec<_>>()}),
             )
         }
         "large" => {
             let min = req.args["minimum"].as_u64().unwrap_or(100 * 1024 * 1024);
             let search = req.args["search"].as_str().unwrap_or("").to_lowercase();
-            let mut items: Vec<_> = index
-                .entries
-                .iter()
-                .filter(|e| {
-                    !e.directory && e.size >= min && e.name.to_lowercase().contains(&search)
-                })
-                .collect();
-            items.sort_by_key(|e| std::cmp::Reverse(e.size));
+            let selected = req.args["category"].as_str().unwrap_or("all");
+            let mut counts: HashMap<String, usize> = HashMap::new();
+            let mut items = Vec::new();
+            for (id, e) in index.entries.iter().enumerate() {
+                if e.directory || e.size < min || !e.name.to_lowercase().contains(&search) {
+                    continue;
+                }
+                let extension = e
+                    .name
+                    .rsplit_once('.')
+                    .map(|(_, v)| v.to_lowercase())
+                    .unwrap_or_default();
+                let category = req.args["categories"]
+                    .as_object()
+                    .and_then(|categories| {
+                        categories.iter().find(|(_, exts)| {
+                            exts.as_array().is_some_and(|exts| {
+                                exts.iter().any(|ext| ext.as_str() == Some(&extension))
+                            })
+                        })
+                    })
+                    .map(|(key, _)| key.as_str())
+                    .unwrap_or("other");
+                *counts.entry(category.into()).or_default() += 1;
+                if selected == "all" || selected == category {
+                    items.push(id)
+                }
+            }
+            items.sort_by_key(|id| std::cmp::Reverse(index.entries[*id].size));
             let count = items.len();
             Ok(
-                json!({"count":count,"items":items.into_iter().skip(req.args["offset"].as_u64().unwrap_or(0) as usize).take(100).collect::<Vec<_>>()}),
+                json!({"count":count,"categories":counts,"items":items.into_iter().skip(req.args["offset"].as_u64().unwrap_or(0) as usize).take(100).filter_map(|id|index.get(id).ok()).collect::<Vec<_>>()}),
             )
         }
         "entry" => Ok(json!(index.validate(id)?)),
-        "duplicates" => index.duplicates(req.request),
+        "duplicates" => {
+            index.duplicates_minimum(req.request, req.args["minimum"].as_u64().unwrap_or(1024))
+        }
         "hash" => Ok(json!({"hash":index.hash(id, false)?})),
         "system" => Ok(system()),
         "terminate" => terminate(
@@ -510,7 +708,6 @@ fn handle(index: &mut Index, req: &Request) -> Result<Value, String> {
                     let mut pending = Vec::new();
                     let mut bytes = 0u64;
                     let mut errors = 0usize;
-                    let mut count = 0usize;
                     match inspect(Path::new(root), 0, None) {
                         Ok(e) if e.directory => pending.push(std::path::PathBuf::from(root)),
                         Ok(e) => bytes = e.allocated,
@@ -519,11 +716,6 @@ fn handle(index: &mut Index, req: &Request) -> Result<Value, String> {
                     while let Some(path) = pending.pop() {
                         let (entries, failed, skipped) = read_directory(&path, 0);
                         errors += failed + skipped;
-                        count += entries.len();
-                        if count > MAX_ENTRIES {
-                            errors += 1;
-                            break;
-                        }
                         for entry in entries {
                             if entry.directory {
                                 pending.push(entry.path.into())
@@ -587,7 +779,11 @@ mod tests {
         assert_eq!(index.entries[0].size, 12288);
         let groups = index.duplicates(2).unwrap();
         assert_eq!(groups["groups"].as_array().unwrap().len(), 1);
-        let id = index.entries.iter().find(|e| e.name == "a").unwrap().id;
+        let id = index
+            .entries
+            .iter()
+            .position(|e| e.name.as_ref() == "a")
+            .unwrap();
         fs::write(root.join("a"), b"changed").unwrap();
         assert!(index.validate(id).is_err());
     }
@@ -612,7 +808,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let a = vec![5u8; 128 * 1024];
         let mut b = a.clone();
-        b[20000] = 9;
+        b[30000] = 9;
         fs::write(dir.path().join("a"), a).unwrap();
         fs::write(dir.path().join("b"), b).unwrap();
         let mut index = Index::default();
@@ -622,5 +818,105 @@ mod tests {
             .as_array()
             .unwrap()
             .is_empty());
+    }
+    #[test]
+    fn projections_prune_candidates_without_losing_directory_totals() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join(".hidden")).unwrap();
+        fs::create_dir(dir.path().join("visible")).unwrap();
+        fs::write(dir.path().join(".hidden/large"), vec![1; 220_000]).unwrap();
+        fs::write(dir.path().join("visible/a"), vec![3; 220_000]).unwrap();
+        fs::write(dir.path().join("visible/b"), vec![3; 220_000]).unwrap();
+        fs::write(dir.path().join("tiny"), vec![9; 32]).unwrap();
+        let mut index = Index::default();
+        index
+            .scan_options(
+                dir.path().to_str().unwrap(),
+                1,
+                &json!({"mode":"duplicates","minimum":200*1024}),
+            )
+            .unwrap();
+        assert_eq!(index.get(0).unwrap().size, 440_032);
+        assert_eq!(index.entries.len(), 4); // root, visible, two candidates
+        assert_eq!(
+            index.duplicates_minimum(2, 200 * 1024).unwrap()["groups"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        index
+            .scan_options(
+                dir.path().to_str().unwrap(),
+                3,
+                &json!({"mode":"duplicates","minimum":200*1024,"includeHidden":true}),
+            )
+            .unwrap();
+        assert_eq!(index.get(0).unwrap().size, 660_032);
+        // Explicit hidden roots are inspected even with the default child policy.
+        index
+            .scan_options(
+                dir.path().join(".hidden").to_str().unwrap(),
+                4,
+                &json!({"mode":"duplicates"}),
+            )
+            .unwrap();
+        assert_eq!(index.entries.len(), 2);
+    }
+    #[test]
+    fn cached_discovery_never_authorizes_changed_content() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["a", "b"] {
+            fs::write(dir.path().join(name), vec![1; 8192]).unwrap();
+        }
+        let mut index = Index::default();
+        index.scan(dir.path().to_str().unwrap(), 1).unwrap();
+        assert_eq!(
+            index.duplicates(2).unwrap()["groups"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(!index.hashes.lock().unwrap().is_empty());
+        fs::write(dir.path().join("b"), vec![2; 8192]).unwrap();
+        assert!(index.duplicates(3).unwrap()["groups"]
+            .as_array()
+            .unwrap()
+            .is_empty());
+        let id = index
+            .entries
+            .iter()
+            .position(|e| e.name.as_ref() == "b")
+            .unwrap();
+        assert!(index.hash(id, false).is_err());
+    }
+    #[test]
+    fn category_queries_count_before_pagination_and_preserve_children() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["movie.MOV", "copy.zip", "notes.pdf"] {
+            fs::write(dir.path().join(name), vec![1; 2048]).unwrap();
+        }
+        let mut index = Index::default();
+        index.scan(dir.path().to_str().unwrap(), 1).unwrap();
+        let query = Request {
+            request: 2,
+            command: "large".into(),
+            args: json!({"minimum":1,"category":"video","categories":{"video":["mov"],"archive":["zip"]}}),
+        };
+        let result = handle(&mut index, &query).unwrap();
+        assert_eq!(result["count"], 1);
+        assert_eq!(result["categories"]["other"], 1);
+        assert_eq!(result["items"][0]["name"], "movie.MOV");
+        let children = handle(
+            &mut index,
+            &Request {
+                request: 3,
+                command: "children".into(),
+                args: json!({"id":0}),
+            },
+        )
+        .unwrap();
+        assert_eq!(children["items"].as_array().unwrap().len(), 3);
     }
 }

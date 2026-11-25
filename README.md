@@ -8,14 +8,16 @@ A local desktop workspace for making space: large files, verified duplicates, an
 
 - **Overview:** available disk space, direct task entry points, completed cleanup totals and recent activity. Trash totals are shown separately from permanently cleaned caches.
 - **Smart cleanup:** explicit cache/developer/log rules for each OS; no automatic selections. Cache removal is permanent and requires confirmation.
-- **Large files:** size and name filters over one shared native index. Personal files move to the system Trash after review.
-- **Duplicates:** size → samples → complete BLAKE3 hashes. Hard links and cloud placeholders are excluded. At least one copy must remain, and contents are checked again before removal.
-- **Space explorer:** interactive treemap, folder drill-down, breadcrumbs and a list alternative. The index covers the chosen folder on one filesystem; unreadable/skipped entries and limits are visible.
-- **Privacy:** supported browser history and recent-document records, including existing SQLite sidecars. Browsers must be closed. Passwords, cookies and personal documents are excluded.
-- **Applications:** macOS bundle and related-file inspection, optional associated data, protected system apps; Windows/Linux hand off package removal to the OS uninstaller/package manager.
-- **Processes:** live memory/CPU usage, search, pause, details, copy name/PID, confirmed quit/force-quit and AI explanation.
+- **Large files:** size, name and file-type filters over a compact native index. Default personal scans skip hidden subfolders and home Library / AppData; a visible option includes them. Personal files move to the system Trash after review.
+- **Duplicates:** expandable type → duplicate group → copy hierarchy; size → samples → complete BLAKE3 hashes. Defaults to files ≥200 KB; hidden folders and home app data can be included. Hard links and cloud placeholders are excluded. At least one copy must remain, and contents are checked again before removal.
+- **Space explorer:** expandable directory tree on the left, treemap on the right, and breadcrumbs. Defaults to the system drive, including Users on macOS. The compact index has no two-million-item cutoff; coverage details are available through Help.
+- **Privacy:** expandable browser → profile → record → path hierarchy, including existing SQLite sidecars. Browsers must be closed. Passwords, cookies and personal documents are excluded.
+- **Applications:** application logos and inline expandable macOS bundle / related-file groups, optional associated data, protected system apps; Windows/Linux hand off package removal to the OS uninstaller/package manager.
+- **Processes:** application icons, sortable name/PID/CPU/memory headers, user/system filters, search, pause and inline actions for copy, quit/force-quit and AI explanation.
 - **AI assistant:** your own provider and model; deterministic evidence, registered actions, an explicit confirmation plan and encrypted local credentials. No hosted Memento backend.
 - **Activity / Settings:** a persistent cleanup record, existing Agent conversations and maintenance ledger, theme, language, providers and application updates.
+
+Explanations live behind clickable Help controls; data pages use compact toolbars and rows.
 
 ## Stack and platforms
 

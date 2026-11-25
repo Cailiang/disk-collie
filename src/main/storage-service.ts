@@ -7,13 +7,15 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 import { z } from 'zod'
 import type { CleanupItem, DuplicateGroup, RelatedApplicationFile, StorageActivity, StorageApplication, StorageEntry, StorageIndex } from '../shared/storage-types'
+import { fileCategories } from '../shared/file-categories'
+import type { StorageScanOptions } from '../shared/storage-types'
 import { NativeEngine } from './native-engine'
 import { storageRules } from './storage-rules'
 import { isStorageMutationAllowed } from './storage-policy'
 
 const exec = promisify(execFile)
 const home = os.homedir()
-const int = z.number().int().min(0).max(2_000_000)
+const int = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
 const scope = z.object({ generation: z.number().int().positive() })
 const entryInput = scope.extend({ id: int })
 interface Snapshot { path: string; dev: number; ino: number; modified: number; size: number; directory: boolean }
@@ -41,6 +43,7 @@ export class StorageService {
   private related = new Map<string, { file: RelatedApplicationFile; snapshot: Snapshot; applicationId: string }>()
   private duplicateGroups = new Map<string, DuplicateGroup>()
   private busy = false
+  private generation = 0
   private historyPath = path.join(app.getPath('userData'), 'storage-history.json')
   async init(): Promise<void> {
     try {
@@ -73,16 +76,18 @@ export class StorageService {
     }
     return record
   }
-  async scan(choose: boolean): Promise<StorageIndex | null> {
+  async scan(options: StorageScanOptions): Promise<StorageIndex | null> {
     return this.exclusive(async () => {
       let root = process.env.MEMENTO_TEST_RUN === '1' && process.env.MEMENTO_TEST_STORAGE_ROOT ? process.env.MEMENTO_TEST_STORAGE_ROOT : home
-      if (choose) {
+      if (options.mode === 'analysis' && process.env.MEMENTO_TEST_RUN !== '1') root = path.parse(home).root
+      if (options.choose) {
         const selected = await dialog.showOpenDialog({ properties: ['openDirectory'], defaultPath: home })
-        if (selected.canceled || !selected.filePaths[0]) return this.index
+        if (selected.canceled || !selected.filePaths[0]) return null
         root = selected.filePaths[0]
       }
       this.index = null; this.duplicateGroups.clear()
-      this.index = await this.engine.request<StorageIndex>('scan', { root })
+      this.index = await this.engine.request<StorageIndex>('scan', { root, ...options, excludePaths: (options.mode==='duplicates'||options.mode==='large')&&!options.choose&&!options.includeHidden ? [path.join(home,'Library'),path.join(home,'AppData')] : [] })
+      this.index.generation = ++this.generation // cancellation may restart the sidecar; never reuse IPC generations
       return this.index
     })
   }
@@ -235,11 +240,11 @@ export class StorageService {
   register(): void {
     const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`memento:storage:${name}`,(_event,input)=>fn(input))}
     handle('state',()=>({index:this.index,history:this.history,home}))
-    handle('scan',(v)=>this.scan(z.boolean().optional().parse(v) ?? false))
+    handle('scan',(v)=>this.scan(typeof v==='boolean'?{choose:v,mode:'analysis'}:z.object({choose:z.boolean().optional(),mode:z.enum(['analysis','large','duplicates']).default('analysis'),minimum:z.number().int().min(1024).optional(),includeHidden:z.boolean().optional()}).parse(v||{})))
     handle('cancel',()=>{ if (this.busy) {this.engine.stop(); this.index=null; this.duplicateGroups.clear()} })
     handle('children',(v)=>{const q=entryInput.extend({offset:int.optional()}).parse(v);this.requireIndex(q.generation);return this.engine.request('children',q)})
-    handle('large',(v)=>{const q=scope.extend({minimum:z.number().nonnegative(),search:z.string().max(500),offset:int}).parse(v);this.requireIndex(q.generation);return this.engine.request('large',q)})
-    handle('duplicates',(v)=>this.exclusive(async()=>{this.requireIndex(z.number().int().positive().parse(v));const result=await this.engine.request<{groups:DuplicateGroup[];elapsedMs:number}>('duplicates');this.duplicateGroups=new Map(result.groups.map((g)=>[g.id,g]));return result}))
+    handle('large',(v)=>{const q=scope.extend({minimum:z.number().nonnegative(),search:z.string().max(500),offset:int,category:z.enum(['all','video','image','audio','archive','installer','document','other']).default('all')}).parse(v);this.requireIndex(q.generation);return this.engine.request('large',{...q,categories:fileCategories})})
+    handle('duplicates',(v)=>this.exclusive(async()=>{const q=typeof v==='number'?{generation:v,minimum:1024}:scope.extend({minimum:z.number().int().min(1024).default(200*1024)}).parse(v);this.requireIndex(q.generation);const result=await this.engine.request<{groups:DuplicateGroup[];elapsedMs:number}>('duplicates',{minimum:q.minimum});this.duplicateGroups=new Map(result.groups.map((g)=>[g.id,g]));return result}))
     handle('trash',(v)=>this.trash(scope.extend({ids:z.array(int).min(1).max(500).transform((v)=>[...new Set(v)]),kind:z.enum(['large','duplicates']),groupId:z.string().max(100).optional()}).parse(v)))
     handle('reveal',async(v)=>{const q=entryInput.parse(v);this.requireIndex(q.generation);const entry=await this.engine.request<StorageEntry>('entry',q);shell.showItemInFolder(entry.path)})
     handle('cleanup',(v)=>this.cleanup(z.boolean().parse(v)))
@@ -247,7 +252,7 @@ export class StorageService {
     handle('applications',()=>this.listApplications())
     handle('application-icon',async(v)=>{
       const id=z.string().uuid().parse(v);const application=this.applications.get(id)
-      if(!application||process.platform!=='darwin')return null
+      if(!application||!application.location)return null
       try {const icon=await app.getFileIcon(application.location,{size:'normal'});return icon.isEmpty()?null:icon.toDataURL()}catch{return null}
     })
     handle('related',(v)=>this.inspectApplication(z.string().uuid().parse(v)))

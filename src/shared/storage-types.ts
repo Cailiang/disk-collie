@@ -1,3 +1,4 @@
+import type { FileCategory } from './file-categories'
 export interface StorageEntry {
   id: number
   parent: number | null
@@ -10,7 +11,11 @@ export interface StorageEntry {
   identity: string
   links: number
 }
+export type StorageMode = 'analysis' | 'large' | 'duplicates'
+export interface StorageScanOptions { choose?:boolean; mode?:StorageMode; minimum?:number; includeHidden?:boolean }
 export interface StorageIndex {
+  mode?: StorageMode
+  retained?: number
   generation: number
   root: StorageEntry | null
   entries: number
@@ -22,6 +27,7 @@ export interface StorageIndex {
 export interface StorageProgress {
   phase: 'indexing' | 'sampling' | 'hashing'
   entries: number
+  total?: number
   elapsedMs: number
   errors?: number
   skipped?: number
@@ -65,11 +71,11 @@ export interface StorageApplication {
 }
 export interface StorageApi {
   storageState: () => Promise<{ index: StorageIndex | null; history: StorageActivity[]; home: string }>
-  storageScan: (choose?: boolean) => Promise<StorageIndex | null>
+  storageScan: (options?: boolean | StorageScanOptions) => Promise<StorageIndex | null>
   storageCancel: () => Promise<void>
   storageChildren: (input: { generation: number; id: number; offset?: number }) => Promise<{ parent: StorageEntry; items: StorageEntry[] }>
-  storageLarge: (input: { generation: number; minimum: number; search: string; offset: number }) => Promise<{ count: number; items: StorageEntry[] }>
-  storageDuplicates: (generation: number) => Promise<{ groups: DuplicateGroup[]; elapsedMs: number }>
+  storageLarge: (input: { generation: number; minimum: number; search: string; offset: number; category?: FileCategory | 'all' }) => Promise<{ count: number; items: StorageEntry[]; categories?: Record<string,number> }>
+  storageDuplicates: (generation: number, minimum?:number) => Promise<{ groups: DuplicateGroup[]; elapsedMs: number }>
   storageTrash: (input: { generation: number; ids: number[]; kind: 'large' | 'duplicates'; groupId?: string }) => Promise<StorageActivity>
   storageReveal: (input: { generation: number; id: number }) => Promise<void>
   storageCleanup: (privacy: boolean) => Promise<CleanupItem[]>
