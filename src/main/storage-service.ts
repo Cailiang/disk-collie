@@ -174,7 +174,8 @@ export class StorageService {
       } else if (process.platform === 'win32') {
         const script = "$p=@('HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'); @(Get-ItemProperty $p -ErrorAction SilentlyContinue | Where-Object {$_.DisplayName} | Select-Object DisplayName,DisplayVersion,InstallLocation,EstimatedSize) | ConvertTo-Json -Compress"
         const { stdout } = await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command',script],{timeout:15000,maxBuffer:8*1024*1024,windowsHide:true})
-        for (const p of JSON.parse(stdout || '[]')) { const id=randomUUID(); this.applications.set(id,{id,name:String(p.DisplayName),version:String(p.DisplayVersion || ''),location:String(p.InstallLocation || ''),bundleId:null,size:Number(p.EstimatedSize || 0)*1024,protected:false,method:'system'}) }
+        const parsed=JSON.parse(stdout || '[]')
+        for (const p of Array.isArray(parsed)?parsed:parsed?[parsed]:[]) { const id=randomUUID(); this.applications.set(id,{id,name:String(p.DisplayName),version:String(p.DisplayVersion || ''),location:String(p.InstallLocation || ''),bundleId:null,size:Number(p.EstimatedSize || 0)*1024,protected:false,method:'system'}) }
       } else {
         for (const root of ['/usr/share/applications', path.join(home,'.local/share/applications')]) {
           let names: string[]=[]; try { names=await readdir(root) } catch { continue }

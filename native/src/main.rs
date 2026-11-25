@@ -145,13 +145,16 @@ fn file_identity(_path: &Path, m: &Metadata) -> Result<(String, u64, u64), Strin
             os::windows::{fs::OpenOptionsExt, io::AsRawHandle},
         };
         use windows_sys::Win32::Storage::FileSystem::{
-            GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+            GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_FLAG_BACKUP_SEMANTICS,
+            FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
+            FILE_SHARE_WRITE,
         };
         let file = fs::OpenOptions::new()
             .read(true)
-            .access_mode(0x80)
-            .share_mode(7)
-            .custom_flags(0x00200000)
+            .access_mode(FILE_READ_ATTRIBUTES)
+            .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+            // Directory handles need BACKUP_SEMANTICS; reparse points must stay unopened.
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
             .open(_path)
             .map_err(|e| e.to_string())?;
         let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::zeroed();
@@ -196,6 +199,17 @@ impl Index {
     fn scan(&mut self, root: &str, request: u64) -> Result<Value, String> {
         let started = Instant::now();
         let root = fs::canonicalize(root).map_err(|e| e.to_string())?;
+        #[cfg(windows)]
+        let root = {
+            let value = root.to_string_lossy();
+            // Use ordinary shell-compatible paths in IPC, including UNC shares.
+            let value = if let Some(unc) = value.strip_prefix(r"\\?\UNC\") {
+                format!(r"\\{unc}")
+            } else {
+                value.strip_prefix(r"\\?\").unwrap_or(&value).to_string()
+            };
+            std::path::PathBuf::from(value)
+        };
         if !root.is_dir() {
             return Err("Choose a directory".into());
         }
