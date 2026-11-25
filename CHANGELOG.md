@@ -10,6 +10,7 @@ Memento Client 的重要变更会在这里使用英文和简体中文同步记�
 - Restored process icons, bidirectional sortable headers, user/system scope and inline actions. Moved the directory tree left of the disk chart; system-drive scans include Users.
 - Removed the two-million-item cutoff. Compact parent/name records, efficient directory queues/child lookup, candidate-only projections and in-session verified hash caching reduce memory and focused duplicate latency. Duplicate defaults are visible: ≥200 KB, hidden/app-data inclusion optional.
 - Real developer-home duplicate workload: 12.698 s total (524,692 enumerated; 816 groups); full home: 2,131,920 entries / 60.773 s. System drive: 3,682,623 / 99.773 s with inaccessible/skipped paths reported. These are local observations, not controlled MangoDisk comparisons.
+- Fixed immediate duplicate-result loading, isolated scan purposes and added OS-icon fallback for bundles without ICNS resources. Stabilized Windows filesystem test timestamps.
 - Updated bilingual docs, catalogs and UI smoke coverage; retained full content/path revalidation before Trash and the keep-one-copy guard.
 
 ## 1.0.6 - 2026-11-25

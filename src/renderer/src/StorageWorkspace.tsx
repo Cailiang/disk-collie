@@ -53,6 +53,7 @@ export function StorageWorkspace({view,metrics,onNavigate,historyChildren}:{view
   const [completed,setCompleted]=useState<StorageActivity|null>(null)
   const [executing,setExecuting]=useState(false)
   const [ledgerOpen,setLedgerOpen]=useState(false)
+  const duplicateAfterScan=useRef<number|null>(null)
   const cancelled=useRef(false)
   const mounted=useRef(true)
   const querySequence=useRef(0)
@@ -73,14 +74,14 @@ export function StorageWorkspace({view,metrics,onNavigate,historyChildren}:{view
     return ()=>{mounted.current=false;unsubscribe?.()}
   },[])
   useEffect(()=>{setSelected(new Set());setRuleSelected(new Set());setError('');setNotice('');setSearch('');setOffset(0);setCategory('all');setGroupLimit(40);mainRef.current?.scrollTo(0,0)},[view])
-  useEffect(()=>{setGroups(null);setSelected(new Set());setOffset(0);setBreadcrumbs([]);setFolder(null)},[index?.generation,index?.root?.path])
-  useEffect(()=>{if(index?.mode&&(['large','disk','duplicates'].includes(view))&&(view==='duplicates'?index.mode!=='duplicates':index.mode!=='analysis'&&index.mode!==view))setIndex(null)},[view,index])
+  useEffect(()=>{setGroups(null);setSelected(new Set());setOffset(0);setBreadcrumbs([]);setFolder(null);if(index&&duplicateAfterScan.current===index.generation){duplicateAfterScan.current=null;void findDuplicates(index)}},[index?.generation,index?.root?.path])
+  useEffect(()=>{if(index?.mode&&(['large','disk','duplicates'].includes(view))&&index.mode!==(view==='disk'?'analysis':view))setIndex(null)},[view,index])
   const scan=async(choose=false):Promise<void>=>{
     const result=await runTask('scan',async()=>{
       if(window.memento)return window.memento.storageScan({choose,mode:view==='disk'||view==='overview'?'analysis':view==='duplicates'?'duplicates':'large',minimum:duplicateMinimum,includeHidden})
       await new Promise((resolve)=>setTimeout(resolve,450));return {...demoIndex,generation:(index?.generation||0)+1}
     })
-    if(result){setIndex(result);setGroups(null);setSelected(new Set());setBreadcrumbs([]);setFolder(null);if(view==='duplicates')void findDuplicates(result)}
+    if(result){if(view==='duplicates')duplicateAfterScan.current=result.generation;setIndex(result);setGroups(null);setSelected(new Set());setBreadcrumbs([]);setFolder(null)}
   }
   const cancel=async():Promise<void>=>{cancelled.current=true;await window.memento?.storageCancel();setIndex(null)}
   const loadCleanup=useCallback(async(isPrivacy:boolean):Promise<void>=>{

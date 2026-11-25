@@ -17,6 +17,7 @@ describe('project artifact cleanup', () => {
       const project=path.join(home,'src','real-project')
       await fs.mkdir(path.join(project,'node_modules'),{recursive:true})
       await fs.writeFile(path.join(project,'package.json'),'{}')
+      const past=new Date(Date.now()-60_000);await fs.utimes(path.join(project,'node_modules'),past,past)
       expect((await discoverProjectArtifacts(home)).some((v)=>v.projectName==='real-project')).toBe(true)
     } finally { await fs.rm(home,{recursive:true,force:true}) }
   })
@@ -31,6 +32,10 @@ describe('project artifact cleanup', () => {
       await fs.writeFile(path.join(project, 'package.json'), '{}\n')
       await fs.writeFile(path.join(project, 'target', 'release.pem'), 'secret')
 
+      // File creation timestamps on Windows can round past Date.now(). Give the
+      // fixture an explicit past timestamp; keep the production future-time guard.
+      const past = new Date(Date.now() - 60_000)
+      for (const name of ['build', 'dist', 'node_modules']) await fs.utimes(path.join(project, name), past, past)
       const artifacts = await discoverProjectArtifacts(home)
       const realProject = await fs.realpath(project)
       expect(artifacts.map((item) => item.artifactName).sort()).toEqual(['build', 'dist', 'node_modules'])

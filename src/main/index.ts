@@ -1686,7 +1686,11 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('memento:get-process-icon', async (_event, command: string) => {
     const target = applicationBundleFromProcessCommand(command)
-    if (target) return readApplicationIcon(target)
+    if (target) {
+      const source = await readApplicationIcon(target)
+      if (source) return source
+      try { const icon = await app.getFileIcon(target, { size: 'normal' }); return icon.isEmpty() ? null : icon.toDataURL() } catch { return null }
+    }
     // Portable processes report executable paths; Electron resolves their OS icon.
     if (process.platform === 'darwin' || typeof command !== 'string' || command.length > 2000 || !path.isAbsolute(command)) return null
     try {
