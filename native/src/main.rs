@@ -509,7 +509,16 @@ impl Index {
         {
             return Err("File changed".into());
         }
-        if !strict {
+        // Coarse filesystem clocks can give consecutive writes the same mtime.
+        // Recently modified (or future-dated) files must be read again. Stable
+        // cached previews still never authorize removal: strict hashing bypasses all caches.
+        let stable = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .ok()
+            .is_some_and(|now| {
+                now.as_nanos().saturating_sub(entry.modified as u128) >= 4_000_000_000
+            });
+        if !strict && stable {
             if let Some(hash) = self.hashes.lock().unwrap().get(&key) {
                 return Ok(hash.clone());
             }
@@ -879,7 +888,20 @@ mod tests {
             1
         );
         assert!(!index.hashes.lock().unwrap().is_empty());
-        fs::write(dir.path().join("b"), vec![2; 8192]).unwrap();
+        let previous_hash = index.duplicates(2).unwrap()["groups"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let target = dir.path().join("b");
+        let modified = fs::metadata(&target).unwrap().modified().unwrap();
+        fs::write(&target, vec![2; 8192]).unwrap();
+        // Reproduce coarse clocks deterministically, including fast NTFS writes.
+        fs::OpenOptions::new()
+            .write(true)
+            .open(&target)
+            .unwrap()
+            .set_times(fs::FileTimes::new().set_modified(modified))
+            .unwrap();
         assert!(index.duplicates(3).unwrap()["groups"]
             .as_array()
             .unwrap()
@@ -889,7 +911,7 @@ mod tests {
             .iter()
             .position(|e| e.name.as_ref() == "b")
             .unwrap();
-        assert!(index.hash(id, false).is_err());
+        assert_ne!(index.hash(id, false).unwrap(), previous_hash);
     }
     #[test]
     fn category_queries_count_before_pagination_and_preserve_children() {

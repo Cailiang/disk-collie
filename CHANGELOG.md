@@ -6,12 +6,23 @@ Memento Client 的重要变更会在这里使用英文和简体中文同步记�
 
 ## 1.0.7 - 2026-11-25
 
+### English
+
 - Replaced explanatory page banners with compact headers and clickable Help; added large-file type filters and expandable duplicate, privacy and application hierarchies.
 - Restored process icons, bidirectional sortable headers, user/system scope and inline actions. Moved the directory tree left of the disk chart; system-drive scans include Users.
 - Removed the two-million-item cutoff. Compact parent/name records, efficient directory queues/child lookup, candidate-only projections and in-session verified hash caching reduce memory and focused duplicate latency. Duplicate defaults are visible: ≥200 KB, hidden/app-data inclusion optional.
 - Real developer-home duplicate workload: 12.698 s total (524,692 enumerated; 816 groups); full home: 2,131,920 entries / 60.773 s. System drive: 3,682,623 / 99.773 s with inaccessible/skipped paths reported. These are local observations, not controlled MangoDisk comparisons.
-- Fixed immediate duplicate-result loading, isolated scan purposes and added OS-icon fallback for bundles without ICNS resources. Stabilized Windows filesystem test timestamps.
+- Fixed immediate duplicate-result loading, isolated scan purposes and added OS-icon fallback for bundles without ICNS resources. Bypassed hash-cache reads for recent files to handle equal-time NTFS writes, with an exact timestamp-preserving content-change regression. Stabilized Windows filesystem test timestamps.
 - Updated bilingual docs, catalogs and UI smoke coverage; retained full content/path revalidation before Trash and the keep-one-copy guard.
+
+### 简体中文
+
+- 删除大段页面说明，改为紧凑表头和可点击问号；增加大文件类型筛选，以及重复文件、隐私记录和应用关联文件的展开层级。
+- 恢复进程图标、表头双向排序、用户／系统筛选与行内操作；空间分析改为左目录树、右分布图，系统磁盘扫描包含 Users。
+- 取消 200 万项上限，通过紧凑索引、目录队列、候选文件筛选和会话哈希缓存提速；重复扫描默认 ≥200 KB，隐藏目录和个人应用数据可勾选纳入。
+- 本机默认重复扫描 12.698 秒，完整个人目录 213 万项／60.773 秒，系统磁盘 368 万项／99.773 秒；这些是本机观测，并非与 MangoDisk 的同条件比较。
+- 修复快速扫描结果被重置及扫描用途混用；无 ICNS 的应用回退到系统图标。近期修改文件绕过哈希缓存，覆盖相同时间戳下内容变化的 Windows 回归。
+- 同步中英文文档、语言资源和界面测试；移到废纸篓前仍完整校验内容、路径并至少保留一份重复文件。
 
 ## 1.0.6 - 2026-11-25
 
