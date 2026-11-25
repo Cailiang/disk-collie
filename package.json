@@ -103,6 +103,9 @@
       "icon": "build/icon.icns",
       "forceCodeSigning": true,
       "hardenedRuntime": true,
+      "signIgnore": [
+        "\\.pak$"
+      ],
       "notarize": true,
       "target": [
         "dmg",
