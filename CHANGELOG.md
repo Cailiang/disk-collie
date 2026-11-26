@@ -4,6 +4,22 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.11 - 2026-11-26
+
+### English
+
+- Warm the application inventory on launch, restore a local cache across launches and publish discovered apps before size measurement finishes. Refresh installed-app roots automatically and periodically; reuse unchanged bundle sizes and preserve IDs/selections. Cached entries require live registration before actions.
+- Add one bottom batch action bar across duplicate groups, with total size/count, group count, clear selection and one confirmation. Preflight every group and rehash all survivors/selected copies before any file is moved. Large-file, cache/privacy and app-file review actions remain consistently available at the bottom.
+- Default all file workspaces to excluding hidden directories and application data. Explain scan-time and application-data risks beside the opt-in; keep protected-path checks when expanded. Preserve the actual scan scope with retained indexes.
+- Add cache lifecycle, progressive inventory, batch survivor/preflight and scan-scope tests, plus cold/warm Electron startup and four-viewport batch-action coverage.
+
+### 简体中文
+
+- 启动时后台读取应用，跨启动恢复本地缓存，先显示应用清单，再补齐体积；监听安装目录并定期维护，复用未变应用的体积，保留稳定 ID 和有效勾选。缓存记录操作前须重新核验。
+- 重复文件新增跨组底部批量操作栏，显示数量、总体积及涉及组数，可清空选择，一次确认处理全部已选副本；移动前统一校验每组保留项及完整哈希。大文件、缓存／隐私与应用文件的底部核对入口保持一致。
+- 所有文件扫描默认排除隐藏目录和应用数据；选项旁说明扫描时间与误删风险，扩大范围后仍保留路径保护；保留结果时同时恢复实际扫描范围。
+- 新增缓存生命周期、渐进清单、跨组预校验与扫描范围测试，补充真实 Electron 冷／热启动及四种尺寸批量操作验证。
+
 ## 1.0.10 - 2026-11-26
 
 ### English

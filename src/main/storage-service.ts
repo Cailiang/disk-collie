@@ -6,6 +6,12 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { z } from 'zod'
+import {translate} from '../shared/localization'
+import {watch,type FSWatcher} from 'node:fs'
+import {ApplicationInventoryCache} from './application-inventory-cache'
+import {storageScanScope} from './storage-scan-scope'
+import {duplicateRemovalGroups} from '../shared/duplicate-selection'
+import type {ApplicationInventoryState} from '../shared/storage-types'
 import type { CleanupItem, DuplicateGroup, RelatedApplicationFile, StorageActivity, StorageApplication, StorageEntry, StorageIndex, StorageMode } from '../shared/storage-types'
 import { fileCategories } from '../shared/file-categories'
 import type { StorageScanOptions } from '../shared/storage-types'
@@ -53,10 +59,85 @@ export class StorageService {
   private history: StorageActivity[] = []
   private rules = new Map<string, { item: CleanupItem; snapshots: Snapshot[]; browser?: string }>()
   private applications = new Map<string, StorageApplication>()
+  private applicationCache=new ApplicationInventoryCache(path.join(app.getPath('userData'),'application-inventory.json'))
+  private applicationFingerprints=new Map<string,string>()
+  private measuredApplicationFingerprints=new Map<string,string>()
+  private applicationRefresh:Promise<StorageApplication[]>|null=null
+  private applicationsRefreshing=false
+  private applicationsSizing=false
+  private applicationsUpdatedAt:string|null=null
+  private applicationsError:string|null=null
+  private applicationSizeEngine=new NativeEngine()
+  private applicationSizeEpoch=0
+  private applicationWatchers:FSWatcher[]=[]
+  private applicationTimer:ReturnType<typeof setInterval>|null=null
+  private applicationDebounce:ReturnType<typeof setTimeout>|null=null
+  private inventoryStopped=false
+  private readonly applicationRoots=process.platform==='darwin'?['/Applications',path.join(home,'Applications'),'/System/Applications']:process.platform==='linux'?['/usr/share/applications',path.join(home,'.local/share/applications')]:[]
+  applicationState():ApplicationInventoryState {return {applications:[...this.applications.values()].sort((a,b)=>a.name.localeCompare(b.name)),refreshing:this.applicationsRefreshing,measuringSizes:this.applicationsSizing,updatedAt:this.applicationsUpdatedAt,error:this.applicationsError}}
+  private publishApplications():void {for(const window of BrowserWindow.getAllWindows())window.webContents.send('memento:storage:applications-changed',this.applicationState())}
+  private persistApplications():Promise<void> {return this.applicationCache.write([...this.applications.values()].map((application)=>({application,fingerprint:this.measuredApplicationFingerprints.get(application.id)||''})),this.applicationsUpdatedAt||new Date().toISOString())}
+  startApplicationInventory():void {
+    if(this.applicationTimer)return
+    this.inventoryStopped=false
+    const refresh=():void=>{void this.listApplications(true).catch(()=>undefined)}
+    refresh()
+    this.applicationTimer=setInterval(refresh,5*60_000);this.applicationTimer.unref()
+    for(const root of this.applicationRoots)try{const watcher=watch(root,()=>{if(this.applicationDebounce)clearTimeout(this.applicationDebounce);this.applicationDebounce=setTimeout(refresh,1500);this.applicationDebounce.unref()});watcher.on('error',()=>undefined);this.applicationWatchers.push(watcher)}catch{/* Missing optional application roots are retried by periodic discovery. */}
+  }
+  stopApplicationInventory():void {
+    this.inventoryStopped=true;this.applicationSizeEpoch++;this.applicationSizeEngine.stop()
+    if(this.applicationTimer)clearInterval(this.applicationTimer)
+    if(this.applicationDebounce)clearTimeout(this.applicationDebounce)
+    this.applicationTimer=null;this.applicationDebounce=null
+    for(const watcher of this.applicationWatchers)watcher.close()
+    this.applicationWatchers=[]
+  }
+  private async registeredApplication(id:string):Promise<StorageApplication> {
+    let application=this.applications.get(id)
+    if(application?.cached){
+      const displayed=application
+      await this.listApplications(true);application=this.applications.get(id)
+      if(application&&(displayed.version!==application.version||displayed.bundleId!==application.bundleId||displayed.name!==application.name))throw new Error(translate(this.language(),'apps.changed'))
+    }
+    if(!application||application.cached)throw new Error('Application selection expired')
+    const expected=this.applicationFingerprints.get(id)
+    if(process.platform==='darwin'&&expected){
+      const stat=await snapshot(application.location);let infoModified=0
+      try{infoModified=(await lstat(path.join(application.location,'Contents/Info.plist'))).mtimeMs}catch{/* Discovery uses the same metadata fallback. */}
+      if([stat.dev,stat.ino,stat.modified,infoModified,application.version].join(':')!==expected){void this.listApplications(true).catch(()=>undefined);throw new Error(translate(this.language(),'apps.changed'))}
+    }
+    return application
+  }
+  private applicationId(location:string,name:string):string {return [...this.applications.values()].find((item)=>location?item.location===location&&(process.platform!=='win32'||item.name===name):item.name===name)?.id||randomUUID()}
+  private async measureApplicationSizes(epoch:number):Promise<void> {
+    const jobs=[...this.applications.values()].filter((application)=>!application.system&&this.applicationFingerprints.has(application.id)&&this.applicationFingerprints.get(application.id)!==this.measuredApplicationFingerprints.get(application.id))
+    this.applicationsSizing=jobs.length>0;this.publishApplications()
+    try{for(const job of jobs){
+      if(epoch!==this.applicationSizeEpoch||this.inventoryStopped)return
+      const fingerprint=this.applicationFingerprints.get(job.id)
+      const timeout=setTimeout(()=>this.applicationSizeEngine.stop('Application size measurement timed out'),8_000);timeout.unref()
+      try{
+        const [result]=await this.applicationSizeEngine.request<Array<{path:string;size:number;errors:number}>>('measure',{paths:[job.location]})
+        const current=this.applications.get(job.id)
+        if(epoch!==this.applicationSizeEpoch||!current||fingerprint!==this.applicationFingerprints.get(job.id))continue
+        if(result&&!result.errors){current.size=result.size;this.measuredApplicationFingerprints.set(job.id,fingerprint!);this.publishApplications();await this.persistApplications().catch(()=>undefined)}
+      }catch{/* The list remains available when a bundle cannot be measured. */}finally{clearTimeout(timeout)}
+    }}finally{if(epoch===this.applicationSizeEpoch){this.applicationsSizing=false;this.publishApplications()}}
+  }
   private related = new Map<string, { file: RelatedApplicationFile; snapshot: Snapshot; applicationId: string }>()
   private generation = 0
   private historyPath = path.join(app.getPath('userData'), 'storage-history.json')
   async init(): Promise<void> {
+    const cached=await this.applicationCache.read()
+    if(cached){
+      this.applicationsUpdatedAt=cached.updatedAt
+      for(const entry of cached.entries){
+        const application=entry.application
+        if(process.platform==='darwin'&&!this.applicationRoots.some((root)=>application.location.startsWith(root+path.sep)&&application.location.endsWith('.app')))continue
+        this.applications.set(application.id,application);this.measuredApplicationFingerprints.set(application.id,entry.fingerprint)
+      }
+    }
     try {
       const data: unknown = JSON.parse(await readFile(this.historyPath, 'utf8'))
       const parsed = z.array(z.object({ id:z.string(), date:z.string(), kind:z.enum(['large','duplicates','cleanup','privacy','uninstall']), items:z.number().nonnegative(), bytes:z.number().nonnegative(), failures:z.number().nonnegative(), locations:z.array(z.string()) })).safeParse(data)
@@ -78,7 +159,7 @@ export class StorageService {
     if(!locations.length)return
     for(const session of this.sessions.values()) {
       const summary=await session.engine.request<StorageIndex>('forget',{paths:locations})
-      session.index={...summary,generation:session.index.generation}
+      session.index={...session.index,...summary,generation:session.index.generation}
       for(const [id,group] of session.groups) {
         group.files=group.files.filter((file)=>!locations.some((p)=>file.path===p||file.path.startsWith(p+path.sep)))
         group.reclaimable=group.files.slice(1).reduce((s,f)=>s+f.allocated,0)
@@ -104,12 +185,12 @@ export class StorageService {
     return this.exclusive(options.mode||'analysis',async () => {
       const root = process.env.MEMENTO_TEST_RUN === '1' && process.env.MEMENTO_TEST_STORAGE_ROOT ? process.env.MEMENTO_TEST_STORAGE_ROOT : path.parse(home).root
       const mode=options.mode||'analysis'
-      const includeHidden=options.includeHidden??true
+      const scanScope=storageScanScope(home,options.includeHidden??false)
       const engine=new NativeEngine((p)=>this.progress({...p,scope:mode}))
       this.activeEngine=engine
       try {
-        const index=await engine.request<StorageIndex>('scan',{root,...options,mode,includeHidden,excludePaths:!includeHidden&&mode!=='analysis'?[path.join(home,'Library'),path.join(home,'AppData')]:[]})
-        index.generation=++this.generation
+        const index=await engine.request<StorageIndex>('scan',{root,...options,mode,...scanScope})
+        index.generation=++this.generation;index.includeHidden=scanScope.includeHidden
         this.sessions.get(mode)?.engine.stop()
         this.sessions.set(mode,{index,engine,groups:new Map()});this.latest=mode
         return index
@@ -169,13 +250,10 @@ export class StorageService {
       const entries = await Promise.all(input.ids.map((id) => engine.request<StorageEntry>('entry', { id })))
       for (const entry of entries) if (!index.root || !isStorageMutationAllowed(entry.path, index.root.path) || entry.directory) throw new Error('This location is protected. Only personal files can be moved here.')
       if (input.kind === 'duplicates') {
-        const group = input.groupId ? session.groups.get(input.groupId) : undefined
-        if (!group || entries.some((e) => !group.files.some((f) => f.id === e.id))) throw new Error('Unknown duplicate selection')
-        const keep = group.files.find((e) => !input.ids.includes(e.id))
-        if (!keep) throw new Error('Keep at least one copy')
-        for (const entry of [keep, ...entries]) {
-          const fresh = await engine.request<{ hash: string }>('hash', { id: entry.id })
-          if (fresh.hash !== group.id) throw new Error('Duplicate contents changed. Scan again.')
+        const batches=duplicateRemovalGroups([...session.groups.values()],new Set(input.ids),input.groupId)
+        for(const {group,keep,files} of batches)for(const entry of [keep,...files]) {
+          const fresh=await engine.request<{hash:string}>('hash',{id:entry.id})
+          if(fresh.hash!==group.id)throw new Error('Duplicate contents changed. Scan again.')
         }
       }
       const snapshots = await Promise.all(entries.map((e) => snapshot(e.path)))
@@ -185,30 +263,37 @@ export class StorageService {
       return result
     })
   }
-  async listApplications(refresh=true): Promise<StorageApplication[]> {
-    if(!refresh&&this.applications.size)return [...this.applications.values()]
-    return this.exclusive('apps',async () => {
-      this.applications.clear(); this.related.clear();this.metadata.clear();this.updates.clear()
-      if (process.platform === 'darwin') {
-        const locations=(await Promise.all(['/Applications',path.join(home,'Applications'),'/System/Applications'].map((root)=>findApplications(root)))).flat()
-        // Keep local inventory independent from network update checks.
-        for(let offset=0;offset<locations.length;offset+=8)await Promise.all(locations.slice(offset,offset+8).map(async(location)=>{
-          try {
-            await snapshot(location)
-            const info=await inspectApplication(location,this.language(),false)
-            if(!info||info.bundleId==='com.fcl.memento')return
-            const id=randomUUID(),system=location.startsWith('/System/')
-            this.metadata.set(id,info)
-            this.applications.set(id,{id,name:info.name,version:info.version,bundleId:info.bundleId,location,size:info.sizeBytes,lastUsedAt:info.lastUsedAt?.toISOString()||null,system,protected:system||location===app.getPath('exe').split('.app/')[0]+'.app',method:'trash'})
-          } catch { /* Unreadable or redirected bundles are excluded. */ }
-        }))
-        const missing=[...this.applications.values()].filter((a)=>!a.system||!a.size)
-        if(missing.length){const measured=await this.engine.request<Array<{path:string;size:number}>>('measure',{paths:missing.map((a)=>a.location)});for(const a of missing)a.size=measured.find((m)=>m.path===a.location)?.size||0}
+  async listApplications(refresh=false):Promise<StorageApplication[]> {
+    if(!refresh&&this.applications.size)return this.applicationState().applications
+    if(this.applicationRefresh)return this.applicationRefresh
+    this.applicationsRefreshing=true;this.applicationsError=null;this.publishApplications()
+    const epoch=++this.applicationSizeEpoch;this.applicationSizeEngine.stop()
+    const work=this.exclusive('apps',async()=>{
+      const seen=new Set<string>()
+      if(process.platform==='darwin'){
+        const locations=[...new Set((await Promise.all(this.applicationRoots.map((root)=>findApplications(root,2,true)))).flat())]
+        for(let offset=0;offset<locations.length;offset+=8){
+          await Promise.all(locations.slice(offset,offset+8).map(async(location)=>{
+            try{
+              const stat=await snapshot(location),info=await inspectApplication(location,this.language(),false,false)
+              if(!info||info.bundleId==='com.fcl.memento')return
+              let infoModified=0;try{infoModified=(await lstat(path.join(location,'Contents/Info.plist'))).mtimeMs}catch{/* Metadata fallback remains usable. */}
+              const id=this.applicationId(location,info.name),previous=this.applications.get(id),system=location.startsWith('/System/')
+              const fingerprint=[stat.dev,stat.ino,stat.modified,infoModified,info.version].join(':')
+              const changed=Boolean(previous&&(previous.version!==info.version||previous.bundleId!==info.bundleId||this.applicationFingerprints.has(id)&&this.applicationFingerprints.get(id)!==fingerprint))
+              if(changed){this.updates.delete(id);for(const [key,value] of this.related)if(value.applicationId===id)this.related.delete(key)}
+              this.applicationFingerprints.set(id,fingerprint);this.metadata.set(id,info);seen.add(id)
+              const measured=this.measuredApplicationFingerprints.get(id)===fingerprint
+              this.applications.set(id,{...previous,...(changed?{updateAvailable:false,latestVersion:null,updateSource:undefined,updateMode:undefined,updateCheckedAt:null}:{}),id,name:info.name,version:info.version,bundleId:info.bundleId,location,size:measured?previous?.size||info.sizeBytes:info.sizeBytes,lastUsedAt:info.lastUsedAt?.toISOString()||null,system,protected:system||location===app.getPath('exe').split('.app/')[0]+'.app',method:'trash',cached:false})
+            }catch{/* Unreadable or redirected bundles are excluded from live registration. */}
+          }))
+          this.publishApplications()
+        }
       } else if (process.platform === 'win32') {
         const script = "$p=@('HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'); @(Get-ItemProperty $p -ErrorAction SilentlyContinue | Where-Object {$_.DisplayName} | Select-Object DisplayName,DisplayVersion,InstallLocation,EstimatedSize,DisplayIcon,SystemComponent) | ConvertTo-Json -Compress"
         const { stdout } = await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command',script],{timeout:15000,maxBuffer:8*1024*1024,windowsHide:true})
         const parsed=JSON.parse(stdout || '[]')
-        for (const p of Array.isArray(parsed)?parsed:parsed?[parsed]:[]) { const id=randomUUID(); this.applications.set(id,{id,name:String(p.DisplayName),version:String(p.DisplayVersion || ''),location:String(p.InstallLocation || ''),bundleId:null,size:Number(p.EstimatedSize || 0)*1024,protected:false,system:p.SystemComponent===1,iconPath:String(p.DisplayIcon||'').trim().replace(/,-?\d+$/,'').replace(/^"|"$/g,''),method:'system'}) }
+        for (const p of Array.isArray(parsed)?parsed:parsed?[parsed]:[]) { const id=this.applicationId(String(p.InstallLocation||''),String(p.DisplayName)); seen.add(id); this.applications.set(id,{id,name:String(p.DisplayName),version:String(p.DisplayVersion || ''),location:String(p.InstallLocation || ''),bundleId:null,size:Number(p.EstimatedSize || 0)*1024,protected:false,system:p.SystemComponent===1,iconPath:String(p.DisplayIcon||'').trim().replace(/,-?\d+$/,'').replace(/^"|"$/g,''),method:'system'}) }
       } else {
         for (const root of ['/usr/share/applications', path.join(home,'.local/share/applications')]) {
           let names: string[]=[]; try { names=await readdir(root) } catch { continue }
@@ -219,15 +304,24 @@ export class StorageService {
               const iconName=/^Icon=(.+)$/m.exec(content)?.[1]?.trim()
               let iconPath:string|undefined
               if(iconName){const candidates=path.isAbsolute(iconName)?[iconName]:[...['/usr/share/icons/hicolor',path.join(home,'.local/share/icons/hicolor')].flatMap((root)=>['512x512','256x256','128x128','64x64','48x48','scalable'].flatMap((size)=>['png','svg','xpm'].map((ext)=>path.join(root,size,'apps',`${iconName}.${ext}`)))),path.join('/usr/share/pixmaps',iconName+'.png'),path.join('/usr/share/pixmaps',iconName+'.svg')];for(const candidate of candidates)try{const resolved=await realpath(candidate);if((await lstat(resolved)).isFile()){iconPath=resolved;break}}catch{/* Try the next installed theme size. */}}
-              const id=randomUUID(); this.applications.set(id,{id,name:display,version:'',location,iconPath,bundleId:name.slice(0,-8),size:0,protected:false,method:'system'})
+              const id=this.applicationId(location,display); seen.add(id); this.applications.set(id,{id,name:display,version:'',location,iconPath,bundleId:name.slice(0,-8),size:0,protected:false,method:'system'})
             } catch { /* Invalid desktop entries are skipped. */ }
           }
         }
       }
-      return [...this.applications.values()].sort((a,b)=>a.name.localeCompare(b.name))
+
+      for(const [id] of this.applications)if(!seen.has(id)){this.applications.delete(id);this.metadata.delete(id);this.updates.delete(id);this.applicationFingerprints.delete(id);this.measuredApplicationFingerprints.delete(id);for(const [key,value] of this.related)if(value.applicationId===id)this.related.delete(key)}
+      this.applicationsUpdatedAt=new Date().toISOString()
+      await this.persistApplications().catch(()=>undefined)
+      return this.applicationState().applications
     })
+    this.applicationRefresh=work
+    try{const result=await work;if(!this.inventoryStopped)void this.measureApplicationSizes(epoch);return result}
+    catch(error){this.applicationsError=error instanceof Error?error.message:String(error);throw error}
+    finally{this.applicationRefresh=null;this.applicationsRefreshing=false;this.publishApplications()}
   }
   async checkApplicationUpdates():Promise<StorageApplication[]> {
+    if([...this.applications.values()].some((application)=>application.cached)||!this.applications.size)await this.listApplications(true)
     return this.exclusive('apps',async()=>{
       const candidates=[...this.metadata].filter(([id])=>!this.applications.get(id)?.protected)
       const found=process.platform==='darwin'?await discoverApplicationUpdates(candidates.map(([,metadata])=>metadata),this.language()):new Map<string,ApplicationUpdate>()
@@ -237,12 +331,12 @@ export class StorageService {
         if(update)this.updates.set(id,update)
         Object.assign(application,{updateAvailable:Boolean(update),latestVersion:update?.latestVersion||null,updateSource:update?.source,updateMode:update?.mode,updateCheckedAt:new Date().toISOString()})
       }
+      this.publishApplications()
       return [...this.applications.values()]
     })
   }
   async openApplication(id:string):Promise<void> {
-    const application=this.applications.get(id)
-    if(!application)throw new Error('Application selection expired')
+    const application=await this.registeredApplication(id)
     if(process.platform==='linux'){await snapshot(application.location);await exec('/usr/bin/gio',['launch',application.location],{timeout:10_000});return}
     const target=process.platform==='win32'?application.iconPath:application.location
     if(!target||(process.platform==='win32'&&!target.toLowerCase().endsWith('.exe')))throw new Error('The application launch entry is unavailable. Open it from the system launcher.')
@@ -250,6 +344,7 @@ export class StorageService {
     const error=await shell.openPath(target);if(error)throw new Error(error)
   }
   async updateApplication(id:string) {
+    await this.registeredApplication(id)
     return this.exclusive('apps',async()=>{
       const application=this.applications.get(id)
       if(!application||application.protected)throw new Error('This application is protected')
@@ -268,6 +363,7 @@ export class StorageService {
         application.updateAvailable=false;application.latestVersion=null;this.updates.delete(id)
         for(const [key,value] of this.related)if(value.applicationId===id)this.related.delete(key)
       }
+      if(result.status==='updated'){this.measuredApplicationFingerprints.delete(id);void this.persistApplications().catch(()=>undefined);this.publishApplications();if(this.applicationTimer)this.applicationDebounce=setTimeout(()=>{void this.listApplications(true).catch(()=>undefined)},100)}
       return {...result,application}
     })
   }
@@ -290,6 +386,7 @@ export class StorageService {
     })
   }
   async inspectApplication(id: string): Promise<RelatedApplicationFile[]> {
+    await this.registeredApplication(id)
     return this.exclusive('apps',async () => {
       const application=this.applications.get(id); if (!application) throw new Error('Application selection expired')
       for (const [key,v] of this.related) if (v.applicationId === id) this.related.delete(key)
@@ -313,6 +410,7 @@ export class StorageService {
     })
   }
   async uninstall(input: {applicationId:string;ids:string[]}): Promise<StorageActivity | null> {
+    await this.registeredApplication(input.applicationId)
     return this.exclusive('apps',async () => {
       const application=this.applications.get(input.applicationId)
       if (!application || application.protected) throw new Error('This application is protected')
@@ -328,7 +426,7 @@ export class StorageService {
       for (const value of values) await unchanged(value.snapshot)
       const result=await this.activity('uninstall',values.map((v)=>({path:v.file.path,size:v.file.size,run:async()=>{await unchanged(v.snapshot); await shell.trashItem(v.file.path)}})))
       for(const [id,value] of this.related)if(result.locations.includes(value.file.path))this.related.delete(id)
-      if(result.locations.includes(application.location))this.applications.delete(application.id)
+      if(result.locations.includes(application.location)){this.applications.delete(application.id);this.metadata.delete(application.id);this.applicationFingerprints.delete(application.id);this.measuredApplicationFingerprints.delete(application.id);this.updates.delete(application.id);this.publishApplications();await this.persistApplications().catch(()=>undefined)}
       return result
     })
   }
@@ -359,7 +457,8 @@ export class StorageService {
     })
     handle('cleanup',(v)=>this.cleanup(z.boolean().parse(v)))
     handle('clean',(v)=>this.clean(z.array(z.string().uuid()).min(1).max(100).transform((ids)=>[...new Set(ids)]).parse(v)))
-    handle('applications',()=>this.listApplications())
+    handle('applications',(v)=>this.listApplications(z.boolean().optional().parse(v)||false))
+    handle('application-state',()=>this.applicationState())
     handle('check-updates',()=>this.checkApplicationUpdates())
     handle('open-application',(v)=>this.openApplication(z.string().uuid().parse(v)))
     handle('update-application',(v)=>this.updateApplication(z.string().uuid().parse(v)))
@@ -371,6 +470,6 @@ export class StorageService {
     })
     handle('related',(v)=>this.inspectApplication(z.string().uuid().parse(v)))
     handle('uninstall',(v)=>this.uninstall(z.object({applicationId:z.string().uuid(),ids:z.array(z.string().uuid()).max(500)}).parse(v)))
-    app.on('before-quit',()=>{this.engine.stop();this.activeEngine?.stop();for(const session of this.sessions.values())session.engine.stop()})
+    app.on('before-quit',()=>{this.stopApplicationInventory();this.engine.stop();this.activeEngine?.stop();for(const session of this.sessions.values())session.engine.stop()})
   }
 }

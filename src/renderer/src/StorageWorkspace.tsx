@@ -11,6 +11,8 @@ import { treemap } from './treemap'
 import {HomeOverview} from './HomeOverview'
 import { AiActionButton } from './AiTasks'
 import { ApplicationManager } from './ApplicationManager'
+import {selectExtraCopies} from '../../shared/duplicate-selection'
+import type {ApplicationInventoryState} from '../../shared/storage-types'
 import { selectedApplicationFiles } from '../../shared/application-files'
 
 export type StorageView = 'overview'|'health'|'large'|'duplicates'|'disk'|'privacy'|'apps'|'history'
@@ -36,7 +38,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const [category,setCategory]=useState<FileCategory|'all'>('all')
   const [categoryCounts,setCategoryCounts]=useState<Record<string,number>>({})
   const [duplicateMinimum,setDuplicateMinimum]=useState(10*MB)
-  const [includeHidden,setIncludeHidden]=useState(true)
+  const [includeHidden,setIncludeHidden]=useState(false)
   const [groupLimit,setGroupLimit]=useState(40)
   const [minimum,setMinimum]=useState(100*MB)
   const [search,setSearch]=useState('')
@@ -53,6 +55,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const [privacy,setPrivacy]=useState<CleanupItem[]|null>(null)
   const [ruleSelected,setRuleSelected]=useState<Set<string>>(new Set())
   const [applications,setApplications]=useState<StorageApplication[]|null>(null)
+  const [inventory,setInventory]=useState<ApplicationInventoryState|null>(null)
   const [application,setApplication]=useState<StorageApplication|null>(null)
   const [related,setRelated]=useState<RelatedApplicationFile[]>([])
   const [relatedSelected,setRelatedSelected]=useState<Set<string>>(new Set())
@@ -75,10 +78,18 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   },[])
   useEffect(()=>{
     mounted.current=true
-    if(window.memento) void window.memento.storageState().then((s)=>{setIndex(s.indexes[view==='disk'?'analysis':view==='large'||view==='duplicates'?view:'analysis']||null);setHistory(s.history)}).catch((e)=>setError(String(e)))
+    if(window.memento) void window.memento.storageState().then((s)=>{const retained=s.indexes[view==='disk'?'analysis':view==='large'||view==='duplicates'?view:'analysis'];setIndex(retained||null);setIncludeHidden(retained?.includeHidden??false);setHistory(s.history)}).catch((e)=>setError(String(e)))
     else {setIndex(demoIndex);setHistory(demoHistory)}
     const unsubscribe=window.memento?.onStorageProgress((p)=>{if(!p.scope||p.scope===(view==='health'?'cleanup':view==='disk'?'analysis':view))setProgress(p)})
     return ()=>{mounted.current=false;unsubscribe?.()}
+  },[])
+  useEffect(()=>{
+    if(view!=='apps')return
+    if(!window.memento){setApplications(demoApps);return}
+    const receive=(state:ApplicationInventoryState):void=>{if(!mounted.current)return;setInventory(state);setApplications(state.applications);setApplication((previous)=>previous?state.applications.find((application)=>application.id===previous.id&&application.version===previous.version)||null:null)}
+    const stop=window.memento.onStorageApplications(receive)
+    void window.memento.storageApplicationState().then(receive).catch((error)=>setError(String(error)))
+    return stop
   },[])
   useEffect(()=>{
     if(!activity)return
@@ -121,14 +132,13 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     if(result){if(isPrivacy)setPrivacy(result);else setCleanup(result);setRuleSelected(new Set())}
   },[runTask])
   const loadApps=useCallback(async():Promise<void>=>{
-    const result=await runTask('apps',async()=>window.memento?window.memento.storageApplications():demoApps)
+    const result=await runTask('apps',async()=>window.memento?window.memento.storageApplications(true):demoApps)
     if(result){setApplications(result);setApplication(null);setRelated([]);setRelatedSelected(new Set())}
   },[runTask])
   useEffect(()=>{
     if(!active||busy||attempted.current.has(view))return
     if(view==='health'&&cleanup===null){attempted.current.add(view);void loadCleanup(false)}
     if(view==='privacy'&&privacy===null){attempted.current.add(view);void loadCleanup(true)}
-    if(view==='apps'&&applications===null){attempted.current.add(view);void loadApps()}
   },[active,view,cleanup,privacy,applications,busy,loadCleanup,loadApps])
   useEffect(()=>{
     if(view!=='large'||!active||!index)return
@@ -171,7 +181,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   }
   const confirmTrash=(entries:StorageEntry[],group?:DuplicateGroup):void=>{
     if(!index||!entries.length)return
-    const kind=group?'duplicates':'large'
+    const kind=group||view==='duplicates'?'duplicates':'large'
     setConfirmation({kind,count:entries.length,size:entries.reduce((s,e)=>s+e.allocated,0),names:entries.map((e)=>e.path),run:()=>window.memento?window.memento.storageTrash({generation:index.generation,ids:entries.map((e)=>e.id),kind,groupId:group?.id}):fakeActivity(kind,entries.length,entries.reduce((s,e)=>s+e.size,0),entries.map((e)=>e.path))})
   }
   const confirmClean=():void=>{
@@ -220,6 +230,8 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const smallRect=(rect:{width:number;height:number}):boolean=>rect.width*mapSize.width/100<100||rect.height*mapSize.height/100<100
   const smallEntries=children.filter((file)=>file.size>0&&(!map.some((r)=>r.id===file.id)||map.some((r)=>r.id===file.id&&smallRect(r))))
   const selectedLarge=large.filter((e)=>selected.has(e.id))
+  const selectedDuplicateGroups=(groups||[]).filter((group)=>group.files.some((file)=>selected.has(file.id)))
+  const selectedDuplicates=selectedDuplicateGroups.flatMap((group)=>group.files.filter((file)=>selected.has(file.id)))
   const rules=view==='privacy'?privacy:cleanup
   return <div className={`space-workspace space-${view}`} ref={mainRef}>
     {error&&<div className="space-alert" role="alert"><CircleHelp size={18}/><span>{error}</span><button className="icon-button" aria-label={t('common.close')} onClick={()=>setError('')}><X size={16}/></button></div>}
@@ -227,7 +239,8 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     {view==='overview'&&<HomeOverview metrics={metrics} history={history} bytes={bytes} onProcess={onProcess} onNavigate={onNavigate} recent={history.length?activityRows(history.slice(0,3)):<div className="space-empty-history"><CheckCircle2 size={23}/><strong>{t('home.noHistory')}</strong></div>}/>}
     {(view==='large'||view==='disk'||view==='duplicates')&&<>
       {heading(`${view}.title`,`${view}.subtitle`,index?scanButtons:undefined)}
-      {(view==='duplicates'||view==='large')&&<div className="space-toolbar duplicate-options">{view==='duplicates'&&<label>{t('large.minimum')} <select aria-label={t('large.minimum')} disabled={busy} value={duplicateMinimum} onChange={(e)=>{setDuplicateMinimum(Number(e.target.value));setIndex(null);setGroups(null)}}>{[10*MB,50*MB,100*MB,1024*MB].map((n)=><option value={n} key={n}>{bytes(n)} +</option>)}</select></label>}<label className="space-inline-check"><input type="checkbox" disabled={busy} checked={includeHidden} onChange={(e)=>{setIncludeHidden(e.target.checked);setIndex(null);setGroups(null)}}/>{t('compact.includeHidden')}</label></div>}
+      {<div className="space-toolbar duplicate-options">{view==='duplicates'&&<label>{t('large.minimum')} <select aria-label={t('large.minimum')} disabled={busy} value={duplicateMinimum} onChange={(e)=>{setDuplicateMinimum(Number(e.target.value));setIndex(null);setGroups(null)}}>{[10*MB,50*MB,100*MB,1024*MB].map((n)=><option value={n} key={n}>{bytes(n)} +</option>)}</select></label>}<label className="space-inline-check"><input type="checkbox" aria-describedby={`${view}-scan-scope`} disabled={busy} checked={includeHidden} onChange={(e)=>{setIncludeHidden(e.target.checked);setIndex(null);setGroups(null)}}/>{t('compact.includeHidden')}</label></div>}
+      <p className={`space-scan-scope ${includeHidden?'is-expanded':''}`} id={`${view}-scan-scope`}><ShieldCheck size={15}/><span>{t(includeHidden?'scan.scopeExpanded':'scan.scopeDefault')}</span></p>
       {taskProgress}
       {!index&&!busy?scanPrompt:index&&<>{scanStatus}
         {view==='large'&&<>
@@ -236,7 +249,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
           <div className="space-file-table"><div className="space-file-table-head"><input type="checkbox" aria-label={t('common.selectAll')} checked={large.length>0&&large.every((e)=>selected.has(e.id))} onChange={(e)=>setSelected(e.target.checked?new Set(large.map((v)=>v.id)):new Set())}/><span>{t('common.name')}</span><span>{t('common.size')} <ArrowDown size={12}/></span><span>{t('common.modified')}</span><span/></div>{large.map((file)=><div className={`space-file-row ${selected.has(file.id)?'is-selected':''}`} key={file.id}><input type="checkbox" aria-label={file.name} checked={selected.has(file.id)} onChange={()=>toggle(setSelected,file.id)}/><span className="space-file-info"><span className="space-file-icon"><File size={22}/></span><span><strong>{file.name}</strong><small title={file.path}>{file.path}</small></span></span><b>{bytes(file.size)}</b><span className="space-file-date">{formatDate(file.modified/1e6)}</span>{fileActions(file,{type:'entry',generation:index.generation,id:file.id})}</div>)}{!large.length&&<div className="space-empty">{t('common.empty')}</div>}</div>
           {large.length<largeCount&&<button className="space-button space-load-more" onClick={()=>setOffset(large.length)}>{t('common.more')}</button>}
 
-          {selectedLarge.length>0&&<div className="space-selection-bar"><div><strong>{t('common.selected',{count:selectedLarge.length})}</strong><span>{t('large.pending',{size:bytes(selectedLarge.reduce((s,e)=>s+e.size,0))})}</span></div><button className="space-button primary" disabled={busy} onClick={()=>confirmTrash(selectedLarge)}><Trash2 size={16}/>{t('common.review')}</button></div>}
+          {selectedLarge.length>0&&<SelectionBar count={selectedLarge.length} size={bytes(selectedLarge.reduce((sum,file)=>sum+file.allocated,0))} disabled={busy} onClear={()=>setSelected(new Set())} onReview={()=>confirmTrash(selectedLarge)}/>}
         </>}
         {view==='disk'&&folder&&<>
           <div className="space-disk-toolbar"><div className="space-disk-navigation"><button className="space-button space-disk-back" disabled={breadcrumbs.length<2} onClick={()=>void openFolder(breadcrumbs[breadcrumbs.length-2],breadcrumbs.slice(0,-1))}><ArrowLeft size={16}/>{t('disk.back')}</button><nav className="space-breadcrumbs" aria-label={t('disk.root')}>{breadcrumbs.map((crumb,i)=><button key={crumb.id} disabled={i===breadcrumbs.length-1} onClick={()=>void openFolder(crumb,breadcrumbs.slice(0,i+1))}>{i===0&&<HardDrive size={14}/>}<span>{crumb.name}</span>{i<breadcrumbs.length-1&&<ChevronRight size={14}/>}</button>)}</nav></div><div><strong>{bytes(folder.size)}</strong><small>{t('disk.total')}</small></div></div>
@@ -245,10 +258,11 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
         {view==='duplicates'&&<>
           {groups===null&&!busy&&<div className="space-start compact"><Copy size={28}/><button className="space-button primary" onClick={()=>void findDuplicates()}><Search size={16}/>{t('duplicates.find')}</button></div>}
           {groups!==null&&<>
-            <div className="space-section-title"><h2>{t('duplicates.groups',{count:groups.length})}</h2><span>{t('duplicates.reclaim',{size:bytes(groups.reduce((s,g)=>s+g.reclaimable,0))})}</span></div>
+            <div className="space-section-title"><h2>{t('duplicates.groups',{count:groups.length})}</h2><span>{t('duplicates.reclaim',{size:bytes(groups.reduce((s,g)=>s+g.reclaimable,0))})}</span><button className="space-text-button" disabled={busy||!groups.length} onClick={()=>setSelected((previous)=>selectExtraCopies(groups.filter((group)=>category==='all'||fileCategory(group.files[0].name)===category),previous))}>{t('duplicates.selectAll')}</button></div>
             {categories(groups.reduce<Record<string,number>>((counts,g)=>{const key=fileCategory(g.files[0].name);counts[key]=(counts[key]||0)+1;return counts},{}))}
             {!groups.length&&<div className="space-empty">{t('duplicates.empty')}</div>}
-            {([...Object.keys(fileCategories),'other'] as FileCategory[]).filter((c)=>category==='all'||c===category).map((c)=>{const list=groups.filter((g)=>fileCategory(g.files[0].name)===c);if(!list.length)return null;return <details className="space-tree-category" open key={c}><summary><Folder size={17}/><strong>{t(`category.${c}`)}</strong><span>{t('duplicates.groups',{count:list.length})}</span><b>{bytes(list.reduce((s,g)=>s+g.reclaimable,0))}</b></summary>{list.slice(0,groupLimit).map((group,i)=><details className="space-duplicate-group" key={group.id} open={i===0}><summary><Copy size={17}/><span><strong>{group.files[0].name}</strong><small>{t('common.items',{count:group.files.length})} · {bytes(group.files[0].size)}</small></span><button className="space-text-button" onClick={(e)=>{e.preventDefault();setSelected((prev)=>new Set([...prev,...group.files.slice(1).map((file)=>file.id)]))}}>{t('duplicates.select')}</button><b>{bytes(group.reclaimable)}</b></summary>{group.files.map((file)=><div className="space-duplicate-row" key={file.id}><input type="checkbox" aria-label={file.path} checked={selected.has(file.id)} disabled={!selected.has(file.id)&&group.files.filter((e)=>!selected.has(e.id)).length===1} onChange={()=>toggle(setSelected,file.id)}/><File size={16}/><span title={file.path}>{file.path}</span><span className={`space-keep-badge ${!selected.has(file.id)?'is-keep':''}`}>{!selected.has(file.id)?<><Check size={12}/>{t('duplicates.keep')}</>:t('duplicates.extra')}</span><b>{bytes(file.size)}</b>{fileActions(file,{type:'entry',generation:index.generation,id:file.id})}</div>)}{group.files.some((e)=>selected.has(e.id))&&<footer><button className="space-button" onClick={()=>confirmTrash(group.files.filter((e)=>selected.has(e.id)),group)}>{t('duplicates.remove')}<ArrowRight size={14}/></button></footer>}</details>)}{list.length>groupLimit&&<button className="space-button space-load-more" onClick={()=>setGroupLimit((n)=>n+40)}>{t('common.more')}</button>}</details>})}
+            {([...Object.keys(fileCategories),'other'] as FileCategory[]).filter((c)=>category==='all'||c===category).map((c)=>{const list=groups.filter((g)=>fileCategory(g.files[0].name)===c);if(!list.length)return null;return <details className="space-tree-category" open key={c}><summary><Folder size={17}/><strong>{t(`category.${c}`)}</strong><span>{t('duplicates.groups',{count:list.length})}</span><b>{bytes(list.reduce((s,g)=>s+g.reclaimable,0))}</b></summary>{list.slice(0,groupLimit).map((group,i)=><details className="space-duplicate-group" key={group.id} open={i===0}><summary><Copy size={17}/><span><strong>{group.files[0].name}</strong><small>{t('common.items',{count:group.files.length})} · {bytes(group.files[0].size)}</small></span><button className="space-text-button" onClick={(e)=>{e.preventDefault();setSelected((prev)=>selectExtraCopies([group],prev))}}>{t('duplicates.select')}</button><b>{bytes(group.reclaimable)}</b></summary>{group.files.map((file)=><div className="space-duplicate-row" key={file.id}><input type="checkbox" aria-label={file.path} checked={selected.has(file.id)} disabled={!selected.has(file.id)&&group.files.filter((e)=>!selected.has(e.id)).length===1} onChange={()=>toggle(setSelected,file.id)}/><File size={16}/><span title={file.path}>{file.path}</span><span className={`space-keep-badge ${!selected.has(file.id)?'is-keep':''}`}>{!selected.has(file.id)?<><Check size={12}/>{t('duplicates.keep')}</>:t('duplicates.extra')}</span><b>{bytes(file.size)}</b>{fileActions(file,{type:'entry',generation:index.generation,id:file.id})}</div>)}</details>)}{list.length>groupLimit&&<button className="space-button space-load-more" onClick={()=>setGroupLimit((n)=>n+40)}>{t('common.more')}</button>}</details>})}
+            {selectedDuplicates.length>0&&<SelectionBar count={selectedDuplicates.length} size={bytes(selectedDuplicates.reduce((sum,file)=>sum+file.allocated,0))} detail={t('duplicates.selectedGroups',{count:selectedDuplicateGroups.length})} disabled={busy} onClear={()=>setSelected(new Set())} onReview={()=>confirmTrash(selectedDuplicates)} label={t('duplicates.remove')}/>}
           </>}
         </>}
 
@@ -258,10 +272,10 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
       {heading(view==='privacy'?'privacy.title':'cleanup.title',view==='privacy'?'privacy.subtitle':'cleanup.subtitle',<button className="space-button" disabled={busy} onClick={()=>void loadCleanup(view==='privacy')}><Search size={16}/>{t('common.rescan')}</button>)}
       {taskProgress}
       {!busy&&rules===null&&<div className="space-start compact"><button className="space-button primary" onClick={()=>void loadCleanup(view==='privacy')}>{t('common.scan')}</button></div>}
-      {!busy&&rules!==null&&<><div className="space-cleanup-summary"><strong>{bytes(rules.reduce((s,r)=>s+r.size,0))}</strong><span>{t('common.items',{count:rules.length})}</span></div><CleanupTree rules={rules} selected={ruleSelected} onToggle={(id)=>toggle(setRuleSelected,id)} bytes={bytes} actions={fileActions}/>{!rules.length&&<div className="space-empty">{t('cleanup.empty')}</div>}{ruleSelected.size>0&&<div className="space-selection-bar"><div><strong>{t('common.selected',{count:ruleSelected.size})}</strong><span>{bytes(rules.filter((r)=>ruleSelected.has(r.id)).reduce((s,r)=>s+r.size,0))}</span></div><button className="space-button primary" onClick={confirmClean}>{t('common.review')}<ArrowRight size={16}/></button></div>}</>}
+      {!busy&&rules!==null&&<><div className="space-cleanup-summary"><strong>{bytes(rules.reduce((s,r)=>s+r.size,0))}</strong><span>{t('common.items',{count:rules.length})}</span></div><CleanupTree rules={rules} selected={ruleSelected} onToggle={(id)=>toggle(setRuleSelected,id)} bytes={bytes} actions={fileActions}/>{!rules.length&&<div className="space-empty">{t('cleanup.empty')}</div>}{ruleSelected.size>0&&<SelectionBar count={ruleSelected.size} size={bytes(rules.filter((rule)=>ruleSelected.has(rule.id)).reduce((sum,rule)=>sum+rule.size,0))} disabled={busy} onClear={()=>setRuleSelected(new Set())} onReview={confirmClean}/>}</>}
     </>}
 
-    {view==='apps'&&<ApplicationManager applications={applications} onApplications={setApplications} busy={busy} loadingFiles={task==='related'} application={application} files={related} selected={relatedSelected} onSelect={setRelatedSelected} onFiles={(next)=>setRelated((prev)=>[...new Map([...prev,...next].map((f)=>[f.id,f])).values()])} onInspect={(app)=>app?void inspect(app):setApplication(null)} onRefresh={()=>void loadApps()} onConfirm={confirmUninstall} actions={fileActions} bytes={bytes} onNotice={setNotice} onError={setError}/>}
+    {view==='apps'&&<ApplicationManager inventory={inventory} applications={applications} onApplications={setApplications} busy={busy} loadingFiles={task==='related'} application={application} files={related} selected={relatedSelected} onSelect={setRelatedSelected} onFiles={(next)=>setRelated((prev)=>[...new Map([...prev,...next].map((f)=>[f.id,f])).values()])} onInspect={(app)=>app?void inspect(app):setApplication(null)} onRefresh={()=>void loadApps()} onConfirm={confirmUninstall} actions={fileActions} bytes={bytes} onNotice={setNotice} onError={setError}/>}
 
     {view==='history'&&<>
       {heading('history.title','history.subtitle')}
@@ -274,6 +288,18 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
       {executing&&confirmation?<CleanupAnimation confirmation={confirmation} progress={progress} bytes={bytes}/>:completed?<><span className="space-dialog-success"><CheckCircle2 size={35}/></span><h3>{t('confirm.completed',{count:completed.items,size:bytes(completed.bytes)})}</h3>{completed.failures>0&&<p role="alert">{t('common.failed',{count:completed.failures})}</p>}<p>{t(completed.kind==='cleanup'||completed.kind==='privacy'?'history.note':'home.trashNote')}</p><footer><button className="space-button primary" autoFocus onClick={()=>setCompleted(null)}>{t('confirm.finish')}</button></footer></>:confirmation&&<><p>{t('confirm.description',{count:confirmation.count,size:bytes(confirmation.size)})}</p><div className="space-dialog-files">{confirmation.names.map((name)=><div key={name}><File size={16}/><span>{name}</span></div>)}</div><div className="space-dialog-consequence"><CircleHelp size={19}/><p>{t(confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'cleanup.permanent':confirmation.kind==='uninstall'?'confirm.uninstall':'confirm.trash')}{confirmation.kind==='duplicates'&&` ${t('duplicates.confirm')}`}</p></div><footer><button className="space-button" autoFocus disabled={executing} onClick={()=>setConfirmation(null)}>{t('common.cancel')}</button><button className="space-button danger" disabled={executing} onClick={()=>void execute()}>{executing?<><LoaderCircle className="spinner" size={16}/>{t('common.working')}</>:t(confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'common.clean':'common.trash')}</button></footer></>}
     </StorageDialog>}
   </div>
+}
+
+function SelectionBar({count,size,detail,disabled,onClear,onReview,label}:{count:number;size:string;detail?:string;disabled?:boolean;onClear:()=>void;onReview:()=>void;label?:string}):React.JSX.Element {
+  const {t}=useI18n(),ref=useRef<HTMLElement>(null)
+  const [position,setPosition]=useState({left:24,right:24})
+  useEffect(()=>{
+    const parent=ref.current?.closest<HTMLElement>('.space-workspace');if(!parent)return
+    const measure=():void=>{const rect=parent.getBoundingClientRect(),style=getComputedStyle(parent);if(rect.width>0)setPosition({left:Math.max(12,rect.left+parseFloat(style.paddingLeft)),right:Math.max(12,innerWidth-rect.right+parseFloat(style.paddingRight))})}
+    measure();const observer=new ResizeObserver(measure);observer.observe(parent);window.addEventListener('resize',measure)
+    return()=>{observer.disconnect();window.removeEventListener('resize',measure)}
+  },[])
+  return <section ref={ref} style={position} data-batch-actions className="space-selection-bar" role="region" aria-label={t('selection.actions')}><div><strong>{t('common.selected',{count})}</strong><span>{size}{detail&&` · ${detail}`}</span></div><div className="space-selection-actions"><button className="space-text-button" disabled={disabled} onClick={onClear}>{t('selection.clear')}</button><button className="space-button primary" disabled={disabled} onClick={onReview}><Trash2 size={16}/>{label||t('common.review')}</button></div></section>
 }
 
 export function StorageDialog({title,dismiss,children}:{title:string;dismiss:()=>void;children:React.ReactNode}):React.JSX.Element {

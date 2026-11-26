@@ -268,7 +268,7 @@ impl Index {
         let include_hidden = options["includeHidden"].as_bool().unwrap_or(false);
         let excluded: Vec<_> = options["excludePaths"]
             .as_array()
-            .map(|v| v.iter().filter_map(|v| v.as_str()).collect())
+            .map(|v| v.iter().filter_map(|v| v.as_str()).map(|p| fs::canonicalize(p).unwrap_or_else(|_| std::path::PathBuf::from(p))).collect())
             .unwrap_or_default();
         self.entries.push(Record::from(&inspect(&root, 0, None)?));
         #[allow(unused_mut)] // mutated only for macOS system/Data firmlinks below
@@ -308,10 +308,8 @@ impl Index {
                     if entry.directory {
                         if (root == Path::new("/")
                             && (entry.path == "/System/Volumes" || entry.path == "/Volumes"))
-                            || excluded.contains(&entry.path.as_str())
-                            || ((self.mode == "duplicates" || self.mode == "large")
-                                && !include_hidden
-                                && entry.name.starts_with('.'))
+                            || excluded.contains(&std::path::PathBuf::from(&entry.path))
+                            || (!include_hidden && entry.name.starts_with('.'))
                             || !directories.insert((record.volume, record.file))
                         {
                             self.skipped += 1;
@@ -918,6 +916,22 @@ mod tests {
             )
             .unwrap();
         assert_eq!(index.entries.len(), 2);
+    }
+    #[test]
+    fn all_scan_modes_skip_hidden_directories_and_explicit_application_data_by_default() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in [".hidden", "AppData", "Documents"] {
+            fs::create_dir(dir.path().join(name)).unwrap();
+            fs::write(dir.path().join(name).join("large.bin"), vec![1; 11 * 1024 * 1024]).unwrap();
+        }
+        for mode in ["analysis", "large", "duplicates"] {
+            let mut index = Index::default();
+            index.scan_options(dir.path().to_str().unwrap(), 1, &json!({"mode":mode,"excludePaths":[dir.path().join("AppData").to_str().unwrap()]})).unwrap();
+            assert_eq!(index.entries.len(), 3);
+            assert_eq!(index.get(0).unwrap().size, 11 * 1024 * 1024);
+            index.scan_options(dir.path().to_str().unwrap(), 2, &json!({"mode":mode,"includeHidden":true})).unwrap();
+            assert_eq!(index.entries.len(), 7);
+        }
     }
     #[test]
     fn cached_discovery_never_authorizes_changed_content() {

@@ -863,5 +863,16 @@
   "health.capacity": "Maximum capacity",
   "health.utilization": "Current usage",
   "health.method": "How the score works",
-  "health.methodCopy": "Estimated from current CPU, GPU and memory load, available storage and battery capacity. Missing readings are excluded. Load can temporarily lower the score; the score does not diagnose hardware faults."
+  "health.methodCopy": "Estimated from current CPU, GPU and memory load, available storage and battery capacity. Missing readings are excluded. Load can temporarily lower the score; the score does not diagnose hardware faults.",
+  "scan.scopeDefault": "Hidden folders and application data are skipped by default to reduce scan time. Application data may include settings and personal information; review its purpose before cleaning.",
+  "scan.scopeExpanded": "The expanded scan may take longer. Removing application data can affect apps, settings or personal information; protected paths still cannot be removed here.",
+  "duplicates.selectAll": "Select all extra copies",
+  "duplicates.selectedGroups": "Across {count} duplicate groups",
+  "selection.actions": "Batch actions",
+  "selection.clear": "Clear selection",
+  "apps.refreshing": "Updating apps in the background; the current list remains available",
+  "apps.measuringSizes": "App list is ready; calculating sizes in the background",
+  "apps.cacheReady": "App list cached and maintained automatically",
+  "apps.refreshFailed": "Refresh did not finish. The previous list is retained; choose Refresh to retry.",
+  "apps.changed": "The application changed. Review the refreshed list and try again."
 }

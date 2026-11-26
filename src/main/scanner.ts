@@ -2005,12 +2005,13 @@ export function applicationScope(target: string): ApplicationScope {
   return 'shared'
 }
 
-export async function findApplications(root: string, depth = 2): Promise<string[]> {
+export async function findApplications(root: string, depth = 2, strict = false): Promise<string[]> {
   if (depth < 0) return []
   let entries: Awaited<ReturnType<typeof fs.readdir>>
   try {
     entries = await fs.readdir(root, { withFileTypes: true }) as never
-  } catch {
+  } catch (error) {
+    if(strict&&(error as NodeJS.ErrnoException).code!=='ENOENT')throw error
     return []
   }
 
@@ -2027,7 +2028,7 @@ export async function findApplications(root: string, depth = 2): Promise<string[
   return found
 }
 
-export async function inspectApplication(target: string, language: AppLanguage, activityFallback = true): Promise<ApplicationMetadata | null> {
+export async function inspectApplication(target: string, language: AppLanguage, activityFallback = true, measureFallback = true): Promise<ApplicationMetadata | null> {
   const namePromise = resolveApplicationName(target, language)
   const infoPromise = readPlist(path.join(target, 'Contents', 'Info.plist'))
   const bundleModifiedAtPromise = applicationBundleModifiedAt(target)
@@ -2044,7 +2045,7 @@ export async function inspectApplication(target: string, language: AppLanguage, 
       '-name',
       'kMDItemLogicalSize',
       target
-    ])
+    ], measureFallback ? 12_000 : 3_000)
     const sizeValue = parseMetadataValue(stdout, 'kMDItemLogicalSize') ??
       parseMetadataValue(stdout, 'kMDItemFSSize')
     const dateValue = parseMetadataValue(stdout, 'kMDItemLastUsedDate')
@@ -2076,7 +2077,7 @@ export async function inspectApplication(target: string, language: AppLanguage, 
         version: typeof info.CFBundleShortVersionString === 'string'
           ? info.CFBundleShortVersionString
           : t(language, '未知版本', 'Unknown version'),
-        sizeBytes: await getPathSize(target),
+        sizeBytes: measureFallback ? await getPathSize(target) : 0,
         lastUsedAt: parseApplicationLastUsedDate(null, activityFallback ? bundleModifiedAt : null),
         ...capabilities,
         buildVersion: typeof info.CFBundleVersion === 'string' ? info.CFBundleVersion : null,

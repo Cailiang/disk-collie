@@ -15,6 +15,7 @@ export interface StorageEntry {
 export type StorageMode = 'analysis' | 'large' | 'duplicates'
 export interface StorageScanOptions { mode?:StorageMode; minimum?:number; includeHidden?:boolean }
 export interface StorageIndex {
+  includeHidden?:boolean
   mode?: StorageMode
   retained?: number
   generation: number
@@ -74,6 +75,8 @@ export interface StorageApplication {
   bundleId: string | null
   size: number
   protected: boolean
+  /** Restored presentation data; main revalidates before actions. */
+  cached?: boolean
   method: 'trash' | 'system'
   system?: boolean
   lastUsedAt?: string | null
@@ -84,6 +87,7 @@ export interface StorageApplication {
   updateCheckedAt?: string | null
   iconPath?: string
 }
+export interface ApplicationInventoryState {applications:StorageApplication[];refreshing:boolean;measuringSizes:boolean;updatedAt:string|null;error:string|null}
 export type StorageApplicationUpdateResult = ApplicationUpdateResult & { application?: StorageApplication }
 export type StorageTarget =
   | { type:'entry'; generation:number; id:number }
@@ -102,7 +106,9 @@ export interface StorageApi {
   storageRevealTarget: (target:StorageTarget) => Promise<void>
   storageCleanup: (privacy: boolean) => Promise<CleanupItem[]>
   storageClean: (ids: string[]) => Promise<StorageActivity>
-  storageApplications: () => Promise<StorageApplication[]>
+  storageApplications: (refresh?:boolean) => Promise<StorageApplication[]>
+  storageApplicationState: () => Promise<ApplicationInventoryState>
+  onStorageApplications: (callback:(state:ApplicationInventoryState)=>void) => () => void
   storageApplicationIcon: (id:string) => Promise<string|null>
   storageOpenApplication: (id:string) => Promise<void>
   storageCheckUpdates: () => Promise<StorageApplication[]>

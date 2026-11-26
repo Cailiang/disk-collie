@@ -863,5 +863,16 @@
   "health.capacity": "最大容量",
   "health.utilization": "当前占用",
   "health.method": "评分依据",
-  "health.methodCopy": "根据当前 CPU、GPU、内存负载、存储余量和电池最大容量估算。缺失读数不计入；高负载会暂时降低分数，分数不代表硬件故障。"
+  "health.methodCopy": "根据当前 CPU、GPU、内存负载、存储余量和电池最大容量估算。缺失读数不计入；高负载会暂时降低分数，分数不代表硬件故障。",
+  "scan.scopeDefault": "默认跳过隐藏目录和应用数据，减少扫描时间。应用数据可能包含配置与个人资料，清理前请确认用途。",
+  "scan.scopeExpanded": "已扩大扫描范围，可能需要更长时间。误删应用数据可能影响应用、配置或个人资料；受保护路径仍不能在这里删除。",
+  "duplicates.selectAll": "选择所有多余副本",
+  "duplicates.selectedGroups": "涉及 {count} 个重复组",
+  "selection.actions": "批量操作",
+  "selection.clear": "清空选择",
+  "apps.refreshing": "正在后台更新应用清单，现有列表仍可使用",
+  "apps.measuringSizes": "应用清单已就绪，正在后台补全体积",
+  "apps.cacheReady": "应用清单已缓存，会自动更新",
+  "apps.refreshFailed": "本次更新未完成，保留上次清单。可点击刷新重试。",
+  "apps.changed": "应用已发生变化，请核对更新后的清单再操作。"
 }

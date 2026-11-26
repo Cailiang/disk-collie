@@ -1644,6 +1644,7 @@ app.whenReady().then(async () => {
   storageService = new StorageService(() => appSettings.language)
   await storageService.init()
   storageService.register()
+  storageService.startApplicationInventory()
   app.on('before-quit', stopPortableOverview)
 
   ipcMain.handle('memento:get-version', () => app.getVersion())

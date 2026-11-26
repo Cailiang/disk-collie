@@ -3,7 +3,7 @@ import {mkdtemp,mkdir,readFile,rm,writeFile,symlink} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type {StorageEntry,StorageIndex} from '../shared/storage-types'
-const state=vi.hoisted(()=>({profile:'',root:'',fail:'',engines:[] as any[],progress:[] as any[],handlers:new Map<string,(event:unknown,input?:unknown)=>any>()}))
+const state=vi.hoisted(()=>({profile:'',root:'',fail:'',engines:[] as any[],progress:[] as any[],hashes:new Map<number,string>(),handlers:new Map<string,(event:unknown,input?:unknown)=>any>()}))
 vi.mock('electron',()=>({
   app:{getPath:()=>state.profile,on:vi.fn()},
   BrowserWindow:{getAllWindows:()=>[{webContents:{send:(_channel:string,p:unknown)=>state.progress.push(p)}}]},
@@ -21,6 +21,7 @@ vi.mock('./native-engine',()=>({NativeEngine:class {
       this.index={generation:1,root:{id:0,parent:null,name:'fixture',path:state.root,directory:true,size:6144,allocated:6144,modified:0,identity:'root',links:1},entries:4,errors:0,skipped:0,limited:false,elapsedMs:1,mode:args.mode}
       return this.index
     }
+    if(command==='hash')return {hash:state.hashes.get(args.id)||'hash-a'}
     if(command==='entry')return this.entries.find((e)=>e.id===args.id)
     if(command==='forget'){this.entries=this.entries.filter((e)=>!args.paths.includes(e.path));return this.index}
     if(command==='system')return {processes:[],processCommands:[],processNames:[]}
@@ -38,7 +39,7 @@ describe('storage scan sessions and partial cleanup',()=>{
     fixture=await mkdtemp(path.join(os.homedir(),'memento-service-test-'))
     state.root=path.join(fixture,'files');state.profile=path.join(fixture,'profile')
     await mkdir(state.root);for(const name of ['a.mov','b.mov','c.mov'])await writeFile(path.join(state.root,name),Buffer.alloc(2048))
-    state.fail='';state.engines=[];state.progress=[];state.handlers.clear()
+    state.fail='';state.hashes.clear();state.engines=[];state.progress=[];state.handlers.clear()
     vi.stubEnv('MEMENTO_TEST_RUN','1');vi.stubEnv('MEMENTO_TEST_STORAGE_ROOT',state.root)
   })
   afterEach(async()=>{vi.unstubAllEnvs();await rm(fixture,{recursive:true,force:true})})
@@ -65,8 +66,23 @@ describe('storage scan sessions and partial cleanup',()=>{
     await service.scan({mode:'large'})
     expect(()=>call('large',{generation:large!.generation,minimum:1,search:'',offset:0})).toThrow(/scan has changed/)
     expect((await call('large',{generation:duplicates!.generation,minimum:1,search:'',offset:0})).count).toBe(3)
-    expect(state.engines[1].stopped).toBe(true)
-    expect(state.engines[2].stopped).toBe(false)
+    expect(state.engines.filter((engine)=>engine.index)[0].stopped).toBe(true)
+    expect(state.engines.filter((engine)=>engine.index)[1].stopped).toBe(false)
+  })
+  it('preflights all duplicate groups before a batch and keeps each survivor',async()=>{
+    const service=new StorageService();service.register();const index=await service.scan({mode:'duplicates'})
+    const engine=state.engines.find((engine)=>engine.index),extra={...engine.entries[2],id:4,name:'d.mov',path:path.join(state.root,'d.mov')}
+    await writeFile(extra.path,Buffer.alloc(2048));engine.entries.push(extra)
+    const session=(service as any).sessions.get('duplicates')
+    session.groups=new Map([['hash-a',{id:'hash-a',files:engine.entries.slice(0,2),reclaimable:2048}],['hash-b',{id:'hash-b',files:engine.entries.slice(2),reclaimable:2048}]])
+    state.hashes.set(3,'hash-b');state.hashes.set(4,'changed')
+    await expect(service.trash({generation:index!.generation,ids:[2,4],kind:'duplicates'})).rejects.toThrow('contents changed')
+    expect((await call('state')).history).toEqual([])
+    await expect(service.trash({generation:index!.generation,ids:[2,3,4],kind:'duplicates'})).rejects.toThrow('Keep at least one')
+    state.hashes.set(4,'hash-b')
+    const result=await service.trash({generation:index!.generation,ids:[2,4],kind:'duplicates'})
+    expect(result).toMatchObject({items:2,failures:0,locations:[path.join(state.root,'b.mov'),extra.path]})
+    expect(engine.entries.map((entry:StorageEntry)=>entry.id)).toEqual([1,3])
   })
   it('registers only inspected descendants, rejects redirects and requires the whole app for uninstall',async()=>{
     const service=new StorageService();service.register()

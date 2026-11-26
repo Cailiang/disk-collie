@@ -1,3 +1,13 @@
+# Memento 1.0.11 — 应用缓存与批量整理 / Cached apps and batch cleanup
+
+- 应用清单在启动时后台读取，跨启动恢复缓存并自动维护；先显示列表，再补齐体积，未变应用复用测量结果。
+- 重复文件可以跨组勾选，通过底部统一按钮一次核对、一次移到废纸篓；每组至少保留一份，全部校验通过后才开始移动。
+- 大文件、缓存和隐私清理共用底部批量操作栏，支持清空选择；AI 任务入口避让批量操作按钮。
+- 大文件、重复文件和空间分析默认排除隐藏目录及应用数据；手动包含时提示扫描耗时和数据风险，已有路径保护继续生效。
+- 自动缓存仅用于展示，实际打开、更新或卸载前仍需当前应用登记；扫描总量只代表本次范围。
+
+English: application inventory now warms on launch, restores a local cache, maintains installed-app changes and publishes the list before calculating sizes. One bottom action reviews selected duplicates across groups; every group keeps a verified survivor before any removal begins. File scans exclude hidden folders and application data by default, with a clear opt-in and risk explanation. Existing protected paths and confirmation remain enforced.
+
 # Memento 1.0.10 — 后台 AI 任务与设备概览 / Background AI and device overview
 
 - 扫描跨页面自动排队，显示等待进度，不再因已有扫描而报错；取消按页面类别隔离。
