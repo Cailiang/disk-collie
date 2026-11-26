@@ -6,14 +6,15 @@ import {useI18n} from './i18n'
 export interface AiTaskOrigin {source:AgentViewKey;scrollTop:number}
 export interface AiRequest {key:string;title:string;prompt:string;process?:AgentProcessContext}
 export interface AiTask extends AiRequest {id:string;origin:AiTaskOrigin;phase:'needs-provider'|'queued'|'preparing'|'running'|'ready'|'failed'|'cancelled';run:AgentRunRecord|null;message:string;read:boolean}
-interface TasksApi {tasks:AiTask[];request:(input:AiRequest)=>void;find:(key:string)=>AiTask|undefined;show:()=>void}
-const Context=createContext<TasksApi>({tasks:[],request:()=>undefined,find:()=>undefined,show:()=>undefined})
+interface TasksApi {tasks:AiTask[];open:boolean;toggle:()=>void;request:(input:AiRequest)=>void;find:(key:string)=>AiTask|undefined;show:()=>void}
+const Context=createContext<TasksApi>({tasks:[],open:false,toggle:()=>undefined,request:()=>undefined,find:()=>undefined,show:()=>undefined})
 export const useAiTasks=():TasksApi=>useContext(Context)
 export function readableTaskError(error:unknown):string {return (error instanceof Error?error.message:String(error)).replace(/^Error invoking remote method ['"].+?['"]: (?:Error: )?/,'').replace(/^Error: /,'')}
 export function aiRunReady(run:AgentRunRecord):boolean {return run.status==='completed'||(['awaiting-confirmation','plan-ready'].includes(run.status)&&Boolean(run.response||run.presentation))}
 export function AiTaskProvider({configured,visibleRunId,origin,start,onRun,onOpen,onConfigure,children}:{configured:boolean;visibleRunId:string|null;origin:()=>AiTaskOrigin;start:(task:AiTask,publish:(run:AgentRunRecord)=>void,signal:AbortSignal)=>Promise<AgentRunRecord>;onRun:(run:AgentRunRecord)=>void;onOpen:(run:AgentRunRecord,origin:AiTaskOrigin)=>void;onConfigure:(origin:AiTaskOrigin)=>void;children:React.ReactNode}):React.JSX.Element {
   const {t}=useI18n()
   const [tasks,setTasks]=useState<AiTask[]>([]),[open,setOpen]=useState(false)
+  const panel=useRef<HTMLElement>(null)
   const current=useRef(tasks),active=useRef<string|null>(null),controllers=useRef(new Map<string,AbortController>()),early=useRef(new Map<string,{run:AgentRunRecord;complete:boolean}>())
   const latest=useRef({configured,visibleRunId,origin,start,onRun,onOpen,onConfigure});latest.current={configured,visibleRunId,origin,start,onRun,onOpen,onConfigure}
   const update=useCallback((fn:(tasks:AiTask[])=>AiTask[]):void=>{current.current=fn(current.current);setTasks(current.current)},[])
@@ -43,6 +44,13 @@ export function AiTaskProvider({configured,visibleRunId,origin,start,onRun,onOpe
       if(controller.signal.aborted&&window.memento)void window.memento.cancelAgentRun(run.id)
     }).catch((error)=>{update((items)=>items.map((task)=>task.id!==next.id||task.phase==='cancelled'?task:{...task,phase:latest.current.configured?'failed':'needs-provider',message:latest.current.configured?readableTaskError(error):'',read:false}))})
   },[tasks,configured,publish,update])
+  useEffect(()=>{
+    if(!open)return
+    const close=(event:PointerEvent):void=>{if(event.target instanceof Node&&!panel.current?.contains(event.target)&&!(event.target instanceof Element&&event.target.closest('.ai-task-launcher')))setOpen(false)}
+    const escape=(event:KeyboardEvent):void=>{if(event.key==='Escape'){setOpen(false);document.querySelector<HTMLButtonElement>('.ai-task-launcher')?.focus()}}
+    document.addEventListener('pointerdown',close);document.addEventListener('keydown',escape)
+    return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',escape)}
+  },[open])
   const viewTask=(task:AiTask):void=>{if(!task.run)return;update((items)=>items.map((item)=>item.id===task.id?{...item,read:true}:item));setOpen(false);latest.current.onOpen(task.run,task.origin)}
   const request=(input:AiRequest):void=>{
     const existing=current.current.find((task)=>task.key===input.key&&task.phase!=='cancelled')
@@ -54,13 +62,19 @@ export function AiTaskProvider({configured,visibleRunId,origin,start,onRun,onOpe
   const retry=(task:AiTask):void=>{update((items)=>items.map((item)=>item.id===task.id?{...item,phase:configured?'queued':'needs-provider',message:'',run:null,read:false}:item));setOpen(true)}
   const pending=tasks.filter((task)=>['queued','preparing','running'].includes(task.phase)).length,unread=tasks.filter((task)=>task.phase==='ready'&&!task.read).length
   const originName=(value:AgentViewKey):string=>t(`nav.${value==='overview'?'home':value==='health'?'cleanup':value}`)
-  return <Context.Provider value={{tasks,request,find:(key)=>tasks.find((task)=>task.key===key&&task.phase!=='cancelled'),show:()=>setOpen(true)}}>{children}
-    {tasks.length>0&&<aside className="ai-task-hub" aria-label={t('tasks.title')}>
+  return <Context.Provider value={{tasks,open,toggle:()=>setOpen(!open),request,find:(key)=>tasks.find((task)=>task.key===key&&task.phase!=='cancelled'),show:()=>setOpen(true)}}>{children}
+    {open&&tasks.length>0&&<aside ref={panel} className="ai-task-hub" aria-label={t('tasks.title')}>
       {open&&<section className="ai-task-panel"><header><div><Sparkles size={16}/><strong>{t('tasks.title')}</strong></div><button className="icon-button" aria-label={t('tasks.minimize')} onClick={()=>setOpen(false)}><ChevronDown size={17}/></button></header><div className="ai-task-list">{[...tasks].reverse().map((task)=><article key={task.id} className={`ai-task-row phase-${task.phase}`} data-task-key={task.key}><span className="ai-task-status">{['preparing','running'].includes(task.phase)?<LoaderCircle className="spinner" size={17}/>:task.phase==='ready'?<CheckCircle2 size={17}/>:task.phase==='needs-provider'?<Settings2 size={17}/>:<Clock3 size={17}/>}</span><div className="ai-task-copy"><strong title={task.title}>{task.title}</strong><small>{originName(task.origin.source)} · {t(`tasks.${task.phase}`)}{task.phase==='ready'&&!task.read&&<i>{t('tasks.new')}</i>}</small>{task.message&&<p>{task.message}</p>}<div className="ai-task-actions">{task.phase==='needs-provider'?<button onClick={()=>{setOpen(false);latest.current.onConfigure(task.origin)}}>{t('tasks.configure')}<Settings2 size={12}/></button>:task.run&&task.phase!=='cancelled'?<button onClick={()=>viewTask(task)}>{t(task.phase==='ready'?'tasks.view':'tasks.progress')}<ArrowUpRight size={12}/></button>:null}{['failed','cancelled'].includes(task.phase)&&<button onClick={()=>retry(task)}><RotateCcw size={12}/>{t('common.retry')}</button>}</div></div><button className="icon-button" aria-label={t(['ready','failed','cancelled'].includes(task.phase)?'tasks.dismiss':'tasks.cancel')} onClick={()=>['ready','failed','cancelled'].includes(task.phase)?update((items)=>items.filter((item)=>item.id!==task.id)):cancel(task)}><X size={14}/></button></article>)}</div><footer>{t('tasks.stay')}</footer></section>}
-      <button className={`ai-task-launcher ${unread?'has-unread':''}`} aria-expanded={open} aria-label={t('tasks.open')} onClick={()=>setOpen(!open)}>{pending?<LoaderCircle className="spinner" size={17}/>:unread?<CheckCircle2 size={17}/>:<Sparkles size={17}/>}<span>{t('tasks.title')}</span>{pending>0&&<b>{t('tasks.active',{count:pending})}</b>}{unread>0&&<b className="ai-task-unread">{t('tasks.unread',{count:unread})}</b>}</button>
-      <span className="sr-only" role="status" aria-live="polite">{unread?t('tasks.unread',{count:unread}):pending?t('tasks.active',{count:pending}):''}</span>
+
     </aside>}
+      <span className="sr-only" role="status" aria-live="polite">{unread?t('tasks.unread',{count:unread}):pending?t('tasks.active',{count:pending}):''}</span>
   </Context.Provider>
+}
+export function AiTaskToolbar():React.JSX.Element|null {
+  const {t}=useI18n(),{tasks,open,toggle}=useAiTasks()
+  if(!tasks.length)return null
+  const pending=tasks.filter((task)=>['queued','preparing','running'].includes(task.phase)).length,unread=tasks.filter((task)=>task.phase==='ready'&&!task.read).length
+  return <button className={`ai-task-launcher ${unread?'has-unread':''}`} aria-expanded={open} aria-label={t('tasks.open')} onClick={toggle}>{pending?<LoaderCircle className="spinner" size={15}/>:unread?<CheckCircle2 size={15}/>:<Sparkles size={15}/>}<span>{t('tasks.title')}</span>{pending>0&&<b>{pending}</b>}{unread>0&&<b className="ai-task-unread">{t('tasks.unread',{count:unread})}</b>}</button>
 }
 export function AiActionButton({request,label,size=15}:{request:AiRequest;label?:string;size?:number}):React.JSX.Element {
   const {t}=useI18n(),queue=useAiTasks(),task=queue.find(request.key)

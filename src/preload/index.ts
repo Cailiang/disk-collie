@@ -34,6 +34,7 @@ const api: MementoApi = {
   storageReveal: (input) => ipcRenderer.invoke('memento:storage:reveal', input),
   storageRevealTarget: (input) => ipcRenderer.invoke('memento:storage:reveal-target', input),
   storageCleanup: (privacy) => ipcRenderer.invoke('memento:storage:cleanup', privacy),
+  storageCleanupIcon: (id) => ipcRenderer.invoke('memento:storage:cleanup-icon',id),
   storageClean: (ids) => ipcRenderer.invoke('memento:storage:clean', ids),
   storageApplications: (refresh) => ipcRenderer.invoke('memento:storage:applications',refresh),
   storageApplicationState: () => ipcRenderer.invoke('memento:storage:application-state'),

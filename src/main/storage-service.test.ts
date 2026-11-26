@@ -1,9 +1,9 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
-import {mkdtemp,mkdir,readFile,rm,writeFile,symlink} from 'node:fs/promises'
+import {mkdtemp,mkdir,readFile,rm,writeFile,symlink,lstat} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type {StorageEntry,StorageIndex} from '../shared/storage-types'
-const state=vi.hoisted(()=>({profile:'',root:'',fail:'',engines:[] as any[],progress:[] as any[],hashes:new Map<number,string>(),handlers:new Map<string,(event:unknown,input?:unknown)=>any>()}))
+const state=vi.hoisted(()=>({profile:'',root:'',fail:'',scanGate:null as Promise<void>|null,hashGate:null as Promise<void>|null,processCommands:[] as string[],engines:[] as any[],progress:[] as any[],hashes:new Map<number,string>(),handlers:new Map<string,(event:unknown,input?:unknown)=>any>()}))
 vi.mock('electron',()=>({
   app:{getPath:()=>state.profile,on:vi.fn()},
   BrowserWindow:{getAllWindows:()=>[{webContents:{send:(_channel:string,p:unknown)=>state.progress.push(p)}}]},
@@ -19,12 +19,14 @@ vi.mock('./native-engine',()=>({NativeEngine:class {
     if(command==='scan'){
       this.entries=['a.mov','b.mov','c.mov'].map((name,id)=>({id:id+1,parent:0,name,path:path.join(state.root,name),directory:false,size:2048,allocated:2048,modified:0,identity:String(id),links:1}))
       this.index={generation:1,root:{id:0,parent:null,name:'fixture',path:state.root,directory:true,size:6144,allocated:6144,modified:0,identity:'root',links:1},entries:4,errors:0,skipped:0,limited:false,elapsedMs:1,mode:args.mode}
+      if(state.scanGate)await state.scanGate
       return this.index
     }
+    if(command==='duplicates'){const groups=[{id:'hash-a',files:this.entries.slice(0,2),reclaimable:2048}];if(state.hashGate)await state.hashGate;return {groups,elapsedMs:1}}
     if(command==='hash')return {hash:state.hashes.get(args.id)||'hash-a'}
     if(command==='entry')return this.entries.find((e)=>e.id===args.id)
     if(command==='forget'){this.entries=this.entries.filter((e)=>!args.paths.includes(e.path));return this.index}
-    if(command==='system')return {processes:[],processCommands:[],processNames:[]}
+    if(command==='system')return {processes:[],processCommands:state.processCommands,processNames:[]}
     if(command==='measure')return args.paths.map((path:string)=>({path,size:2048,errors:0}))
     if(command==='large')return {count:this.entries.length,items:this.entries}
     throw new Error(`Unexpected fixture command ${command}`)
@@ -39,7 +41,7 @@ describe('storage scan sessions and partial cleanup',()=>{
     fixture=await mkdtemp(path.join(os.homedir(),'memento-service-test-'))
     state.root=path.join(fixture,'files');state.profile=path.join(fixture,'profile')
     await mkdir(state.root);for(const name of ['a.mov','b.mov','c.mov'])await writeFile(path.join(state.root,name),Buffer.alloc(2048))
-    state.fail='';state.hashes.clear();state.engines=[];state.progress=[];state.handlers.clear()
+    state.fail='';state.processCommands=[];state.scanGate=null;state.hashGate=null;state.hashes.clear();state.engines=[];state.progress=[];state.handlers.clear()
     vi.stubEnv('MEMENTO_TEST_RUN','1');vi.stubEnv('MEMENTO_TEST_STORAGE_ROOT',state.root)
   })
   afterEach(async()=>{vi.unstubAllEnvs();await rm(fixture,{recursive:true,force:true})})
@@ -69,6 +71,29 @@ describe('storage scan sessions and partial cleanup',()=>{
     expect(state.engines.filter((engine)=>engine.index)[0].stopped).toBe(true)
     expect(state.engines.filter((engine)=>engine.index)[1].stopped).toBe(false)
   })
+  it('finishes privacy cleanup during a file scan without publishing deleted entries afterward',async()=>{
+    const service=new StorageService();service.register();let release!:()=>void
+    state.scanGate=new Promise<void>((resolve)=>{release=resolve})
+    const target=path.join(state.root,'b.mov'),stat=await lstat(target),id=crypto.randomUUID()
+    ;(service as any).rules.set(id,{item:{id,path:target,paths:[target],size:2048,category:'privacy',nameKey:'recent',effectKey:'recent'},snapshots:[{path:target,dev:stat.dev,ino:stat.ino,modified:stat.mtimeMs,size:stat.size,directory:false}]})
+    const scanning=service.scan({mode:'large'})
+    try{
+      await vi.waitFor(()=>expect(state.engines.some((engine)=>engine.index)).toBe(true))
+      const cleaned=await service.clean([id]);expect(cleaned.items).toBe(1)
+      expect((service as any).activeEngines.has('large')).toBe(true)
+    }finally{state.scanGate=null;release()}
+    const index=await scanning
+    expect((await call('large',{generation:index!.generation,minimum:1,search:'',offset:0})).items.map((entry:StorageEntry)=>entry.name)).toEqual(['a.mov','c.mov'])
+  })
+  it('filters a hashing reply when an independent cleanup removed one of its copies',async()=>{
+    const service=new StorageService();service.register();const index=await service.scan({mode:'duplicates'});let release!:()=>void
+    state.hashGate=new Promise<void>((resolve)=>{release=resolve})
+    const target=path.join(state.root,'b.mov'),stat=await lstat(target),id=crypto.randomUUID()
+    ;(service as any).rules.set(id,{item:{id,path:target,paths:[target],size:2048,category:'privacy',nameKey:'recent',effectKey:'recent'},snapshots:[{path:target,dev:stat.dev,ino:stat.ino,modified:stat.mtimeMs,size:stat.size,directory:false}]})
+    const hashing=call('duplicates',{generation:index!.generation,minimum:10*1024**2})
+    try{await vi.waitFor(()=>expect((service as any).activeEngines.has('duplicates')).toBe(true));expect((await service.clean([id])).items).toBe(1)}finally{state.hashGate=null;release()}
+    expect((await hashing).groups).toEqual([])
+  })
   it('preflights all duplicate groups before a batch and keeps each survivor',async()=>{
     const service=new StorageService();service.register();const index=await service.scan({mode:'duplicates'})
     const engine=state.engines.find((engine)=>engine.index),extra={...engine.entries[2],id:4,name:'d.mov',path:path.join(state.root,'d.mov')}
@@ -83,6 +108,18 @@ describe('storage scan sessions and partial cleanup',()=>{
     const result=await service.trash({generation:index!.generation,ids:[2,4],kind:'duplicates'})
     expect(result).toMatchObject({items:2,failures:0,locations:[path.join(state.root,'b.mov'),extra.path]})
     expect(engine.entries.map((entry:StorageEntry)=>entry.id)).toEqual([1,3])
+  })
+  it('requires the browser to exit before removing a cookie database and its sidecars, preserving passwords and bookmarks',async()=>{
+    const service=new StorageService(()=> 'en-US');service.register();const target=path.join(state.root,'Cookies'),paths=[target,target+'-wal',target+'-shm']
+    for(const filename of [...paths,path.join(state.root,'Login Data'),path.join(state.root,'Bookmarks')])await writeFile(filename,'owned fixture')
+    const snapshots=await Promise.all(paths.map(async(filename)=>{const stat=await lstat(filename);return {path:filename,dev:stat.dev,ino:stat.ino,modified:stat.mtimeMs,size:stat.size,directory:false}})),id=crypto.randomUUID()
+    ;(service as any).rules.set(id,{item:{id,path:target,paths,size:39,category:'privacy',nameKey:'privacyCookies',effectKey:'accounts'},snapshots,browser:'Fixture Browser'})
+    state.processCommands=['/Applications/Fixture Browser.app/Contents/MacOS/Fixture Browser']
+    await expect(service.clean([id])).rejects.toThrow('Close Fixture Browser')
+    expect((await call('state')).history).toEqual([]);for(const filename of paths)expect(await readFile(filename,'utf8')).toBe('owned fixture')
+    state.processCommands=[];expect((await service.clean([id])).items).toBe(1)
+    for(const filename of paths)await expect(lstat(filename)).rejects.toThrow()
+    expect(await readFile(path.join(state.root,'Login Data'),'utf8')).toBe('owned fixture');expect(await readFile(path.join(state.root,'Bookmarks'),'utf8')).toBe('owned fixture')
   })
   it('registers only inspected descendants, rejects redirects and requires the whole app for uninstall',async()=>{
     const service=new StorageService();service.register()

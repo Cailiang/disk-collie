@@ -1,5 +1,5 @@
 import path from 'node:path'
-import type { CleanupItem } from '../shared/storage-types'
+import type { CleanupItem,PrivacyCategory } from '../shared/storage-types'
 
 export interface StorageRule {
   key: string
@@ -7,6 +7,10 @@ export interface StorageRule {
   category: CleanupItem['category']
   effect: string
   browser?: string
+  privacyCategory?:PrivacyCategory
+  source?:{key:string;name:string;bundleIds:string[];iconPaths:string[]}
+  profile?:string
+  sqlite?:boolean
 }
 
 /** Owned, narrowly scoped rules. No downloaded rules or arbitrary commands. */

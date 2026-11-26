@@ -1,7 +1,8 @@
 import {describe,expect,it} from 'vitest'
-import {deviceHealth,usageSeverity} from './device-health'
+import {deviceHealth,healthGrade,usageSeverity} from './device-health'
 import {localizedDemoOverviewMetrics} from '../renderer/src/demo'
 describe('device readings and severity',()=>{
+  it('uses visibly different grades for 80 and 20 points',()=>{expect([null,20,49,50,79,80,100].map(healthGrade)).toEqual(['unknown','attention','attention','fair','fair','good','good'])})
   it('applies strict user thresholds at 40 and 65 percent',()=>{expect([40,40.1,65,65.1].map(usageSeverity)).toEqual(['normal','warning','warning','danger'])})
   it('excludes missing hardware readings and does not invent a perfect score while loading',()=>{
     expect(deviceHealth(null).score).toBeNull()

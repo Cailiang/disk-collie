@@ -1,3 +1,13 @@
+# Memento 1.0.12 — 紧凑首页与分层隐私 / Compact overview and layered privacy
+
+- 首页删除标语与重复指标；健康度按分数着色，设备状态集中到一个面板，分别使用 CPU 折线、内存分段条和存储环图；更多信息展示 GPU、电源和网络。
+- 大文件扫描与隐私扫描／清理可以并行；同类任务有序执行，删除操作串行协调，扫描结果会扣除期间删除的文件。
+- 隐私清理分为浏览器活动、浏览器账户、应用活动、系统活动，支持应用 Logo、配置目录、记录类型和路径层级；Cookie／会话清理会说明影响，密码与书签不在清理范围。
+- AI 任务入口移到顶部，结果保持未读提示；面板支持收起、点击外部和 Escape 关闭；悬停提示紧邻操作按钮。
+- 空间图只显示 Top 10 和其他，其他可继续展开。每个图块保留名称与实际大小，小块设最小面积，去掉独立较小项目列表。
+
+English: a compact score/device overview with three distinct charts and expandable hardware details; independent file/privacy work runs concurrently with removal reconciliation. Privacy now has four categories and application/profile/record/path layers with OS icons and explicit cookie/session effects. AI tasks live in the top bar, tooltips stay close, and Top 10 + Other tiles keep byte labels visible with minimum display areas.
+
 # Memento 1.0.11 — 应用缓存与批量整理 / Cached apps and batch cleanup
 
 - 应用清单在启动时后台读取，跨启动恢复缓存并自动维护；先显示列表，再补齐体积，未变应用复用测量结果。

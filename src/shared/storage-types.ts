@@ -40,7 +40,11 @@ export interface StorageProgress {
   path?: string
 }
 export interface DuplicateGroup { id: string; files: StorageEntry[]; reclaimable: number }
+export type PrivacyCategory='browser-activity'|'browser-accounts'|'app-activity'|'system-activity'
 export interface CleanupItem {
+  privacyCategory?:PrivacyCategory
+  source?:{key:string;name:string}
+  profile?:string
   id: string
   nameKey: string
   path: string
@@ -105,6 +109,7 @@ export interface StorageApi {
   storageReveal: (input: { generation: number; id: number }) => Promise<void>
   storageRevealTarget: (target:StorageTarget) => Promise<void>
   storageCleanup: (privacy: boolean) => Promise<CleanupItem[]>
+  storageCleanupIcon: (id:string) => Promise<string|null>
   storageClean: (ids: string[]) => Promise<StorageActivity>
   storageApplications: (refresh?:boolean) => Promise<StorageApplication[]>
   storageApplicationState: () => Promise<ApplicationInventoryState>

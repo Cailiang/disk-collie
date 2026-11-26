@@ -1,0 +1,35 @@
+import {AppWindow,ChevronRight,Clock3,File,Folder,Globe,History,ShieldCheck,UserRound} from 'lucide-react'
+import {useEffect,useRef,useState} from 'react'
+import type {CleanupItem,PrivacyCategory,StorageTarget} from '../../shared/storage-types'
+import {useI18n} from './i18n'
+const categories:PrivacyCategory[]=['browser-activity','browser-accounts','app-activity','system-activity']
+function GroupCheck({items,selected,onToggle,label}:{items:CleanupItem[];selected:Set<string>;onToggle:(ids:string[],checked:boolean)=>void;label:string}):React.JSX.Element {
+  const ref=useRef<HTMLInputElement>(null),count=items.filter((item)=>selected.has(item.id)).length
+  useEffect(()=>{if(ref.current)ref.current.indeterminate=count>0&&count<items.length},[count,items.length])
+  return <input ref={ref} type="checkbox" aria-label={label} checked={items.length>0&&count===items.length} disabled={!items.length} onChange={(event)=>onToggle(items.map((item)=>item.id),event.target.checked)}/>
+}
+function SourceLogo({rule}:{rule:CleanupItem}):React.JSX.Element {
+  const [icon,setIcon]=useState<string|null>(null)
+  useEffect(()=>{let current=true;if(window.memento)void window.memento.storageCleanupIcon(rule.id).then((value)=>{if(current)setIcon(value)}).catch(()=>undefined);return()=>{current=false}},[rule.id])
+  if(icon)return <img className="privacy-source-logo" src={icon} alt={rule.source?.name||rule.browser||''}/>
+  // The browser preview has no OS icon service; these vector fixtures remain demo-only.
+  if(!window.memento&&rule.source?.key==='chrome')return <svg className="privacy-source-logo" viewBox="0 0 40 40" aria-label="Google Chrome" role="img"><circle cx="20" cy="20" r="18" fill="#e8b83d"/><path d="M20 20 4.4 29A18 18 0 0 1 20 2H36Z" fill="#df6256"/><path d="M20 20 36 11a18 18 0 0 1-16 27H4Z" fill="#67a471"/><circle cx="20" cy="20" r="8.8" fill="#f5f8fa"/><circle cx="20" cy="20" r="7" fill="#5d93cb"/></svg>
+  if(!window.memento&&rule.source?.key==='safari')return <svg className="privacy-source-logo" viewBox="0 0 40 40" aria-label="Safari" role="img"><rect x="1" y="1" width="38" height="38" rx="9" fill="#f4f6f7"/><circle cx="20" cy="20" r="16" fill="#67aacf"/><path d="m27 8-4 15-10 9 4-15Z" fill="white"/><path d="m27 8-4 15-6-6Z" fill="#df6662"/></svg>
+  if(!window.memento&&rule.source?.key==='vscode')return <img className="privacy-source-logo" src={new URL('./assets/demo-vscode.ico',import.meta.url).href} alt="Visual Studio Code"/>
+  return <span className="privacy-source-logo privacy-logo-fallback">{rule.privacyCategory?.startsWith('browser')?<Globe size={25}/>:rule.privacyCategory==='system-activity'?<MonitorIcon/>:<AppWindow size={25}/>}</span>
+}
+function MonitorIcon():React.JSX.Element{return <svg viewBox="0 0 28 28" width="25" height="25" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="4" width="22" height="16" rx="2"/><path d="M10 25h8m-4-5v5"/></svg>}
+export function PrivacyWorkspace({rules,selected,onToggle,bytes,actions}:{rules:CleanupItem[];selected:Set<string>;onToggle:(ids:string[],checked:boolean)=>void;bytes:(value:number)=>string;actions:(file:{path:string;size:number},target:StorageTarget)=>React.ReactNode}):React.JSX.Element {
+  const {t}=useI18n(),[category,setCategory]=useState<PrivacyCategory>('browser-activity')
+  const kind=(rule:CleanupItem):PrivacyCategory=>rule.privacyCategory||(rule.browser?'browser-activity':'system-activity')
+  const visible=rules.filter((rule)=>kind(rule)===category),sources=new Map<string,CleanupItem[]>()
+  for(const rule of visible){const key=rule.source?.key||rule.browser||'system';sources.set(key,[...(sources.get(key)||[]),rule])}
+  const categoryIcon={ 'browser-activity':Globe,'browser-accounts':ShieldCheck,'app-activity':AppWindow,'system-activity':Clock3 }
+  return <section className="privacy-workspace"><nav className="privacy-categories" aria-label={t('privacy.categories')}>{categories.map((key)=>{const Icon=categoryIcon[key],list=rules.filter((rule)=>kind(rule)===key);return <button key={key} className={category===key?'is-active':''} aria-current={category===key?'page':undefined} onClick={()=>setCategory(key)}><Icon size={19}/><span><strong>{t(`privacy.category.${key}`)}</strong><small>{t('common.items',{count:list.length})} · {bytes(list.reduce((sum,item)=>sum+item.size,0))}</small></span>{list.some((item)=>selected.has(item.id))&&<b>{list.filter((item)=>selected.has(item.id)).length}</b>}</button>})}</nav>
+    <div className="privacy-content"><header><h2>{t(`privacy.category.${category}`)}</h2><label><GroupCheck items={visible} selected={selected} onToggle={onToggle} label={t('privacy.selectCategory')}/>{t('privacy.selectCategory')}</label></header>{category==='browser-accounts'&&<p className="privacy-account-note"><ShieldCheck size={15}/>{t('cleanup.accountsEffect')}</p>}
+      {[...sources].map(([key,list])=>{const profiles=new Map<string,CleanupItem[]>();for(const rule of list){const profile=rule.profile||t('compact.localData');profiles.set(profile,[...(profiles.get(profile)||[]),rule])}const name=list[0].source?.name||list[0].browser||t('privacy.system');return <details className="privacy-source" key={key} open><summary><label onClick={(event)=>event.stopPropagation()}><GroupCheck items={list} selected={selected} onToggle={onToggle} label={t('privacy.selectSource',{name})}/></label><SourceLogo rule={list[0]}/><span><strong>{name}</strong><small>{profiles.size>1?t('privacy.profiles',{count:profiles.size}):t('common.items',{count:list.length})}</small></span><b>{bytes(list.reduce((sum,item)=>sum+item.size,0))}</b><ChevronRight size={16}/></summary>
+        {[...profiles].map(([profile,items])=><details className="privacy-profile" key={profile} open><summary><label onClick={(event)=>event.stopPropagation()}><GroupCheck items={items} selected={selected} onToggle={onToggle} label={t('privacy.selectProfile',{name:profile})}/></label><UserRound size={16}/><strong>{profile==='Default'?t('privacy.defaultProfile'):profile}</strong><span>{bytes(items.reduce((sum,item)=>sum+item.size,0))}</span></summary>{items.map((rule)=><details className="space-rule-details privacy-record" key={rule.id}><summary className="space-cleanup-row"><label onClick={(event)=>event.stopPropagation()}><input type="checkbox" aria-label={t(`rule.${rule.nameKey}`)} checked={selected.has(rule.id)} onChange={(event)=>onToggle([rule.id],event.target.checked)}/></label><History size={16}/><span className="space-cleanup-copy"><strong>{t(`rule.${rule.nameKey}`)}</strong><small>{t(`privacy.effect.${rule.effectKey}`)}</small></span><b>{bytes(rule.size)}</b><ChevronRight size={14}/></summary><div className="space-rule-paths">{(rule.paths||[rule.path]).map((file)=><div key={file}><File size={14}/><code title={file}>{file}</code>{actions({path:file,size:rule.size},{type:'rule',id:rule.id,path:file})}</div>)}</div></details>)}</details>)}
+      </details>})}{!visible.length&&<div className="privacy-category-empty"><Folder size={26}/><p>{t('privacy.emptyCategory')}</p></div>}
+    </div>
+  </section>
+}

@@ -1,5 +1,6 @@
 import type {OverviewMetrics} from './types'
 export function usageSeverity(value:number):'normal'|'warning'|'danger' {return value>65?'danger':value>40?'warning':'normal'}
+export function healthGrade(score:number|null):'good'|'fair'|'attention'|'unknown' {return score===null?'unknown':score>=80?'good':score>=50?'fair':'attention'}
 export type HealthDimensionKey='cpu'|'gpu'|'memory'|'storage'|'battery'
 export interface HealthDimension {key:HealthDimensionKey;value:number|null;score:number|null;weight:number}
 const measured=(value:number|null|undefined):number|null=>typeof value==='number'&&Number.isFinite(value)?Math.min(100,Math.max(0,value)):null

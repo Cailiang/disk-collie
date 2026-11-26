@@ -4,6 +4,26 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.12 - 2026-11-26
+
+### English
+
+- Compact Overview into a colored health gauge and one device panel: CPU line, segmented memory and storage ring, with expandable GPU/power/network details. Remove slogans, duplicated measurements and scoring-method UI; use green ≥80, amber 50–79 and red <50.
+- Run independent storage workspaces concurrently, including privacy cleanup during file scanning. Keep same-scope work ordered, serialize mutations and cap heavy scans at two. Track removals through in-flight scans/hash replies so completed work cannot republish deleted entries.
+- Rebuild Privacy as Browser activity / Browser accounts / Application activity / System activity, then application → profile → record → path with OS application icons. Discover supported Chromium profiles, Safari history/cookies, recent-item registries and scoped app logs. Cookie/session removal is unselected by default and explicitly explains sign-out/recovery effects; saved passwords and bookmarks are excluded.
+- Move AI task access into the top bar with an anchored, dismissible panel and unread badges. Measure tooltip labels to keep them beside their action near window edges.
+- Replace the smaller-item list with a Top 10 + Other treemap. Other opens subsequent groups; a minimum tile area keeps filename ellipses and exact byte labels visible. Geometry is a readable projection rather than strict byte proportionality.
+- Extend concurrency/removal reconciliation, cookie/browser guards, profile discovery, score grades, tile geometry, Electron and four-viewport UI coverage.
+
+### 简体中文
+
+- 首页收紧为彩色健康评分和一个设备状态面板：CPU 折线、内存分段条、存储环图，可展开 GPU／电源／网络；移除标语、重复指标与评分依据入口。80 分起绿色，50–79 分橙色，低于 50 分红色。
+- 不同存储页面可并行工作，包括扫描大文件时进行隐私清理；同类任务保持顺序，删除操作互斥，重扫描最多两个并行。扫描和哈希结果会同步清理期间的删除记录，避免已删文件重新出现。
+- 隐私按浏览器活动／浏览器账户／应用活动／系统活动，再按应用、配置目录、记录、路径展开，提供系统应用 Logo。支持已适配 Chromium 配置、Safari 历史与 Cookie、最近项目及特定应用日志；Cookie／会话默认不选，确认时说明退出登录与恢复记录的影响，不涉及保存的密码或书签。
+- AI 任务入口移入顶部工具栏，点击查看可收起的面板与未读结果；悬停提示按实际宽度贴近按钮定位。
+- 空间图改为 Top 10＋其他，可继续展开剩余组；小块设置最小面积，文件名省略、实际大小常显，不再单列较小项目。图形面积为可读性调整，真实体积以标签为准。
+- 补充并行协调、清理与扫描同步、Cookie 浏览器检查、配置发现、评分颜色、图块布局和真实 Electron／四尺寸界面验证。
+
 ## 1.0.11 - 2026-11-26
 
 ### English
