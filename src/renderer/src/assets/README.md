@@ -7,4 +7,4 @@ Production application management reads installed application logos through the 
 
 The product marks belong to their respective owners and do not imply affiliation. No MangoDisk assets are bundled.
 
-`mascot/` contains the generated Memento border collie mark and four local photographic animation sheets. They are production branding, independent of the demo application logos. Prompts, exports and motion behavior are recorded in `docs/MASCOT_ASSETS.md`.
+`mascot/` contains the canonical SVG line-art Memento border collie face. They are production branding, independent of the demo application logos. Source ownership, exports and story timing are recorded in `docs/MASCOT_ASSETS.md`.

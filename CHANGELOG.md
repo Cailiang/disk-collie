@@ -4,6 +4,24 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.19 - 2026-11-26
+
+### English
+
+- Replace the photographic dog and raster frames with a cute code-drawn border collie, using the active theme's ink and soft surface colors. Share the SVG face across sidebar, advisor, startup and native icon exports.
+- Replace the short repeating scan loop with four continuous twenty-second stories: ball chase/overshoot, frisbee catch/wobble, rope slip and basketball rebound/second shot. Endings automatically hand off to a different story; support pause/resume and manual next story.
+- Expand the illustration into the scan workspace. Initial Deep cleanup and Privacy scans omit empty category/skeleton panels; file scans restore their retained results after completion.
+- Honor reduced motion, suspend offscreen animations and keep actual progress/cancellation independent of the story clock. Remove the old photographic assets and document the new SVG sources/timelines.
+- Cover full-story handoff, smooth poses, pause, theme changes, motion preferences and responsive stage bounds with automated checks.
+
+### 简体中文
+
+- 照片边牧改为可爱简笔线条画，线条与软件主题同色；侧栏、顾问、启动页和应用图标共用 SVG 形象。
+- 短循环改为四段连续的约二十秒小故事：追球跑过头、接飞盘后踉跄、拔河绳子滑脱、篮球补投；结束后自动接不同故事，支持暂停／继续和手动切换。
+- 动画放大到扫描工作区，首次深度／隐私扫描不再展示空分类和骨架列表；文件扫描完成后恢复保留的结果。
+- 遵循减少动态效果设置，隐藏页面暂停绘制，真实扫描进度和取消独立运行；删除旧照片素材，同步 SVG 与时间轴说明。
+- 自动验证完整故事交接、动作连续性、暂停、主题色、减少动态效果和四尺寸布局。
+
 ## 1.0.18 - 2026-11-26
 
 ### English

@@ -1132,7 +1132,7 @@
   "storage.excludedPath": "This folder is excluded. Scan again.",
   "storage.scopeChanged": "Scan folders changed. Scan again.",
   "brand.collie": "Memento border collie",
-  "mascot.changeGame": "Play another game with the collie",
+  "mascot.changeGame": "Watch the next little story",
   "advisor.title": "Cleanup advisor",
   "advisor.subtitle": "Identify files and understand cleanup impact.",
   "advisor.startTitle": "Choose a cleanup question",
@@ -1148,5 +1148,9 @@
   "advisor.placeholder": "File path or cleanup question",
   "advisor.providerNeeded": "Connect a model to analyze cleanup questions.",
   "advisor.preparing": "Reading local information…",
-  "advisor.setupReturn": "Return after saving to continue your question."
+  "advisor.setupReturn": "Return after saving to continue your question.",
+  "mascot.theater": "Border collie playtime",
+  "mascot.pause": "Pause the collie animation",
+  "mascot.play": "Resume the collie animation",
+  "mascot.reduced": "Motion reduced by system preference"
 }

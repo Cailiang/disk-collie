@@ -1,3 +1,12 @@
+# Memento 1.0.19 — 线条边牧小剧场 / Line-art collie stories
+
+- 边牧与 Logo 改为跟随软件主题色的简笔线条画，移除照片素材。
+- 四段约二十秒的连续小故事包含追球、扑空、接飞盘、拔河和篮球补投；结束后接不同故事，可暂停或切换。
+- 利用扫描页面的主要空白区域展示动画，首次深度／隐私扫描移除空分类和骨架列表。
+- 扫描完成立即返回结果，支持减少动态效果；隐藏页面暂停动画绘制。
+
+English: a theme-colored SVG border collie replaces the photographic mascot. Four continuous twenty-second stories automatically hand off to different games, with pause/next controls and reduced-motion support. A large scan stage replaces empty loading panels; actual scan completion and cancellation stay independent of animation time.
+
 # Memento 1.0.18 — 边牧与清理顾问 / Collie and Cleanup advisor
 
 - 深度清理按占用空间从大到小排列分类、项目、路径和文件；仅供查看的来源不再扫描。

@@ -1,15 +1,38 @@
-.mascot-scene { position:relative; display:block; flex-shrink:0; width:150px; height:150px; padding:0; border:0; background:transparent; border-radius:12px; cursor:pointer; -webkit-tap-highlight-color:transparent; }
-.mascot-sprite { display:block; width:100%; height:100%; background-size:200% 200%; background-position:0 0; background-repeat:no-repeat; animation:collie-poses 1.5s step-end infinite; }
-.mascot-frisbee .mascot-sprite { animation-duration:1.25s; }
-.mascot-tug .mascot-sprite { animation-duration:1.1s; }
-.mascot-basketball .mascot-sprite { animation-duration:1.4s; }
-.mascot-scene:hover .mascot-game-dot { opacity:1; }
-.mascot-game-dot { position:absolute; right:6px; bottom:6px; width:7px; height:7px; border:2px solid var(--surface); border-radius:50%; background:var(--accent); opacity:0; transition:opacity 150ms; }
-@keyframes collie-poses { 0%,100% { background-position:0 0; } 25% { background-position:100% 0; } 50% { background-position:0 100%; } 75% { background-position:100% 100%; } }
-.space-progress:has(.mascot-scene) { padding:4px 20px 4px 6px; gap:12px; }
-.space-progress .mascot-scene { width:130px; height:130px; }
-.space-progress .space-progress-copy { flex:1; min-width:0; }
-.cleanup-scan-progress:has(.mascot-scene) { display:flex; align-items:center; gap:18px; }
-.cleanup-scan-progress .mascot-scene { width:100px; height:100px; }
-@media(max-width:700px) { .space-progress:has(.mascot-scene) { padding:8px 12px 10px; flex-wrap:wrap; gap:8px; }.space-progress .mascot-scene { width:90px; height:90px; }.space-progress .space-progress-copy { min-width:160px; }.space-progress:has(.mascot-scene)>.space-button { margin-left:auto; }.cleanup-scan-progress .mascot-scene { width:80px; height:80px; } }
-@media(prefers-reduced-motion:reduce) { .mascot-sprite { animation:none!important; }.mascot-game-dot { transition:none; } }
+.mascot-scene { position:relative; display:block; width:100%; min-width:0; color:var(--accent); isolation:isolate; }
+.collie-stage { display:block; width:100%; height:clamp(260px,40dvh,410px); max-width:1000px; margin:0 auto; overflow:visible; }
+.mascot-story-controls { position:absolute; right:9px; bottom:8px; display:flex; align-items:center; gap:3px; }
+.mascot-story-controls>.icon-button { min-height:28px; height:28px; width:28px; padding:5px; border:0; box-shadow:none; background:transparent; color:var(--accent); opacity:.55; }
+.mascot-story-controls>.icon-button:hover,.mascot-story-controls>.icon-button:focus-visible { opacity:1; background:var(--accent-soft); }
+.mascot-story-controls>.icon-button:disabled { opacity:.24; }
+.space-progress.space-progress-story { display:flex; flex-direction:column; align-items:stretch; padding:20px 23px 9px; gap:0; min-height:360px; background:var(--surface); }
+.space-progress-story>.space-progress-heading { display:flex; align-items:center; gap:18px; width:100%; }
+.space-progress-story .space-progress-copy { display:grid; flex:1; min-width:0; gap:8px 16px; }
+.space-progress-story>.mascot-scene { min-width:0; flex:1; display:flex; align-items:center; }
+.space-progress-story .collie-stage { min-height:260px; }
+.space-progress-story .space-progress-heading>.space-button { flex-shrink:0; }
+.space-workspace>.space-progress-story { min-height:clamp(340px,calc(100dvh - 305px),650px); }
+.space-workspace:has(>.space-progress-story) { min-height:calc(100dvh - 80px); }
+.deep-clean-page:has(.space-progress-story),.privacy-page:has(.space-progress-story) { min-height:calc(100dvh - 112px); }
+.deep-clean-page:has(.space-progress-story):not(:has(.deep-workspace))>.space-progress-story,.privacy-page:has(.space-progress-story):not(:has(.privacy-workspace))>.space-progress-story { flex:1; }
+.mascot-scene.is-compact .collie-stage { height:180px; min-height:0; }
+.mascot-scene.is-compact { max-width:480px; }
+.advisor-preparing .mascot-scene { width:100%; height:auto; }
+.cleanup-scan-progress:has(.mascot-scene) { display:flex; flex-wrap:wrap; }
+.cleanup-scan-progress .mascot-scene { flex:1 0 100%; }
+@media(max-width:700px) {
+  .space-progress.space-progress-story { padding:15px 14px 8px; min-height:330px; gap:5px; }
+  .space-progress-story>.space-progress-heading { gap:10px; align-items:flex-start; flex-wrap:wrap; }
+  .space-progress-story .space-progress-copy { min-width:170px; gap:7px; }
+  .space-progress-story .space-progress-copy>span { font-size:10px; }
+  .space-progress-story .space-progress-copy>strong { font-size:12px; }
+  .space-progress-story .space-progress-copy>small { max-width:100%; }
+  .collie-stage,.space-progress-story .collie-stage { min-height:230px; height:clamp(230px,34dvh,330px); }
+  .deep-clean-page:has(.space-progress-story),.privacy-page:has(.space-progress-story) { min-height:calc(100dvh - 180px); }
+  .space-workspace:has(>.space-progress-story) { min-height:calc(100dvh - 125px); }
+  .mascot-story-controls { right:1px; bottom:3px; }
+  .mascot-scene.is-compact .collie-stage { height:150px; }
+}
+.collie-mark { display:inline-flex; color:var(--accent); flex-shrink:0; }
+.collie-mark>svg { display:block; width:100%; height:100%; color:inherit; }
+.brand-mark.brand-mascot .collie-mark { width:42px; height:42px; }
+.advisor-mascot.collie-mark { width:68px; height:68px; }

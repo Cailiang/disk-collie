@@ -8,15 +8,16 @@
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f2f2ef" />
-    <link rel="icon" type="image/png" href="/src/assets/mascot/logo.png" />
+    <link rel="icon" type="image/svg+xml" href="/src/assets/mascot/collie-mark.svg" />
     <title>Memento</title>
     <style>
-      html { --boot-bg: #f4f2ed; --boot-text: #28251f; --boot-muted: #8f877b; --boot-accent: #c34232; --boot-contrast: #fff; --boot-shadow: rgba(111, 47, 38, .13); }
+      html { --boot-bg: #f7f9f4; --boot-text: #27392f; --boot-muted: #819080; --boot-accent: #355e49; --boot-contrast: #fff; --boot-shadow: rgba(53, 94, 73, .13); }
+      html[data-theme="porcelain"] { --boot-bg: #f4f2ed; --boot-text: #28251f; --boot-muted: #8f877b; --boot-accent: #c34232; --boot-shadow: rgba(111, 47, 38, .13); }
       html[data-theme="graphite"] { --boot-bg: #101318; --boot-text: #edf0e6; --boot-muted: #7f877a; --boot-accent: #b7d12a; --boot-contrast: #171c12; --boot-shadow: rgba(3, 6, 10, .46); }
       html[data-theme="tiffany"] { --boot-bg: #e7f3f1; --boot-text: #163b3a; --boot-muted: #77908d; --boot-accent: #0a8f8a; --boot-contrast: #fff; --boot-shadow: rgba(10, 90, 86, .14); }
       html[data-theme="klein"] { --boot-bg: #eef1f8; --boot-text: #17213a; --boot-muted: #81899b; --boot-accent: #002fa7; --boot-contrast: #fff; --boot-shadow: rgba(0, 47, 167, .16); }
       html[data-theme="burgundy"] { --boot-bg: #f2e9ed; --boot-text: #3b2029; --boot-muted: #9a7e87; --boot-accent: #800020; --boot-contrast: #fff; --boot-shadow: rgba(128, 0, 32, .15); }
-      html[data-theme="mars"] { --boot-bg: #e7efeb; --boot-text: #213a35; --boot-muted: #81938d; --boot-accent: #187d73; --boot-contrast: #fff; --boot-shadow: rgba(24, 125, 115, .14); }
+      html[data-theme="mars"] { --boot-bg: #e7efeb; --boot-text: #213a35; --boot-muted: #81938d; --boot-accent: #355e49; --boot-contrast: #fff; --boot-shadow: rgba(24, 125, 115, .14); }
       html[data-theme="prussian"] { --boot-bg: #071e2a; --boot-text: #edf4f3; --boot-muted: #748f93; --boot-accent: #f37021; --boot-contrast: #12232a; --boot-shadow: rgba(1, 12, 18, .48); }
       html[data-theme="midnight"] { --boot-bg: #171918; --boot-text: #eff1ed; --boot-muted: #858d87; --boot-accent: #0ababa; --boot-contrast: #10201f; --boot-shadow: rgba(5, 7, 6, .38); }
       html, body { width: 100%; height: 100%; margin: 0; background: var(--boot-bg); }
@@ -24,11 +25,7 @@
       .boot-screen { display: grid; width: 100%; height: 100%; place-items: center; color: var(--boot-text); background: var(--boot-bg); }
       .boot-lockup { display: grid; justify-items: center; }
       .boot-mark { position: relative; display: grid; width: 52px; height: 52px; place-items: center; border-radius: 11px; color: var(--boot-contrast); background: var(--boot-accent); box-shadow: 0 8px 20px var(--boot-shadow); animation: boot-breathe 1.35s ease-in-out infinite; }
-      .boot-mark { width:72px; height:72px; background:transparent; box-shadow:none; }
-      .boot-mark img { width:100%; height:100%; object-fit:contain; }
-      .boot-archive { position: relative; width: 24px; height: 19px; border: 3px solid currentColor; border-radius: 3px 3px 6px 6px; }
-      .boot-archive::before { position: absolute; top: -8px; left: -4px; width: 26px; height: 7px; border: 3px solid currentColor; border-radius: 4px; content: ""; }
-      .boot-archive::after { position: absolute; top: 5px; left: 7px; width: 6px; height: 3px; border-radius: 2px; background: currentColor; content: ""; }
+      .boot-mark { width:72px; height:72px; background:transparent; box-shadow:none; color:var(--boot-accent); }
       .boot-name { margin-top: 15px; font-size: 15px; font-weight: 720; }
       .boot-status { display: flex; align-items: center; gap: 6px; margin-top: 7px; color: var(--boot-muted); font-size: 10px; }
       .boot-status i { width: 4px; height: 4px; border-radius: 50%; background: var(--boot-accent); animation: boot-dot 1.2s ease-in-out infinite; }
@@ -40,7 +37,15 @@
     </style>
   </head>
   <body>
-    <div id="root"><div class="boot-screen" role="status" aria-label="Memento 正在启动"><div class="boot-lockup"><span class="boot-mark"><img src="/src/assets/mascot/logo.png" width="72" height="72" alt="Memento" /></span><strong class="boot-name">Memento</strong><span class="boot-status"><i></i><i></i><i></i><span>正在准备本地工作区</span></span></div></div></div>
+    <div id="root"><div class="boot-screen" role="status" aria-label="Memento 正在启动"><div class="boot-lockup"><span class="boot-mark"><svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 96 96" fill="none" color="currentColor" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M19 44C12 29 15 9 23 10L37 28M62 27 76 15Q85 20 80 39" fill="currentColor" fill-opacity=".08"/>
+  <path d="M25 26Q48 12 70 31L78 41 76 52 82 60 74 62 76 70 66 71Q58 85 47 85 34 84 25 72L17 73 20 64 13 61 20 53Q15 41 25 26Z"/>
+  <path d="M42 27Q36 40 42 51M54 27Q61 42 53 51M26 43l5-2m32 1 5 2"/>
+  <ellipse cx="33" cy="48" rx="2.4" ry="3.3" fill="currentColor" stroke="none"/>
+  <ellipse cx="63" cy="48" rx="2.4" ry="3.3" fill="currentColor" stroke="none"/>
+  <path d="M41 59Q48 54 55 59 54 65 48 65 42 64 41 59Z" fill="currentColor" stroke="none"/>
+  <path d="M48 64v5m-11-1q5 10 11 1 6 9 12-1M42 75q6 7 12 0M24 16l4 10m47-4-5 10"/>
+</svg></span><strong class="boot-name">Memento</strong><span class="boot-status"><i></i><i></i><i></i><span>正在准备本地工作区</span></span></div></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

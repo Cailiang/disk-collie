@@ -1,4 +1,4 @@
-# Cross-platform storage rebuild — 1.0.18
+# Cross-platform storage rebuild — 1.0.19
 
 Branch: `rebuild/cross-platform-memento`. The product is organized around freeing storage; process management and the existing user-configured local Agent remain core tools.
 
@@ -184,3 +184,9 @@ Deep cleanup filters protected/read-only/no-method definitions before measuring 
 The AI menu is Cleanup advisor. Its landing page offers cleanup priorities, a file question and application-storage review, plus direct Large files/Deep cleanup/Space explorer links. It no longer auto-scans on entry. Submit explicitly gathers registered local evidence; draft text remains in App across provider setup and errors. Answers lead with the recommendation, owner, impact/recovery limit and applicable in-app action. Contextual Ask AI results retain return navigation and history. The empty execution rail is removed; actual plans still require confirmation.
 
 Navigation uses a repo-owned 24px icon family with a 1.7px stroke and distinct functional metaphors. Settings separates sections with spacing instead of horizontal rules. Branding uses a generated border collie app icon and photographic four-pose sheets for ball/frisbee/tug/basketball. Shared MascotScene chooses a page-appropriate game, permits keyboard/click switching and stops frames under reduced motion; progress counts, cancel controls and privacy boundaries are unchanged. Startup/favicon/sidebar and macOS PNG/ICNS exports share the mark. See MASCOT_ASSETS.md for prompts and conversion instructions. Browser, Electron and native coverage are updated together; destructive validation remains owned-fixture-only.
+
+## Line-art story correction — 1.0.19
+
+The photographic mascot is replaced by a repo-native SVG line drawing that inherits theme ink/surfaces. One canonical face supplies the inline sidebar/advisor mark, pre-React startup and PNG/ICNS icon export. Raster dog assets are removed. Articulated legs/tail/head and toys are drawn directly in SVG; cubic interpolation connects explicit twenty-second narrative cues. Four distinct stories include mishaps and endings, followed automatically by a different story, with alternating staging on later passes. Pause/resume and next-story controls are independent of scan operations.
+
+A large responsive scan stage occupies available space. Initial Deep cleanup and Privacy omit empty category/skeleton panels; file-scan result controls return after completion without discarding state. Animation never delays scan completion. Intersection visibility and reduced-motion settings suspend drawing; the timeline does not represent file progress. Pure timeline tests verify continuity, bounds and phase variety, while browser-controlled time covers full handoff/pause/theme/reduced-motion behavior. The browser-only demoScanMs query holds demo work for long-story QA; native IPC duration is unaffected. MASCOT_ASSETS.md describes source ownership and exports.

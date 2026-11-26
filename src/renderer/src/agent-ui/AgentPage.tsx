@@ -1,4 +1,4 @@
-import mascotLogo from '../assets/mascot/logo.png'
+import {CollieMark} from '../CollieMark'
 import {NavigationIcon} from './NavigationIcon'
 import type {AgentViewKey} from './Shell'
 import {MascotScene} from '../MascotScene'
@@ -222,7 +222,7 @@ export function AgentPage({
 
         <div className="conversation" ref={conversationRef} aria-live="polite">
           {!conversationRuns.length&&<div className="advisor-start">
-            <img className="advisor-mascot" src={mascotLogo} alt={text('brand.collie')}/>
+            <CollieMark className="advisor-mascot" label={text('brand.collie')}/>
             <h2>{text('advisor.startTitle')}</h2>
             <div className="advisor-intents">
               <button type="button" disabled={preparing||busy} onClick={()=>{const question=text('advisor.priorityPrompt');setInput(question);void submit(question)}}><NavigationIcon kind="health" size={23}/><span><strong>{text('advisor.priority')}</strong><small>{text('advisor.priorityDetail')}</small></span><ArrowUp size={16}/></button>
@@ -231,7 +231,7 @@ export function AgentPage({
             </div>
             <div className="advisor-source-links"><span>{text('advisor.fromResults')}</span>{(['large','health','disk'] as const).map((source)=><button type="button" key={source} onClick={()=>onNavigate(source)}><NavigationIcon kind={source} size={16}/>{text(`nav.${source==='health'?'cleanup':source}`)}</button>)}</div>
           </div>}
-          {preparing&&<div className="advisor-preparing" role="status"><MascotScene activity="frisbee"/><span>{text('advisor.preparing')}</span></div>}
+          {preparing&&<div className="advisor-preparing" role="status"><MascotScene activity="frisbee" compact/><span>{text('advisor.preparing')}</span></div>}
           {conversationRuns.map((conversationRun) => {
             const isActive = conversationRun.id === run?.id
             const runBusy = isActive && busy

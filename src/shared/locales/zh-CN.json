@@ -1132,7 +1132,7 @@
   "storage.excludedPath": "此目录已从扫描中排除，请重新扫描。",
   "storage.scopeChanged": "扫描范围已更新，请重新扫描。",
   "brand.collie": "Memento 边牧",
-  "mascot.changeGame": "给边牧换个游戏",
+  "mascot.changeGame": "看下一段小故事",
   "advisor.title": "清理顾问",
   "advisor.subtitle": "判断文件用途，核对清理影响。",
   "advisor.startTitle": "选择一个清理问题",
@@ -1148,5 +1148,9 @@
   "advisor.placeholder": "输入文件路径或清理问题",
   "advisor.providerNeeded": "连接模型后，即可分析清理问题。",
   "advisor.preparing": "正在读取本机信息…",
-  "advisor.setupReturn": "保存配置后返回，继续提问。"
+  "advisor.setupReturn": "保存配置后返回，继续提问。",
+  "mascot.theater": "边牧小剧场",
+  "mascot.pause": "暂停边牧动画",
+  "mascot.play": "继续边牧动画",
+  "mascot.reduced": "已跟随系统减少动态效果"
 }
