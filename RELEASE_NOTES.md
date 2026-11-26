@@ -1,3 +1,13 @@
+# Memento 1.0.16 — 深度清理与并行更新 / Deep cleanup and concurrent updates
+
+- 更新应用时仅当前行显示更新中，其他应用可以继续更新、打开和询问 AI；同一应用的更新和卸载互斥。
+- 左侧删除清理记录入口，首页累计和每日图表继续读取本地清理统计。
+- 智能清理改为深度清理，分类查看系统、用户、应用、浏览器、开发工具、Xcode、项目、AI 和容器占用，展开具体路径与文件明细。
+- 支持文件预览、推荐／手动选择、批量确认、正在使用提示、权限状态、扫描取消，以及清理后的剩余结果。
+- 项目产物核验后移到废纸篓；缓存只清理已扫描文件，源码、密钥、账户和配置保留。模型库、容器虚拟盘和应用瘦身目前仅分析，不执行整根删除或破坏签名的修改。
+
+English: per-application concurrent updates, isolated progress/failures and same-app update/uninstall protection; no sidebar Cleanup history; a categorized Deep cleanup workspace with real source/file previews, safe recommendations, bulk review, cancellation, live-use checks and retained results. Verified project artifacts move to Trash; captured cache files are removed selectively. Model stores, virtual disks and application trimming remain inspection-only without a safe dedicated cleaner. Package-manager locks may still limit their own installations and are reported per app.
+
 # Memento 1.0.15 — 隐私记录与直接文件操作 / Privacy records and file actions
 
 - 隐私清理重新设计为四类分层列表，应用 Logo、配置目录、真实记录数，点击可分页查看浏览历史、搜索词、下载记录和系统活动。

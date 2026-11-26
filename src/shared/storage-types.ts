@@ -1,3 +1,4 @@
+import type {DeepCleanScan,DeepCleanPreview} from './deep-clean-types'
 import type { ApplicationUpdateMode, ApplicationUpdateResult, ApplicationUpdateSource } from './types'
 import type { FileCategory } from './file-categories'
 import type {PrivacyItem,PrivacyPreview,PrivacyTimeRange} from './privacy-types'
@@ -58,6 +59,7 @@ export interface CleanupItem {
   browser?: string
 }
 export interface StorageActivity {
+  deepCleanIds?:string[]
   removedPaths?:string[]
   privacyIds?:string[]
   traces?:number
@@ -118,6 +120,11 @@ export interface StorageApi {
   storageReveal: (input: { generation: number; id: number }) => Promise<void>
   storageRevealTarget: (target:StorageTarget) => Promise<void>
   storageCleanup: (privacy: boolean) => Promise<CleanupItem[]>
+  storageDeepScan:()=>Promise<DeepCleanScan>
+  storageDeepPreview:(input:{id:string;offset?:number})=>Promise<DeepCleanPreview>
+  storageDeepClean:(input:{ids:string[];skipRunning:boolean})=>Promise<StorageActivity>
+  storageDeepReveal:(input:{id:string;path?:string})=>Promise<void>
+  storageDeepIcon:(id:string)=>Promise<string|null>
   storagePrivacyScan:(range:PrivacyTimeRange)=>Promise<PrivacyItem[]>
   storagePrivacyPreview:(input:{id:string;offset?:number})=>Promise<PrivacyPreview>
   storagePrivacyClean:(input:{ids:string[];skipRunning:boolean})=>Promise<StorageActivity>

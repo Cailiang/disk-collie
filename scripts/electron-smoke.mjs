@@ -1,3 +1,4 @@
+import {createDeepFixture,verifyDeepFixture} from './deep-clean-smoke.mjs'
 import {acknowledgeMessage} from './message-smoke.mjs'
 import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync, mkdirSync, realpathSync } from 'node:fs'
 import { tmpdir, homedir } from 'node:os'
@@ -8,6 +9,7 @@ import assert from 'node:assert/strict'
 import { _electron as electronLauncher } from 'playwright-core'
 import { verifyProviderKeyEditing } from './provider-key-smoke.mjs'
 const {DatabaseSync}=createRequire(import.meta.url)('node:sqlite')
+const smokeDeepRoot=realpathSync(mkdtempSync(path.join(tmpdir(),'memento-deep-electron-')))
 const smokePrivacyRoot=realpathSync(mkdtempSync(path.join(tmpdir(),'memento-privacy-electron-')))
 function privacyFixture(){
   const now=Date.now(),times=[now-10*86400000,now-300000,now+86400000],chromeTime=(value)=>(BigInt(value)+11644473600000n)*1000n
@@ -81,7 +83,7 @@ const first=path.join(fixture,'memento-smoke-copy-a.bin'), second=path.join(fixt
 writeFileSync(first,Buffer.alloc(12*1024*1024,23));writeFileSync(second,Buffer.alloc(12*1024*1024,23));writeFileSync(unique,Buffer.alloc(12*1024*1024,47));writeFileSync(third,Buffer.alloc(12*1024*1024,91));writeFileSync(fourth,Buffer.alloc(12*1024*1024,91))
 let electronApp, ownedWorker
 try{
-  const launch=(privacyHome)=>electronLauncher.launch({...(process.env.MEMENTO_SMOKE_EXECUTABLE?{executablePath:process.env.MEMENTO_SMOKE_EXECUTABLE}:{}),args:[...(process.env.MEMENTO_SMOKE_EXECUTABLE?[]:['.']),`--user-data-dir=${profile}`],env:{...process.env,MEMENTO_TEST_RUN:'1',MEMENTO_TEST_STORAGE_ROOT:fixture,MEMENTO_TEST_PRIVACY_HOME:privacyHome||''}})
+  const launch=(privacyHome,deepHome)=>electronLauncher.launch({...(process.env.MEMENTO_SMOKE_EXECUTABLE?{executablePath:process.env.MEMENTO_SMOKE_EXECUTABLE}:{}),args:[...(process.env.MEMENTO_SMOKE_EXECUTABLE?[]:['.']),`--user-data-dir=${profile}`],env:{...process.env,MEMENTO_TEST_RUN:'1',MEMENTO_TEST_STORAGE_ROOT:deepHome||fixture,MEMENTO_TEST_PRIVACY_HOME:privacyHome||'',MEMENTO_TEST_DEEP_HOME:deepHome||''}})
   electronApp=await launch()
   const p=await electronApp.firstWindow();const errors=[];p.on('pageerror',e=>errors.push(e.message))
   await p.locator('.nav-button[title="首页"]').waitFor({timeout:20000})
@@ -116,7 +118,7 @@ try{
   const blocked=await p.evaluate(async({generation,group})=>{try{await window.memento.storageTrash({generation,ids:group.files.map(f=>f.id),kind:'duplicates',groupId:group.id});return false}catch(e){return /Keep at least one/.test(String(e))}},{generation:duplicateState.index.generation,group:g});assert(blocked,'Main process must prevent deleting every copy')
   await p.getByRole('button',{name:'选择所有多余副本',exact:true}).click();await p.getByRole('button',{name:'移走所选副本',exact:true}).click();await p.getByRole('dialog').getByRole('button',{name:'取消',exact:true}).click();assert([first,second,third,fourth].every(existsSync),'Cancellation must preserve every duplicate')
   await p.getByRole('button',{name:'移走所选副本',exact:true}).click();await p.getByRole('dialog').getByRole('button',{name:'移到废纸篓',exact:true}).click();await p.getByRole('dialog').getByRole('button',{name:'完成',exact:true}).click();assert(existsSync(first)!==existsSync(second)&&existsSync(third)!==existsSync(fourth),'One verified survivor must remain in each group')
-  await p.locator('.nav-button[title="清理记录"]').click();await p.locator('.space-history .space-activity-row').first().waitFor();assert.match(await p.locator('.space-history .space-activity').innerText(),/重复副本/)
+  assert.equal(await p.locator('.nav-button[title="清理记录"]').count(),0,'Cleanup history must not remain in the sidebar')
   const after=await p.evaluate(()=>window.memento.storageState());assert.equal(after.history[0].items,2);assert.equal(after.history[0].failures,0);assert(after.index,'Cleanup must retain its index');assert.equal(after.index.generation,duplicateState.index.generation)
   await p.locator('.nav-button[title="首页"]').click();assert.notEqual(await p.getByTestId('organized-total').innerText(),'0 B');assert.equal(await p.getByRole('group',{name:'每日清理',exact:true}).getByRole('button').count(),14)
   await p.locator('.nav-button[title="大文件"]').click();await p.waitForFunction(()=>document.querySelectorAll('.space-file-row').length===2);assert.equal(await p.getByRole('button',{name:'开始扫描',exact:true}).count(),0)
@@ -136,12 +138,12 @@ try{
   const sourceRule=privacyRules.find(rule=>rule.source?.key==='chrome'||rule.source?.key==='safari');if(sourceRule){const icon=await p.evaluate(id=>window.memento.storageCleanupIcon(id),sourceRule.id);assert(icon?.startsWith('data:image/'),'Privacy applications must expose complete OS icons')}
   await verifyProviderKeyEditing(p)
   assert.deepEqual(errors,[])
-  await electronApp.close();const ownedPrivacy=privacyFixture();electronApp=await launch(smokePrivacyRoot);const restarted=await electronApp.firstWindow();restarted.on('pageerror',e=>errors.push(e.message));await restarted.locator('.nav-button[title="首页"]').waitFor({timeout:20000});const restoredInventory=await restarted.evaluate(()=>window.memento.storageApplicationState());assert(restoredInventory.applications.some(application=>application.id===beforeApps[0].id),'Warm launch must restore stable application IDs without opening Applications');const restoredHistory=await restarted.evaluate(()=>window.memento.storageState());assert.equal(restoredHistory.history.filter(record=>record.id===legacyActivity.id).length,1);assert(restoredHistory.history.some(record=>record.kind==='analysis'&&record.items===1),'Explorer cleanup must survive restart');assert.equal(await restarted.locator('.overview-recent').count(),0)
-  const privacyOutcome=await verifyPrivacyFixture(restarted,ownedPrivacy);assert.deepEqual(errors,[])
-  await electronApp.close();electronApp=await launch(smokePrivacyRoot);const privacyRestarted=await electronApp.firstWindow();await privacyRestarted.locator('.nav-button[title="首页"]').waitFor({timeout:20000});const persistedPrivacy=await privacyRestarted.evaluate(()=>window.memento.storageState());assert(persistedPrivacy.history.some(record=>record.kind==='privacy'&&record.items===privacyOutcome.selected&&record.traces===privacyOutcome.traces),'Verified privacy outcomes must persist after restart')
-  console.log(`Electron smoke passed: production IPC, native scan (${state.index.elapsedMs}ms), tile file actions, cross-group duplicate batch guard and real Trash operations on owned fixtures, persisted activity, ${metrics.processes.length} processes, ${applicationCount} applications, registered application actions, read-only real privacy scan and ${privacyOutcome.traces} owned privacy traces, encrypted provider editing. Version ${version}.`)
+  await electronApp.close();const ownedPrivacy=privacyFixture(),ownedDeep=createDeepFixture(smokeDeepRoot);electronApp=await launch(smokePrivacyRoot,smokeDeepRoot);const restarted=await electronApp.firstWindow();restarted.on('pageerror',e=>errors.push(e.message));await restarted.locator('.nav-button[title="首页"]').waitFor({timeout:20000});const restoredInventory=await restarted.evaluate(()=>window.memento.storageApplicationState());assert(restoredInventory.applications.some(application=>application.id===beforeApps[0].id),'Warm launch must restore stable application IDs without opening Applications');const restoredHistory=await restarted.evaluate(()=>window.memento.storageState());assert.equal(restoredHistory.history.filter(record=>record.id===legacyActivity.id).length,1);assert(restoredHistory.history.some(record=>record.kind==='analysis'&&record.items===1),'Explorer cleanup must survive restart');assert.equal(await restarted.locator('.overview-recent').count(),0)
+  const privacyOutcome=await verifyPrivacyFixture(restarted,ownedPrivacy);const deepOutcome=await verifyDeepFixture(restarted,ownedDeep);assert.deepEqual(errors,[])
+  await electronApp.close();electronApp=await launch(smokePrivacyRoot,smokeDeepRoot);const privacyRestarted=await electronApp.firstWindow();await privacyRestarted.locator('.nav-button[title="首页"]').waitFor({timeout:20000});const persistedPrivacy=await privacyRestarted.evaluate(()=>window.memento.storageState());assert(persistedPrivacy.history.some(record=>record.kind==='privacy'&&record.items===privacyOutcome.selected&&record.traces===privacyOutcome.traces),'Verified privacy outcomes must persist after restart');assert(persistedPrivacy.history.some(record=>record.id===deepOutcome.activityId&&record.deepCleanIds?.length===deepOutcome.sourceIds.length),'Verified deep cleanup outcomes must persist after restart')
+  console.log(`Electron smoke passed: production IPC, native scan (${state.index.elapsedMs}ms), tile file actions, cross-group duplicate batch guard and real Trash operations on owned fixtures, persisted activity, ${metrics.processes.length} processes, ${applicationCount} applications, registered application actions, read-only real privacy scan, ${privacyOutcome.traces} owned privacy traces and ${deepOutcome.removedCount} owned deep-cleanup files, encrypted provider editing. Version ${version}.`)
 }finally{
   if(ownedWorker?.exitCode===null&&!ownedWorker.signalCode)ownedWorker.kill('SIGKILL')
   await electronApp?.close().catch(()=>undefined)
-  rmSync(profile,{recursive:true,force:true});rmSync(fixture,{recursive:true,force:true});rmSync(smokePrivacyRoot,{recursive:true,force:true});if(ownedApp)rmSync(ownedApp,{recursive:true,force:true})
+  rmSync(profile,{recursive:true,force:true});rmSync(fixture,{recursive:true,force:true});rmSync(smokePrivacyRoot,{recursive:true,force:true});rmSync(smokeDeepRoot,{recursive:true,force:true});if(ownedApp)rmSync(ownedApp,{recursive:true,force:true})
 }

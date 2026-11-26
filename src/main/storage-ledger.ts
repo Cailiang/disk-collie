@@ -4,7 +4,7 @@ import {z} from 'zod'
 import type {StorageActivity} from '../shared/storage-types'
 
 const {DatabaseSync}=require('node:sqlite') as typeof import('node:sqlite')
-const activitySchema=z.object({id:z.string(),date:z.string(),kind:z.enum(['analysis','large','duplicates','cleanup','privacy','uninstall']),items:z.number().nonnegative(),bytes:z.number().nonnegative(),failures:z.number().nonnegative(),locations:z.array(z.string()),removedPaths:z.array(z.string()).optional(),privacyIds:z.array(z.string()).optional(),traces:z.number().nonnegative().optional(),skipped:z.number().nonnegative().optional(),unchanged:z.number().nonnegative().optional(),errors:z.array(z.object({path:z.string(),message:z.string()})).optional()})
+const activitySchema=z.object({id:z.string(),date:z.string(),kind:z.enum(['analysis','large','duplicates','cleanup','privacy','uninstall']),items:z.number().nonnegative(),bytes:z.number().nonnegative(),failures:z.number().nonnegative(),locations:z.array(z.string()),deepCleanIds:z.array(z.string()).optional(),removedPaths:z.array(z.string()).optional(),privacyIds:z.array(z.string()).optional(),traces:z.number().nonnegative().optional(),skipped:z.number().nonnegative().optional(),unchanged:z.number().nonnegative().optional(),errors:z.array(z.object({path:z.string(),message:z.string()})).optional()})
 
 /** Cleanup history shares the embedded database with providers and app settings. */
 export class StorageLedger {

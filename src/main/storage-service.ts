@@ -25,6 +25,10 @@ import { isStorageMutationAllowed } from './storage-policy'
 import {StorageLedger} from './storage-ledger'
 import {readApplicationIcon} from './application-icon'
 import {PrivacyService} from './privacy-service'
+import {ApplicationOperations} from '../shared/application-operations'
+import {DeepCleanService} from './deep-clean-service'
+import {storageProcessMatcher} from './storage-process-match'
+import type {DeepCleanScan} from '../shared/deep-clean-types'
 import type {PrivacyItem,PrivacyTimeRange} from '../shared/privacy-types'
 import {PrivacyCleanupError,type PrivacyOutcome} from './privacy-resource'
 
@@ -61,6 +65,9 @@ export class StorageService {
   private cleanupEngines={cleanup:new NativeEngine(),privacy:new NativeEngine()}
   private systemEngine=new NativeEngine()
   private privacyService=new PrivacyService()
+  private applicationOperations=new ApplicationOperations()
+  private deepCleanService=new DeepCleanService()
+  private deepScanCancellation:AbortController|null=null
   private queue=new StorageTaskQueue((scope,queued,blockedBy)=>this.progress({scope,phase:queued?'queued':'indexing',blockedBy:blockedBy||undefined,entries:0,elapsedMs:0}))
   private progress(progress: import('../shared/storage-types').StorageProgress):void {
     for (const window of BrowserWindow.getAllWindows()) window.webContents.send('memento:storage:progress',{...progress,scope:progress.scope})
@@ -175,8 +182,8 @@ export class StorageService {
     }
     await Promise.all(pending)
   }
-  private async activity(kind: StorageActivity['kind'], jobs: Array<{ path: string; size: number; run: () => Promise<void|PrivacyOutcome>;privacyId?:string }>,skipped=0): Promise<StorageActivity> {
-    const record: StorageActivity = { id: randomUUID(), date: new Date().toISOString(), kind, items: 0, bytes: 0, failures: 0, locations: [],removedPaths:[],...(kind==='privacy'?{privacyIds:[],traces:0,skipped,unchanged:0}:{}) }
+  private async activity(kind: StorageActivity['kind'], jobs: Array<{ path: string; size: number; run: () => Promise<void|PrivacyOutcome>;privacyId?:string;deepCleanId?:string }>,skipped=0,deep=false): Promise<StorageActivity> {
+    const record: StorageActivity = { id: randomUUID(), date: new Date().toISOString(), kind, items: 0, bytes: 0, failures: 0, locations: [],removedPaths:[],...(deep||jobs.some((job)=>job.deepCleanId)?{deepCleanIds:[],skipped,unchanged:0}:{}),...(kind==='privacy'?{privacyIds:[],traces:0,skipped,unchanged:0}:{}) }
     this.history.unshift(record); await this.save()
     const started=Date.now();let processed=0
     for (const job of jobs) {
@@ -186,12 +193,13 @@ export class StorageService {
         if(changed){record.items++;record.bytes+=outcome?outcome.size:job.size;record.locations.push(job.path)}else record.unchanged=(record.unchanged||0)+1
         if(outcome)record.traces=(record.traces||0)+outcome.count
         if(job.privacyId)record.privacyIds?.push(job.privacyId)
+        if(job.deepCleanId)record.deepCleanIds?.push(job.deepCleanId)
         const removedPaths=outcome?outcome.removedPaths||[]:[job.path]
         record.removedPaths!.push(...removedPaths)
         for(const location of removedPaths)for(const removed of this.scanRemovals.values())removed.add(location)
       }
       try{accept(await job.run())}
-      catch(error) {if(error instanceof PrivacyCleanupError)accept(error.outcome);record.failures++;const message=error instanceof Error?error.message:String(error);(record.errors??=[]).push({path:job.path,message:message.startsWith('privacy.')?translate(this.language(),message):message})}
+      catch(error) {if(error instanceof PrivacyCleanupError)accept(error.outcome);record.failures++;const message=error instanceof Error?error.message:String(error);(record.errors??=[]).push({path:job.path,message:message.startsWith('privacy.')||message.startsWith('deep.')?translate(this.language(),message):message})}
       processed++;await this.save()
       this.progress({scope:kind==='uninstall'?'apps':kind,phase:'cleaning',entries:processed,total:jobs.length,elapsedMs:Date.now()-started,path:job.path})
     }
@@ -269,6 +277,34 @@ export class StorageService {
     const names=[...(result.processCommands||[]),...(result.processNames||[]),...(result.processes||[]).map((process)=>`${process.name} ${process.command}`)].map((name)=>name.toLowerCase())
     return (browser)=>names.some((name)=>name.includes(browser.toLowerCase()))
   }
+  private async deepProcesses():Promise<(name:string)=>boolean>{
+    const result=await this.systemEngine.request<{processes:Array<{name:string;command:string}>;processNames:string[];processCommands:string[]}>('system')
+    const names=[...(result.processCommands||[]),...(result.processNames||[]),...(result.processes||[]).flatMap((process)=>[process.name,process.command])]
+    // Inspect command names locally so Node/Java launchers can be attributed to their tools.
+    try{
+      const {stdout}=process.platform==='win32'?await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command','Get-CimInstance Win32_Process | Select-Object -ExpandProperty CommandLine'],{timeout:5000,maxBuffer:4*1024*1024,windowsHide:true}):await exec('/bin/ps',['-axo','command='],{timeout:5000,maxBuffer:4*1024*1024})
+      names.push(...stdout.split('\n'))
+    }catch{/* Native executable identities remain available when command arguments cannot be read. */}
+    return storageProcessMatcher(names)
+  }
+  async scanDeep():Promise<DeepCleanScan>{
+    return this.exclusive('cleanup',async()=>{
+      const started=Date.now(),cancellation=new AbortController();this.deepScanCancellation=cancellation
+      try{
+        if(this.applicationRefresh)await this.applicationRefresh.catch(()=>undefined)
+        if(cancellation.signal.aborted)throw new Error('deep.cancelled')
+        const fixtureHome=process.env.MEMENTO_TEST_RUN==='1'?process.env.MEMENTO_TEST_DEEP_HOME:undefined,selectedHome=fixtureHome||home
+        const env=fixtureHome?{...process.env,LOCALAPPDATA:path.join(fixtureHome,'AppData/Local'),APPDATA:path.join(fixtureHome,'AppData/Roaming'),XDG_CONFIG_HOME:path.join(fixtureHome,'.config'),XDG_DATA_HOME:path.join(fixtureHome,'.local/share'),XDG_CACHE_HOME:path.join(fixtureHome,'.cache')}:process.env
+        return await this.deepCleanService.scan({platform:process.platform,home:selectedHome,env,applications:fixtureHome?[]:[...this.applications.values()],trash:(target:string)=>shell.trashItem(target),signal:cancellation.signal},await this.deepProcesses(),(done,total,target)=>{if(cancellation.signal.aborted)throw new Error('deep.cancelled');this.progress({scope:'cleanup',phase:'indexing',entries:done,total,elapsedMs:Date.now()-started,path:target})})
+      }finally{if(this.deepScanCancellation===cancellation)this.deepScanCancellation=null}
+    })
+  }
+  async cleanDeep(input:{ids:string[];skipRunning:boolean}):Promise<StorageActivity>{
+    return this.exclusive('cleanup',async()=>{
+      const {entries,skipped}=await this.deepCleanService.prepare(input.ids,await this.deepProcesses(),input.skipRunning)
+      return this.activity('cleanup',entries.map((entry)=>({path:entry.source.path,size:entry.source.size,deepCleanId:entry.source.id,run:async()=>{const result=await entry.snapshot.clean();this.deepCleanService.forget(entry.source.id);return result}})),skipped,true)
+    },true)
+  }
   async scanPrivacy(range:PrivacyTimeRange):Promise<PrivacyItem[]>{
     return this.exclusive('privacy',async()=>{
       if(this.applicationRefresh)await this.applicationRefresh.catch(()=>undefined)
@@ -312,7 +348,7 @@ export class StorageService {
     this.applicationsRefreshing=true;this.applicationsError=null;this.publishApplications()
     const epoch=++this.applicationSizeEpoch;this.applicationSizeEngine.stop()
     const work=this.exclusive('apps',async()=>{
-      const seen=new Set<string>()
+      const seen=new Set<string>(this.applicationOperations.activeIds())
       if(process.platform==='darwin'){
         const locations=[...new Set((await Promise.all(this.applicationRoots.map((root)=>findApplications(root,2,true)))).flat())]
         for(let offset=0;offset<locations.length;offset+=8){
@@ -322,6 +358,7 @@ export class StorageService {
               if(!info||info.bundleId==='com.fcl.memento')return
               let infoModified=0;try{infoModified=(await lstat(path.join(location,'Contents/Info.plist'))).mtimeMs}catch{/* Metadata fallback remains usable. */}
               const id=this.applicationId(location,info.name),previous=this.applications.get(id),system=location.startsWith('/System/')
+              if(this.applicationOperations.has(id)){seen.add(id);return}
               const fingerprint=[stat.dev,stat.ino,stat.modified,infoModified,info.version].join(':')
               const changed=Boolean(previous&&(previous.version!==info.version||previous.bundleId!==info.bundleId||this.applicationFingerprints.has(id)&&this.applicationFingerprints.get(id)!==fingerprint))
               if(changed){this.updates.delete(id);for(const [key,value] of this.related)if(value.applicationId===id)this.related.delete(key)}
@@ -366,16 +403,18 @@ export class StorageService {
   async checkApplicationUpdates():Promise<StorageApplication[]> {
     if([...this.applications.values()].some((application)=>application.cached)||!this.applications.size)await this.listApplications(true)
     return this.exclusive('apps',async()=>{
-      const candidates=[...this.metadata].filter(([id])=>!this.applications.get(id)?.protected)
+      const candidates=[...this.metadata].filter(([id])=>!this.applications.get(id)?.protected&&!this.applicationOperations.has(id))
+      const expected=new Map(candidates.map(([id])=>{const application=this.applications.get(id)!;return [id,{version:application.version,location:application.location,fingerprint:this.applicationFingerprints.get(id)}]}))
       const found=process.platform==='darwin'?await discoverApplicationUpdates(candidates.map(([,metadata])=>metadata),this.language()):new Map<string,ApplicationUpdate>()
-      this.updates.clear()
-      for(const [id,application] of this.applications){
+      for(const [id,before] of expected){
+        const application=this.applications.get(id)
+        if(!application||this.applicationOperations.has(id)||application.version!==before.version||application.location!==before.location||this.applicationFingerprints.get(id)!==before.fingerprint)continue
         const update=found.get(application.location)
-        if(update)this.updates.set(id,update)
+        if(update)this.updates.set(id,update);else this.updates.delete(id)
         Object.assign(application,{updateAvailable:Boolean(update),latestVersion:update?.latestVersion||null,updateSource:update?.source,updateMode:update?.mode,updateCheckedAt:new Date().toISOString()})
       }
       this.publishApplications()
-      return [...this.applications.values()]
+      return this.applicationState().applications
     })
   }
   async openApplication(id:string):Promise<void> {
@@ -387,10 +426,9 @@ export class StorageService {
     const error=await shell.openPath(target);if(error)throw new Error(error)
   }
   async updateApplication(id:string) {
-    await this.registeredApplication(id)
-    return this.exclusive('apps',async()=>{
-      const application=this.applications.get(id)
-      if(!application||application.protected)throw new Error('This application is protected')
+    return this.applicationOperations.run(id,'update',async()=>{
+      const application=await this.registeredApplication(id)
+      if(application.protected)throw new Error('This application is protected')
       if(process.platform!=='darwin'){
         await shell.openExternal(process.platform==='win32'?'ms-settings:appsfeatures':`appstream://${encodeURIComponent(application.bundleId||'')}`)
         return {status:'opened' as const,destination:'application' as const}
@@ -400,15 +438,22 @@ export class StorageService {
       if(!update){await this.openApplication(id);return {status:'opened' as const,destination:'application' as const}}
       await this.requireBrowserClosed(application.location)
       const result=await updateRegisteredApplication(application.location,update)
+      let current=this.applications.get(id)||application
       if(result.status==='updated') {
         const metadata=await inspectApplication(application.location,this.language(),false)
-        if(metadata){this.metadata.set(id,metadata);application.version=metadata.version;application.size=metadata.sizeBytes||application.size;application.lastUsedAt=metadata.lastUsedAt?.toISOString()||null}
-        application.updateAvailable=false;application.latestVersion=null;this.updates.delete(id)
+        current=this.applications.get(id)||current
+        if(metadata){this.metadata.set(id,metadata);current={...current,version:metadata.version,size:metadata.sizeBytes||current.size,lastUsedAt:metadata.lastUsedAt?.toISOString()||null}}
+        current={...current,updateAvailable:false,latestVersion:null};this.applications.set(id,current);this.updates.delete(id)
         for(const [key,value] of this.related)if(value.applicationId===id)this.related.delete(key)
+        this.measuredApplicationFingerprints.delete(id)
+        const stat=await snapshot(current.location);let infoModified=0
+        try{infoModified=(await lstat(path.join(current.location,'Contents/Info.plist'))).mtimeMs}catch{/* Keep the same fallback as discovery. */}
+        this.applicationFingerprints.set(id,[stat.dev,stat.ino,stat.modified,infoModified,current.version].join(':'))
+        await this.persistApplications().catch(()=>undefined);this.publishApplications()
+        if(this.applicationTimer){if(this.applicationDebounce)clearTimeout(this.applicationDebounce);this.applicationDebounce=setTimeout(()=>{void this.listApplications(true).catch(()=>undefined)},100)}
       }
-      if(result.status==='updated'){this.measuredApplicationFingerprints.delete(id);void this.persistApplications().catch(()=>undefined);this.publishApplications();if(this.applicationTimer)this.applicationDebounce=setTimeout(()=>{void this.listApplications(true).catch(()=>undefined)},100)}
-      return {...result,application}
-    },true)
+      return {...result,application:current}
+    })
   }
   async relatedChildren(input:{id:string;offset?:number}):Promise<{items:RelatedApplicationFile[];more:boolean}> {
     return this.exclusive('apps',async()=>{
@@ -458,6 +503,7 @@ export class StorageService {
     })
   }
   async uninstall(input: {applicationId:string;ids:string[]}): Promise<StorageActivity | null> {
+    return this.applicationOperations.run(input.applicationId,'uninstall',async()=>{
     await this.registeredApplication(input.applicationId)
     return this.exclusive('apps',async () => {
       const application=this.applications.get(input.applicationId)
@@ -477,9 +523,10 @@ export class StorageService {
       if(result.locations.includes(application.location)){this.applications.delete(application.id);this.metadata.delete(application.id);this.applicationFingerprints.delete(application.id);this.measuredApplicationFingerprints.delete(application.id);this.updates.delete(application.id);this.publishApplications();await this.persistApplications().catch(()=>undefined)}
       return result
     },true)
+    })
   }
   async cleanupIcon(id:string):Promise<string|null> {
-    const owner=this.rules.get(id)?.source||this.privacyService.source(id)
+    const owner=this.rules.get(id)?.source||this.privacyService.source(id)||this.deepCleanService.owner(id)
     if(!owner)return null
     const installed=[...this.applications.values()].find((application)=>owner.bundleIds.some((bundle)=>application.bundleId?.toLowerCase()===bundle.toLowerCase())||application.name===owner.name)
     for(const target of [...(installed?[installed.iconPath||installed.location]:[]),...owner.iconPaths]){
@@ -488,10 +535,10 @@ export class StorageService {
     return null
   }
   register(): void {
-    const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`memento:storage:${name}`,async(_event,input)=>{try{return await fn(input)}catch(error){const message=error instanceof Error?error.message:String(error);if(message.startsWith('privacy.'))throw new Error(translate(this.language(),message));if(/Item changed since scan|item changed since it was inspected|Path changed or became a link/.test(message))throw new Error(translate(this.language(),'storage.changed'));throw error}})}
+    const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`memento:storage:${name}`,async(_event,input)=>{try{return await fn(input)}catch(error){const message=error instanceof Error?error.message:String(error);if(message.startsWith('privacy.')||message.startsWith('deep.')||message==='apps.operationInProgress')throw new Error(translate(this.language(),message));if(/Item changed since scan|item changed since it was inspected|Path changed or became a link/.test(message))throw new Error(translate(this.language(),'storage.changed'));throw error}})}
     handle('state',()=>({index:this.latest?this.sessions.get(this.latest)?.index||null:null,indexes:Object.fromEntries([...this.sessions].map(([mode,s])=>[mode,s.index])),history:this.history,home}))
     handle('scan',(v)=>this.scan(z.object({mode:z.enum(['analysis','large','duplicates']).default('analysis'),minimum:z.number().int().min(10*1024**2).optional(),includeHidden:z.boolean().optional()}).parse(v||{})))
-    handle('cancel',(v)=>{const scope=z.enum(['analysis','large','duplicates','cleanup','privacy','apps']).optional().parse(v)||this.queue.activeScopes[0];if(!scope)return false;this.queue.cancelPending(scope);const engine=this.activeEngines.get(scope as StorageMode);if(!engine)return false;engine.stop();for(const [mode,session] of this.sessions)if(session.engine===engine)this.sessions.delete(mode);return true})
+    handle('cancel',(v)=>{const scope=z.enum(['analysis','large','duplicates','cleanup','privacy','apps']).optional().parse(v)||this.queue.activeScopes[0];if(!scope)return false;this.queue.cancelPending(scope);if(scope==='cleanup'&&this.deepScanCancellation){this.deepScanCancellation.abort();return true}const engine=this.activeEngines.get(scope as StorageMode);if(!engine)return false;engine.stop();for(const [mode,session] of this.sessions)if(session.engine===engine)this.sessions.delete(mode);return true})
     handle('children',async(v)=>{const q=entryInput.extend({offset:int.optional()}).parse(v),session=this.session(q.generation);const result=await session.engine.request<{parent:StorageEntry;items:StorageEntry[]}>('children',q);return {...result,items:result.items.map((entry)=>({...entry,trashable:!entry.directory&&Boolean(session.index.root&&isStorageMutationAllowed(entry.path,session.index.root.path))}))}})
     handle('large',(v)=>{const q=scope.extend({minimum:z.number().nonnegative(),search:z.string().max(500),offset:int,category:z.enum(['all','video','image','audio','archive','installer','document','other']).default('all')}).parse(v);return this.session(q.generation).engine.request('large',{...q,categories:fileCategories})})
     handle('duplicates',(v)=>this.exclusive('duplicates',async()=>{
@@ -521,6 +568,11 @@ export class StorageService {
       shell.showItemInFolder(location)
     })
     handle('cleanup',(v)=>this.cleanup(z.boolean().parse(v)))
+    handle('deep-scan',()=>this.scanDeep())
+    handle('deep-preview',(v)=>{const q=z.object({id:z.string().uuid(),offset:int.max(200000).default(0)}).parse(v);return this.deepCleanService.preview(q.id,q.offset)})
+    handle('deep-clean',(v)=>this.cleanDeep(z.object({ids:z.array(z.string().uuid()).min(1).max(500),skipRunning:z.boolean().default(false)}).parse(v)))
+    handle('deep-icon',(v)=>this.cleanupIcon(z.string().uuid().parse(v)))
+    handle('deep-reveal',async(v)=>{const q=z.object({id:z.string().uuid(),path:z.string().max(10000).optional()}).parse(v),entry=this.deepCleanService.get(q.id),target=q.path||entry.source.path;if(target!==entry.source.path&&!entry.snapshot.files.some((file)=>file.path===target))throw new Error('deep.selectionExpired');await snapshot(target);shell.showItemInFolder(target)})
     handle('privacy-scan',(v)=>this.scanPrivacy(z.enum(['hour','today','week','all']).parse(v)))
     handle('privacy-preview',(v)=>{const q=z.object({id:z.string().uuid(),offset:int.max(100000).default(0)}).parse(v);return this.privacyService.preview(q.id,q.offset)})
     handle('privacy-clean',(v)=>this.cleanPrivacy(z.object({ids:z.array(z.string().uuid()).min(1).max(500),skipRunning:z.boolean().default(false)}).parse(v)))

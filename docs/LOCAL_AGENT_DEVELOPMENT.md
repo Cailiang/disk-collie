@@ -264,3 +264,7 @@ Global operation notices use `Messages.tsx` and the shared `WorkspaceDialog.tsx`
 ## 1.0.15 privacy verification
 
 Fixture tests cover SQLite table/record preservation, shared-source selection, content-change rejection, native SFL graph readability, shell timestamps, permissions, pagination and file-snapshot boundaries. Electron smoke routes privacy fixture discovery through `MEMENTO_TEST_PRIVACY_HOME` only with `MEMENTO_TEST_RUN=1`, cleans only owned fixture IDs and never clears real clipboard/history. Four-viewport smoke checks the category/source hierarchy, actual record details, 100-record paging, range changes, sensitive/manual selection and the selected-file explorer strip.
+
+## 1.0.16 deep cleanup and update scopes
+
+`deep-clean-types.ts` and the `storageDeepScan/Preview/Clean/Reveal/Icon` APIs use registered source IDs; Renderer paths are accepted for reveal only when present in that registered source's captured file list. `deep-clean-rules.ts` owns platform/source discovery, `deep-clean-resource.ts` owns selective file snapshots and `deep-clean-projects.ts` owns complete-tree Trash validation. Main journals actual successes/skips/failures and reconciles only confirmed removed paths. Core checks, fixture-only real Electron cleanup and four-viewport UI cover the visible contract. `StorageTaskQueue` still coordinates storage writes; long updates use per-application `ApplicationOperations`, including same-app uninstall exclusion and stale-check protection. Package-manager locks remain outside Memento's scheduler.

@@ -4,6 +4,26 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.16 - 2026-11-26
+
+### English
+
+- Allow independent application updates with per-row progress, same-app deduplication/update-uninstall exclusion and independent failures. Keep other applications and page controls usable; merge concurrent completions and reject stale update-check results.
+- Remove Cleanup history from the sidebar and its overview shortcut. Keep the local statistics ledger and the AI task history entry inside the assistant.
+- Replace Smart cleanup with Deep cleanup: category → rule → source, measured size/file counts, paged file previews, Open/Ask AI, explicit risk/method/status, discovery filtering, recommendations and batch review.
+- Discover system/user/app/browser/developer/Xcode caches, old logs, known project artifacts, AI caches/models and container data. Keep model stores, virtual disks, protected archives and application architecture inspection read-only where a dedicated safe mutation is not supported.
+- Preflight every source, reject changed/partial/linked cache scans, preserve accounts/settings/source/keys, deduplicate overlapping rules and retain results after cleanup. Move complete verified project artifacts to Trash; remove only captured cache files. Add scoped cancellation and live application/tool guards.
+- Extend real Electron fixture cleanup, independent-update regressions and four-viewport UI coverage, including retained selection and responsive batch actions.
+
+### 简体中文
+
+- 应用更新改为逐行状态，可同时发起多个应用更新；同一应用防重复、更新与卸载互斥，失败独立显示。其他应用与页面操作保持可用，并发结果合并且不被过期检查覆盖。
+- 移除侧栏清理记录及首页跳转入口，本地统计继续用于累计／每日图表；AI 内保留任务历史入口。
+- 智能清理升级为深度清理，按分类、规则和具体来源展示实际体积／文件数、分页文件明细、打开／询问 AI、风险／处理方式／状态及批量核对。
+- 扫描系统／用户／应用／浏览器／开发工具／Xcode 缓存、旧日志、已识别项目产物、AI 缓存／模型及容器数据；模型库、虚拟盘、受保护归档和应用架构在没有安全专用处理时仅供查看。
+- 清理前统一校验来源，变化／不完整／含链接的缓存拒绝处理，保留账户、设置、源码与密钥；重叠规则去重，清理后保留剩余结果。完整核验的项目产物移到废纸篓，缓存只删扫描快照内的文件，支持取消及实时占用检查。
+- 补充真实 Electron 夹具清理、更新并发与四尺寸 UI 验证，覆盖选择保留和底部操作。
+
 ## 1.0.15 - 2026-11-26
 
 ### English

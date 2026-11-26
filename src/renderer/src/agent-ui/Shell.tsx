@@ -14,7 +14,7 @@ export function Shell({ activeView, provider, appVersion, updateState, hostname,
   const {t}=useI18n()
   const storage=[{id:'health',key:'cleanup',icon:Sparkles},{id:'large',key:'large',icon:File},{id:'duplicates',key:'duplicates',icon:Copy},{id:'disk',key:'disk',icon:HardDrive},{id:'privacy',key:'privacy',icon:ShieldCheck}] as const
   const tools=[{id:'apps',key:'apps',icon:AppWindow},{id:'processes',key:'processes',icon:Activity},{id:'terminal',key:'terminal',icon:SquareTerminal},{id:'agent',key:'agent',icon:Sparkles}] as const
-  const utility=[{id:'history',key:'history',icon:History},{id:'settings',key:'settings',icon:Settings2}] as const
+  const utility=[{id:'settings',key:'settings',icon:Settings2}] as const
   const nav=(item:{id:AgentViewKey;key:string;icon:typeof House}):React.JSX.Element=><button key={item.id} type="button" className={`nav-button ${activeView===item.id?'is-active':''}`} title={t(`nav.${item.key}`)} aria-current={activeView===item.id?'page':undefined} onClick={()=>onNavigate(item.id)}><item.icon size={18}/><span>{t(`nav.${item.key}`)}</span>{activeView===item.id&&<i/>}</button>
   const platform=window.memento?.platform
   const platformName=platform==='darwin'?'macOS':platform==='win32'?'Windows':platform==='linux'?'Linux':''

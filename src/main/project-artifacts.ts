@@ -106,8 +106,10 @@ async function discoverFromRoot(
   results: ProjectArtifact[],
   seenRoots: Set<string>,
   depth: number,
-  now: number
+  now: number,
+  signal?:AbortSignal
 ): Promise<void> {
+  if(signal?.aborted)throw new Error('deep.cancelled')
   if (depth > MAX_SCAN_DEPTH || seenRoots.size >= MAX_VISITED_DIRECTORIES) return
   let realRoot: string
   try {
@@ -151,19 +153,20 @@ async function discoverFromRoot(
 
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.isSymbolicLink() || entry.name === '.git' || ARTIFACT_LABELS.has(entry.name)) continue
-    await discoverFromRoot(path.join(realRoot, entry.name), results, seenRoots, depth + 1, now)
+    await discoverFromRoot(path.join(realRoot, entry.name), results, seenRoots, depth + 1, now,signal)
     if (seenRoots.size >= MAX_VISITED_DIRECTORIES) return
   }
 }
 
 export async function discoverProjectArtifacts(
   home = os.homedir(),
-  now = Date.now()
+  now = Date.now(),
+  signal?:AbortSignal
 ): Promise<ProjectArtifact[]> {
   const results: ProjectArtifact[] = []
   const seenRoots = new Set<string>()
   for (const root of projectRoots(home)) {
-    await discoverFromRoot(root, results, seenRoots, 0, now)
+    await discoverFromRoot(root, results, seenRoots, 0, now,signal)
     if (seenRoots.size >= MAX_VISITED_DIRECTORIES) break
   }
   return results
