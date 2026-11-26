@@ -40,16 +40,19 @@ The Electron version pinned in `package.json` supplies Node 24 and the built-in 
 
 `AgentStore` opens `<userData>/memento.sqlite`, enables WAL and foreign keys, and applies migrations through `PRAGMA user_version`.
 
-The current database schema version is 4. Its core tables are:
+The Agent schema version is 4; `StorageLedger` owns its additive cleanup tables in the same database. Its core tables are:
 
 | Table | Purpose |
 | --- | --- |
 | `ai_providers` | Provider type, URL, model, encrypted API key, default and connection state |
+| `cleanup_activity` / `local_migrations` | Incremental successful/failed cleanup records and one-time legacy JSON import marker, managed by `StorageLedger` |
 | `app_settings` | Language, theme, login behavior, menu-bar behavior, and ignored items |
 | `agent_runs` | Conversation ID, language, prompt, provider snapshot, status, response, focused entities, structured presentation, plan, results, and error |
 | `tool_calls` | Structured input and output for each Agent tool call |
 | `maintenance_runs` | Source, scan/Agent correlation, aggregate status, and timestamps for every maintenance session |
 | `maintenance_operations` | Per-operation kind, estimate/actual bytes, recovery mode, result, stable error code, and private local recovery reference |
+
+`StorageLedger` writes cleanup progress to `cleanup_activity` before/after each operation. It transactionally imports `storage-history.json` once, preserving the original and existing database records; malformed legacy input can be recovered later. Cleanup totals count all successful bytes without splitting Trash and permanent deletion.
 
 A legacy `app-settings.json` file is read once when the SQLite settings row does not exist. Values pass through `normalizeAppSettings` before insertion. Schema migration 3 separates Antigravity from the generic Google provider type; migration 4 creates the Agent-independent maintenance ledger. History-list IPC exposes whether recovery is available but never returns the private Trash or backup path.
 
@@ -249,3 +252,5 @@ git diff --check
 ```
 
 Start `npm run dev:web -- --port 4178 --strictPort`, then `npm run ui:smoke -- http://127.0.0.1:4178`. The test captures twelve pages at four viewports and exercises storage confirmations, duplicate survivor protection, application data selection, process-to-AI navigation, English and dark mode. The Electron smoke uses the production main/preload/Renderer, real metrics/inventory, an isolated owned storage fixture and a real Trash operation; it also verifies encrypted provider-key editing against a loopback provider. Run `npm run native:test` and `npm run scan:smoke` for metadata, content verification and scanner evidence. Packaging and public release checks are in [Release process](RELEASING.md).
+
+The 1.0.13 application inventory uses User/System tabs and sortable column headers. System uninstall is absent in the Renderer and rejected in Main. The shared `application-icon.ts` reads actual macOS bundle artwork with four concurrent conversions, caches by bundle revision and falls back to the OS; cached presentation rows reload icons after live discovery. Inspection keeps the app root even if related measurements fail or there are no associations, so app-only uninstall remains available. Explorer file deletion uses the existing confirmed Trash path, scoped to the analysis generation and reconciled across all indexes. UI and Electron smoke tests cover these states along with the three workspace-specific scan labels and unified homepage totals.

@@ -34,6 +34,7 @@ vi.mock('./native-engine',()=>({NativeEngine:class {
   stop(){this.stopped=true}
 }}))
 import {StorageService} from './storage-service'
+import {StorageLedger} from './storage-ledger'
 const call=(name:string,input?:unknown)=>state.handlers.get(`memento:storage:${name}`)!(null,input)
 describe('storage scan sessions and partial cleanup',()=>{
   let fixture:string
@@ -58,7 +59,7 @@ describe('storage scan sessions and partial cleanup',()=>{
       expect(remaining.items.map((e:StorageEntry)=>e.name)).toEqual(['b.mov','c.mov'])
     }
     expect(state.progress.filter((p)=>p.phase==='cleaning').map((p)=>p.entries)).toEqual([0,1,1,2])
-    expect(JSON.parse(await readFile(path.join(state.profile,'storage-history.json'),'utf8'))[0]).toEqual(result)
+    const ledger=new StorageLedger(state.profile);expect(ledger.list()[0]).toEqual(result);ledger.close()
     const restored=new StorageService();await restored.init();restored.register()
     expect((await call('state')).history[0]).toEqual(result)
   })
@@ -70,6 +71,17 @@ describe('storage scan sessions and partial cleanup',()=>{
     expect((await call('large',{generation:duplicates!.generation,minimum:1,search:'',offset:0})).count).toBe(3)
     expect(state.engines.filter((engine)=>engine.index)[0].stopped).toBe(true)
     expect(state.engines.filter((engine)=>engine.index)[1].stopped).toBe(false)
+  })
+  it('trashes a file from analysis, reconciles other scans, and rejects directories or a mismatched purpose',async()=>{
+    const service=new StorageService();service.register()
+    const analysis=await service.scan({mode:'analysis'}),large=await service.scan({mode:'large'})
+    await expect(service.trash({generation:analysis!.generation,ids:[1],kind:'duplicates'})).rejects.toThrow('another scan')
+    const engine=state.engines.find((engine)=>engine.index?.mode==='analysis')
+    engine.entries.push({...engine.entries[0],id:4,directory:true})
+    await expect(service.trash({generation:analysis!.generation,ids:[4],kind:'analysis'})).rejects.toThrow('Only personal files')
+    const result=await service.trash({generation:analysis!.generation,ids:[1],kind:'analysis'})
+    expect(result).toMatchObject({kind:'analysis',items:1,bytes:2048,failures:0})
+    expect((await call('large',{generation:large!.generation,minimum:1,search:'',offset:0})).count).toBe(2)
   })
   it('finishes privacy cleanup during a file scan without publishing deleted entries afterward',async()=>{
     const service=new StorageService();service.register();let release!:()=>void
@@ -137,6 +149,21 @@ describe('storage scan sessions and partial cleanup',()=>{
     await expect(service.relatedChildren({id:crypto.randomUUID()})).rejects.toThrow(/expired/)
     const result=await service.uninstall({applicationId:id,ids:[roots[0].id,children.items[0].id,roots[0].id]})
     expect(result).toMatchObject({items:1,failures:0,locations:[applicationPath]})
+  })
+  it('keeps the app removable when related file measurement fails, but rejects system applications',async()=>{
+    const service=new StorageService();service.register();const id=crypto.randomUUID()
+    const applicationPath=path.join(state.root,'UnreadableData.app'),bundle='test.memento.'+crypto.randomUUID(),cache=path.join(os.homedir(),'Library/Caches',bundle)
+    await mkdir(applicationPath);await mkdir(cache,{recursive:true});await writeFile(path.join(cache,'fixture.log'),'fixture')
+    const application={id,name:'Fixture',version:'1',location:applicationPath,bundleId:bundle,size:2048,protected:false,method:'trash' as const,system:false}
+    ;(service as any).applications.set(id,application)
+    vi.spyOn((service as any).engine,'request').mockRejectedValue(new Error('Measurement failed'))
+    try{
+      const files=await service.inspectApplication(id)
+      expect(files).toMatchObject([{kind:'application',path:applicationPath,size:2048}])
+      application.system=true;await expect(service.uninstall({applicationId:id,ids:[files[0].id]})).rejects.toThrow('protected')
+      application.system=false;expect(await service.uninstall({applicationId:id,ids:[files[0].id]})).toMatchObject({items:1,failures:0})
+      expect(await readFile(path.join(cache,'fixture.log'),'utf8')).toBe('fixture')
+    }finally{await rm(cache,{recursive:true,force:true})}
   })
 
 })

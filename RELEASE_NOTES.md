@@ -1,3 +1,13 @@
+# Memento 1.0.13 — 文件直删与应用管理修复 / File actions and app management
+
+- 扫描提示与当前页面对应；空间分析文件行可核对后移到废纸篓，成功后同步目录图表和其他页面。
+- 首页删除最近记录列表，累计清理与每日图表统一统计成功处理的体积，不再拆分永久删除和废纸篓。
+- 清理记录迁入本地 memento.sqlite，与加密 AI 供应商和自定义配置同库；自动保留旧记录。
+- 应用管理采用用户／系统标签、列标题排序和真实应用包 Logo；系统应用没有卸载入口。
+- 卸载不再依赖关联文件或递归体积测量；无额外数据也可卸载应用本体。
+
+English: workspace-specific scan labels; reviewed file removal in Space explorer; unified cleanup statistics without the duplicated recent list; an embedded SQLite cleanup ledger with one-time legacy import; sortable application columns, separate User/System tabs, actual bundle logos and reliable app-only uninstall.
+
 # Memento 1.0.12 — 紧凑首页与分层隐私 / Compact overview and layered privacy
 
 - 首页删除标语与重复指标；健康度按分数着色，设备状态集中到一个面板，分别使用 CPU 折线、内存分段条和存储环图；更多信息展示 GPU、电源和网络。

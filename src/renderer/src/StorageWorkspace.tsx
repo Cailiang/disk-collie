@@ -110,6 +110,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     setApplications((prev)=>prev?.filter((a)=>!removed(a.location))||prev)
     setRelated((prev)=>prev.filter((r)=>!removed(r.path)))
     if(application&&removed(application.location))setApplication(null)
+    if(view==='disk'&&activity.locations.length){setChildren((previous)=>previous.filter((file)=>!removed(file.path)));setMapOffset(0)}
     if(view==='disk'&&index&&activity.locations.length&&window.memento)void (async()=>{
       try {
         const state=await window.memento!.storageState(),next=state.indexes.analysis
@@ -157,9 +158,9 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     try {
       const result=window.memento?await window.memento.storageChildren({generation:index.generation,id:entry.id}):{parent:entry,items:demoChildren(entry)}
       if(sequence!==querySequence.current)return
-      setFolder(result.parent);setChildren(result.items);setBreadcrumbs(trail);setMapOffset(0)
+      setFolder(result.parent);setChildren(result.items.filter((file)=>!demo||!removedPaths.some((location)=>file.path===location||file.path.startsWith(location+'/')||file.path.startsWith(location+'\\'))));setBreadcrumbs(trail);setMapOffset(0)
     }catch(e){setError(readableTaskError(e))}
-  },[index])
+  },[index,removedPaths])
   useEffect(()=>{if(view==='disk'&&index?.root&&!folder)void openFolder(index.root,[index.root])},[view,index,folder,openFolder])
   const findDuplicates=async(current=index):Promise<void>=>{
     if(!current)return
@@ -169,8 +170,8 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const inspect=async(app:StorageApplication):Promise<void>=>{
     const sequence=++detailsSequence.current
     setApplication(app);setRelated([]);setRelatedSelected(new Set())
-    if(app.method==='system')return
-    const result=await runTask('related',()=>window.memento?window.memento.storageRelated(app.id):Promise.resolve(demoRelated.map((r)=>({...r,size:r.kind==='application'?app.size:r.size,path:r.kind==='application'?app.location:r.path.replace('com.microsoft.VSCode',app.bundleId||'com.microsoft.VSCode').replace('/Code','/'+(app.name==='Figma'?'Figma':'Code'))}))))
+    if(app.method==='system'||app.system||app.protected)return
+    const result=await runTask('related',()=>window.memento?window.memento.storageRelated(app.id):Promise.resolve(demoRelated.filter((file)=>app.bundleId!=='com.figma.Desktop'||file.kind==='application').map((r)=>({...r,size:r.kind==='application'?app.size:r.size,path:r.kind==='application'?app.location:r.path.replace('com.microsoft.VSCode',app.bundleId||'com.microsoft.VSCode').replace('/Code','/'+(app.name==='Figma'?'Figma':'Code'))}))))
     if(result&&sequence===detailsSequence.current){setRelated(result);setRelatedSelected(new Set(result.filter((r)=>r.kind==='application').map((r)=>r.id)))}
   }
   const fakeActivity=async(kind:StorageActivity['kind'],count:number,size:number,locations:string[]):Promise<StorageActivity>=>{
@@ -183,7 +184,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   }
   const confirmTrash=(entries:StorageEntry[],group?:DuplicateGroup):void=>{
     if(!index||!entries.length)return
-    const kind=group||view==='duplicates'?'duplicates':'large'
+    const kind=group||view==='duplicates'?'duplicates':view==='disk'?'analysis':'large'
     setConfirmation({kind,count:entries.length,size:entries.reduce((s,e)=>s+e.allocated,0),names:entries.map((e)=>e.path),run:()=>window.memento?window.memento.storageTrash({generation:index.generation,ids:entries.map((e)=>e.id),kind,groupId:group?.id}):fakeActivity(kind,entries.length,entries.reduce((s,e)=>s+e.size,0),entries.map((e)=>e.path))})
   }
   const confirmClean=():void=>{
@@ -208,17 +209,18 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   }
   const toggle=<T,>(setter:React.Dispatch<React.SetStateAction<Set<T>>>,id:T):void=>setter((prev)=>{const next=new Set(prev);if(next.has(id))next.delete(id);else next.add(id);return next})
   const reveal=async(entry:StorageEntry):Promise<void>=>{if(!index)return;try{if(window.memento)await window.memento.storageReveal({generation:index.generation,id:entry.id});else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}
-  const fileActions=(file:{path:string;size:number;name?:string;modified?:number},target:StorageTarget):React.JSX.Element=><FileActions file={file} target={target} onReveal={async(target)=>{try{if(window.memento)await window.memento.storageRevealTarget(target);else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}}/>
+  const fileActions=(file:{path:string;size:number;name?:string;modified?:number},target:StorageTarget,onTrash?:()=>void):React.JSX.Element=><FileActions file={file} target={target} onTrash={onTrash} onReveal={async(target)=>{try{if(window.memento)await window.memento.storageRevealTarget(target);else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}}/>
   const formatDate=(date:string|number):string=>new Intl.DateTimeFormat(locale,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(date))
   const heading=(title:string,subtitle:string,action?:React.ReactNode):React.JSX.Element=><header className="space-heading"><div><h1>{t(title)}</h1>{['large','duplicates','privacy'].includes(view)&&<WorkspaceHelp>{t(subtitle)}{view==='duplicates'&&<p>{t('compact.duplicateHelp')}</p>}{view==='large'&&<p>{t('compact.largeHelp')}</p>}{view==='privacy'&&<p>{t('privacy.warning')}</p>}</WorkspaceHelp>}</div>{action}</header>
   const scanButtons=<div className="space-actions"><button className="space-button primary" disabled={busy} onClick={()=>void scan()}><Search size={16}/>{t(index?'common.rescan':'common.scan')}</button></div>
   const scanPrompt=<div className="space-start"><HardDrive size={32}/><h2>{t('scan.fullDisk')}</h2>{scanButtons}</div>
   const scanStatus=index&&<div className="space-scan-status"><CheckCircle2 size={14}/><span>{t('scan.ready',{count:index.entries.toLocaleString(locale),seconds:(index.elapsedMs/1000).toFixed(2)})}</span><code title={index.root?.path}>{index.root?.path}</code>{view!=='disk'&&(index.errors>0||index.skipped>0)&&<WorkspaceHelp>{t('scan.coverage',{errors:index.errors,skipped:index.skipped})}</WorkspaceHelp>}</div>
-  const taskProgress=busy&&task!=='related'&&task!=='apps'&&<div className="space-progress" role="status" aria-live="polite"><div className="space-scan-orbit"><LoaderCircle className="spinner" size={24}/></div><div className="space-progress-copy"><strong>{t(progress?.phase==='queued'?'scan.queued':task==='scan'?'scan.title':task==='duplicates'?`scan.${progress?.phase||'sampling'}`:'common.working')}</strong><span>{progress?.phase==='queued'?t('scan.waiting'):progress?`${progress.entries.toLocaleString(locale)}${progress.total!==undefined?` / ${progress.total.toLocaleString(locale)}`:''} · ${(progress.elapsedMs/1000).toFixed(1)} s`:'—'}</span><small title={progress?.path}>{progress?.path}</small><div className={`space-progress-track ${progress?.total?'is-measured':''}`} role="progressbar" aria-label={t('scan.title')} aria-valuenow={progress?.total?Math.round(progress.entries/progress.total*100):undefined} aria-valuemin={0} aria-valuemax={100}><i style={progress?.total?{width:`${progress.entries/progress.total*100}%`}:undefined}/></div></div>{(task==='scan'||task==='duplicates'||progress?.phase==='queued')&&<button className="space-button" onClick={()=>void cancel()}>{t('common.cancel')}</button>}</div>
+  const progressLabel=t(progress?.phase==='queued'?'scan.queued':task==='scan'?`scan.${view==='disk'?'analysis':view==='duplicates'?'duplicates':'large'}`:task==='duplicates'?`scan.${progress?.phase==='hashing'?'hashing':'sampling'}`:'common.working')
+  const taskProgress=busy&&task!=='related'&&task!=='apps'&&<div className="space-progress" role="status" aria-live="polite"><div className="space-scan-orbit"><LoaderCircle className="spinner" size={24}/></div><div className="space-progress-copy"><strong>{progressLabel}</strong><span>{progress?.phase==='queued'?t('scan.waiting'):progress?`${progress.entries.toLocaleString(locale)}${progress.total!==undefined?` / ${progress.total.toLocaleString(locale)}`:''} · ${(progress.elapsedMs/1000).toFixed(1)} s`:'—'}</span><small title={progress?.path}>{progress?.path}</small><div className={`space-progress-track ${progress?.total?'is-measured':''}`} role="progressbar" aria-label={progressLabel} aria-valuenow={progress?.total?Math.round(progress.entries/progress.total*100):undefined} aria-valuemin={0} aria-valuemax={100}><i style={progress?.total?{width:`${progress.entries/progress.total*100}%`}:undefined}/></div></div>{(task==='scan'||task==='duplicates'||progress?.phase==='queued')&&<button className="space-button" onClick={()=>void cancel()}>{t('common.cancel')}</button>}</div>
   const categories=(counts:Record<string,number>):React.JSX.Element=><div className="space-category-tabs" role="group" aria-label={t('compact.categories')}>{(['all',...Object.keys(fileCategories),'other'] as const).map((key)=><button key={key} className={category===key?'is-active':''} onClick={()=>{setCategory(key as typeof category);setOffset(0);setSelected(new Set());setGroupLimit(40)}}>{t(`category.${key}`)}<small>{key==='all'?Object.values(counts).reduce((a,b)=>a+b,0):counts[key]||0}</small></button>)}</div>
   const activityRows=(records:StorageActivity[]):React.JSX.Element=><div className="space-activity">{records.map((r)=><div className="space-activity-row" key={r.id}><span className={`space-activity-icon ${r.failures?'has-error':''}`}>{r.kind==='privacy'?<ShieldCheck size={19}/>:r.kind==='cleanup'?<Sparkles size={19}/>:<Trash2 size={19}/>}</span><div><strong>{t(`history.${r.kind}`)}</strong><small>{formatDate(r.date)} · {t('history.items',{count:r.items})}{r.failures>0&&` · ${t('history.failures',{count:r.failures})}`}</small></div><b>{bytes(r.bytes)}</b><Check size={15}/></div>)}</div>
-  const cleaned=history.filter((r)=>r.kind==='cleanup'||r.kind==='privacy').reduce((s,r)=>s+r.bytes,0)
-  const trashed=history.filter((r)=>r.kind!=='cleanup'&&r.kind!=='privacy').reduce((s,r)=>s+r.bytes,0)
+  const cleaned=history.reduce((s,r)=>s+r.bytes,0)
+  const cleanedItems=history.reduce((s,r)=>s+r.items,0)
   const total=metrics?.disk.totalBytes||512*1024**3, free=metrics?.disk.availableBytes||(demo?168*1024**3:0)
   const usedPercent=Math.max(0,Math.min(100,100-free/total*100))
   const colors=['#355e54','#5b8070','#88a28a','#b5c4a7','#d2ba96','#c49173','#b78281','#8d929e','#66798c']
@@ -242,7 +244,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   return <div className={`space-workspace space-${view}`} ref={mainRef}>
     {error&&<div className="space-alert" role="alert"><CircleHelp size={18}/><span>{error}</span><button className="icon-button" aria-label={t('common.close')} onClick={()=>setError('')}><X size={16}/></button></div>}
     {notice&&<div className="space-alert" role="status">{notice}</div>}
-    {view==='overview'&&<HomeOverview metrics={metrics} history={history} bytes={bytes} onProcess={onProcess} onNavigate={onNavigate} recent={history.length?activityRows(history.slice(0,3)):<div className="space-empty-history"><CheckCircle2 size={23}/><strong>{t('home.noHistory')}</strong></div>}/>}
+    {view==='overview'&&<HomeOverview metrics={metrics} history={history} bytes={bytes} onProcess={onProcess} onNavigate={onNavigate}/>}
     {(view==='large'||view==='disk'||view==='duplicates')&&<>
       {heading(`${view}.title`,`${view}.subtitle`,index?scanButtons:undefined)}
       {<div className="space-toolbar duplicate-options">{view==='duplicates'&&<label>{t('large.minimum')} <select aria-label={t('large.minimum')} disabled={busy} value={duplicateMinimum} onChange={(e)=>{setDuplicateMinimum(Number(e.target.value));setIndex(null);setGroups(null)}}>{[10*MB,50*MB,100*MB,1024*MB].map((n)=><option value={n} key={n}>{bytes(n)} +</option>)}</select></label>}<label className="space-inline-check"><input type="checkbox" aria-describedby={`${view}-scan-scope`} disabled={busy} checked={includeHidden} onChange={(e)=>{setIncludeHidden(e.target.checked);setIndex(null);setGroups(null)}}/>{t('compact.includeHidden')}</label></div>}
@@ -259,7 +261,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
         </>}
         {view==='disk'&&folder&&<>
           <div className="space-disk-toolbar"><div className="space-disk-navigation"><button className="space-button space-disk-back" disabled={breadcrumbs.length<2} onClick={()=>void openFolder(breadcrumbs[breadcrumbs.length-2],breadcrumbs.slice(0,-1))}><ArrowLeft size={16}/>{t('disk.back')}</button><nav className="space-breadcrumbs" aria-label={t('disk.root')}>{breadcrumbs.map((crumb,i)=><button key={crumb.id} disabled={i===breadcrumbs.length-1} onClick={()=>void openFolder(crumb,breadcrumbs.slice(0,i+1))}>{i===0&&<HardDrive size={14}/>}<span>{crumb.name}</span>{i<breadcrumbs.length-1&&<ChevronRight size={14}/>}</button>)}</nav></div><div><strong>{bytes(folder.size)}</strong><small>{t('disk.total')}</small></div></div>
-          <div className="space-explorer"><DirectoryTree key={`${index.generation}:${activity?.id||''}`} index={index} selected={folder.id} activeTrail={breadcrumbs} bytes={bytes} onOpen={openFolder} onReveal={reveal} actions={(file)=>fileActions(file,{type:'entry',generation:index.generation,id:file.id})}/><div className="space-map-column"><div className="space-map-caption"><span title={t('disk.areaHint')}>{t('disk.top10')}{mapOffset>0&&` / ${t('disk.other')}`}</span>{mapOffset>0&&<button className="space-text-button" onClick={()=>setMapOffset((offset)=>Math.max(0,offset-10))}><ArrowLeft size={13}/>{t('disk.backTop')}</button>}</div><div className="space-treemap" ref={mapRef} role="group" aria-label={t('disk.map')}>{map.map((rect,i)=>{const file=mapEntries.find((entry)=>entry.id===rect.id)!;return <button className="space-treemap-cell" key={rect.id} style={{left:`${rect.x}%`,top:`${rect.y}%`,width:`${rect.width}%`,height:`${rect.height}%`,background:colors[i%colors.length],color:i%colors.length===3||i%colors.length===4?'#27382c':'#fff'}} title={`${file.name} · ${bytes(file.size)}`} aria-label={`${file.name} ${bytes(file.size)}`} onClick={()=>file.id===-1?void openMapOther():file.directory?void openFolder(file,[...breadcrumbs,file]):void reveal(file)}>{rect.height*mapSize.height/100>=90&&rect.width*mapSize.width/100>=75&&<span>{file.directory?<Folder size={16}/>:<File size={16}/>}</span>}<strong>{file.name}</strong><small>{bytes(file.size)}</small></button>})}{!map.length&&<div className="space-empty">{t('common.empty')}</div>}</div></div></div>
+          <div className="space-explorer"><DirectoryTree key={`${index.generation}:${activity?.id||''}`} index={index} selected={folder.id} activeTrail={breadcrumbs} bytes={bytes} onOpen={openFolder} onReveal={reveal} removedPaths={demo?removedPaths:[]} actions={(file)=>fileActions(file,{type:'entry',generation:index.generation,id:file.id},file.directory?undefined:()=>confirmTrash([file]))}/><div className="space-map-column"><div className="space-map-caption"><span title={t('disk.areaHint')}>{t('disk.top10')}{mapOffset>0&&` / ${t('disk.other')}`}</span>{mapOffset>0&&<button className="space-text-button" onClick={()=>setMapOffset((offset)=>Math.max(0,offset-10))}><ArrowLeft size={13}/>{t('disk.backTop')}</button>}</div><div className="space-treemap" ref={mapRef} role="group" aria-label={t('disk.map')}>{map.map((rect,i)=>{const file=mapEntries.find((entry)=>entry.id===rect.id)!;return <button className="space-treemap-cell" key={rect.id} style={{left:`${rect.x}%`,top:`${rect.y}%`,width:`${rect.width}%`,height:`${rect.height}%`,background:colors[i%colors.length],color:i%colors.length===3||i%colors.length===4?'#27382c':'#fff'}} title={`${file.name} · ${bytes(file.size)}`} aria-label={`${file.name} ${bytes(file.size)}`} onClick={()=>file.id===-1?void openMapOther():file.directory?void openFolder(file,[...breadcrumbs,file]):void reveal(file)}>{rect.height*mapSize.height/100>=90&&rect.width*mapSize.width/100>=75&&<span>{file.directory?<Folder size={16}/>:<File size={16}/>}</span>}<strong>{file.name}</strong><small>{bytes(file.size)}</small></button>})}{!map.length&&<div className="space-empty">{t('common.empty')}</div>}</div></div></div>
         </>}
         {view==='duplicates'&&<>
           {groups===null&&!busy&&<div className="space-start compact"><Copy size={28}/><button className="space-button primary" onClick={()=>void findDuplicates()}><Search size={16}/>{t('duplicates.find')}</button></div>}
@@ -285,7 +287,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
 
     {view==='history'&&<>
       {heading('history.title','history.subtitle')}
-      <div className="space-history-stats"><div><Sparkles size={20}/><strong>{bytes(cleaned)}</strong><span>{t('home.cleaned')}</span></div><div><Trash2 size={20}/><strong>{bytes(trashed)}</strong><span>{t('home.trashed')}</span></div><div><CheckCircle2 size={20}/><strong>{history.filter((r)=>r.items>0).length}</strong><span>{t('home.sessions')}</span></div></div>
+      <div className="space-history-stats"><div><Sparkles size={20}/><strong>{bytes(cleaned)}</strong><span>{t('home.achievement')}</span></div><div><Trash2 size={20}/><strong>{cleanedItems.toLocaleString(locale)}</strong><span>{t('home.cleanedItems')}</span></div><div><CheckCircle2 size={20}/><strong>{history.filter((r)=>r.items>0).length}</strong><span>{t('home.sessions')}</span></div></div>
 
       {history.length?activityRows(history):<div className="space-empty"><CheckCircle2 size={30}/><h2>{t('home.noHistory')}</h2></div>}
       <button className="space-ledger-toggle space-button" aria-expanded={ledgerOpen} onClick={()=>setLedgerOpen(!ledgerOpen)}>{t('history.ai')}<ChevronRight size={16}/></button>{ledgerOpen&&historyChildren}
@@ -326,7 +328,7 @@ export function StorageDialog({title,dismiss,children}:{title:string;dismiss:()=
   return <div className="space-dialog-backdrop"><div className="space-dialog" role="dialog" aria-modal="true" aria-labelledby="storage-dialog-title" tabIndex={-1} ref={ref}><h2 id="storage-dialog-title">{title}</h2>{children}</div></div>
 }
 
-function DirectoryTree({index,selected,activeTrail,bytes,onOpen,onReveal,actions}:{index:StorageIndex;selected:number;activeTrail:StorageEntry[];bytes:(n:number)=>string;onOpen:(e:StorageEntry,trail:StorageEntry[])=>Promise<void>;onReveal:(e:StorageEntry)=>Promise<void>;actions:(e:StorageEntry)=>React.ReactNode}):React.JSX.Element {
+function DirectoryTree({index,selected,activeTrail,bytes,onOpen,onReveal,actions,removedPaths}:{index:StorageIndex;selected:number;activeTrail:StorageEntry[];bytes:(n:number)=>string;onOpen:(e:StorageEntry,trail:StorageEntry[])=>Promise<void>;onReveal:(e:StorageEntry)=>Promise<void>;actions:(e:StorageEntry)=>React.ReactNode;removedPaths:string[]}):React.JSX.Element {
   const {t}=useI18n()
   const [nodes,setNodes]=useState<Map<number,StorageEntry[]>>(new Map())
   const [more,setMore]=useState<Map<number,boolean>>(new Map())
@@ -345,7 +347,7 @@ function DirectoryTree({index,selected,activeTrail,bytes,onOpen,onReveal,actions
   useEffect(()=>{current.current=index.generation;setNodes(new Map());setMore(new Map());setExpanded(new Set([0]));if(index.root)void load(index.root);return()=>{current.current=-1}},[index.generation,load])
   useEffect(()=>{setExpanded((s)=>new Set([...s,...activeTrail.map((e)=>e.id)]));for(const entry of activeTrail){if(entry.id!==0&&!nodes.has(entry.id))void load(entry)}},[selected,index.generation,load])
   const branch=(entry:StorageEntry,trail:StorageEntry[],depth:number):React.ReactNode=>{
-    const open=expanded.has(entry.id),children=nodes.get(entry.id)||[]
+    const open=expanded.has(entry.id),children=(nodes.get(entry.id)||[]).filter((file)=>!removedPaths.some((location)=>file.path===location||file.path.startsWith(location+'/')||file.path.startsWith(location+'\\')))
     return <div key={entry.id} role="none"><div className={`space-folder-row ${selected===entry.id?'is-active':''}`} role="treeitem" aria-selected={selected===entry.id} aria-expanded={entry.directory?open:undefined} aria-level={depth+1} style={{paddingLeft:8+depth*14}}>
       {entry.directory?<button className="icon-button tree-toggle" aria-label={`${t(open?'compact.collapse':'compact.expand')} ${entry.name}`} onClick={()=>{setExpanded((s)=>{const next=new Set(s);if(open)next.delete(entry.id);else next.add(entry.id);return next});if(!open&&!nodes.has(entry.id))void load(entry)}}><ChevronRight size={14} className={open?'is-open':''}/></button>:<span className="tree-spacer"/>}
       <button className="tree-folder-name" title={entry.path} onClick={()=>entry.directory?void onOpen(entry,trail):void onReveal(entry)}>{entry.directory?<Folder size={16}/>:<File size={16}/>}<span>{entry.name}</span><b>{bytes(entry.size)}</b></button>{actions(entry)}
@@ -365,12 +367,13 @@ function CleanupTree({rules,selected,onToggle,bytes,actions}:{rules:CleanupItem[
   })}</div>
 }
 
-function FileActions({file,target,onReveal}:{file:{path:string;size:number;name?:string;modified?:number};target:StorageTarget;onReveal:(target:StorageTarget)=>Promise<void>}):React.JSX.Element {
+function FileActions({file,target,onReveal,onTrash}:{file:{path:string;size:number;name?:string;modified?:number};target:StorageTarget;onReveal:(target:StorageTarget)=>Promise<void>;onTrash?:()=>void}):React.JSX.Element {
   const {t}=useI18n()
   const name=file.name||file.path.split(/[/\\]/).pop()||file.path
   return <span className="space-file-actions" onClick={(e)=>e.stopPropagation()}>
     <button className="icon-button" title={t('common.reveal')} aria-label={`${t('common.reveal')} ${name}`} onClick={()=>void onReveal(target)}><FolderOpen size={15}/></button>
     <AiActionButton request={{key:`file:${file.path}:${file.modified||file.size}`,title:name,prompt:t('file.prompt',{path:JSON.stringify(file.path),size:file.size,modified:file.modified?new Date(file.modified/1e6).toISOString():t('file.unknown')})}}/>
+    {onTrash&&<button className="icon-button file-trash" title={t('common.trash')} aria-label={`${t('common.trash')} ${name}`} onClick={onTrash}><Trash2 size={15}/></button>}
   </span>
 }
 

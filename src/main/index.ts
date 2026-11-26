@@ -1,3 +1,4 @@
+import {readApplicationIcon,clearApplicationIconCache} from './application-icon'
 import { applicationProcessBundle, terminateUserProcess } from './process-control'
 import { translate as processText } from '../shared/localization'
 import { collectPortableOverview, terminatePortableProcess, stopPortableOverview } from './portable-overview'
@@ -19,7 +20,7 @@ import { autoUpdater, type ProgressInfo, type UpdateInfo } from 'electron-update
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync, lstatSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, readdir, rename, rmdir, unlink } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rmdir } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -114,9 +115,7 @@ let registeredActions = new Map<string, RegisteredAction>()
 let storageService: StorageService
 let registeredRevealTargets = new Map<string, string>()
 let registeredTerminalFixes = new Map<string, RegisteredTerminalFix>()
-const applicationIconCache = new Map<string, string | null>()
 let registeredApplicationIconTargets = new Map<string, string>()
-let applicationIconQueue = Promise.resolve()
 let lastTerminalFixBackups = new Map<string, TerminalFixBackup>()
 let scanInProgress = false
 let currentScanResult: ScanResult | null = null
@@ -713,73 +712,6 @@ function installAppUpdate(): void {
   })
 }
 
-async function readApplicationIcon(target: string): Promise<string | null> {
-  if (applicationIconCache.has(target)) return applicationIconCache.get(target) ?? null
-  const operation = applicationIconQueue.then(async () => {
-    if (applicationIconCache.has(target)) return applicationIconCache.get(target) ?? null
-    try {
-      const resourcesDirectory = path.join(target, 'Contents', 'Resources')
-      const infoPath = path.join(target, 'Contents', 'Info.plist')
-      let iconPath: string | null = null
-      try {
-        const { stdout } = await execFileAsync('/usr/bin/plutil', [
-          '-extract',
-          'CFBundleIconFile',
-          'raw',
-          '-o',
-          '-',
-          infoPath
-        ], { timeout: 5_000 })
-        const configuredName = String(stdout).trim()
-        if (configuredName && path.basename(configuredName) === configuredName) {
-          const filename = configuredName.toLowerCase().endsWith('.icns')
-            ? configuredName
-            : `${configuredName}.icns`
-          const configuredPath = path.join(resourcesDirectory, filename)
-          if (existsSync(configuredPath)) iconPath = configuredPath
-        }
-      } catch {
-        // Fall through to the bundle's available ICNS resources.
-      }
-      if (!iconPath) {
-        const fallbackName = (await readdir(resourcesDirectory))
-          .filter((name) => name.toLowerCase().endsWith('.icns'))
-          .sort((a, b) => a.localeCompare(b))[0]
-        if (fallbackName) iconPath = path.join(resourcesDirectory, fallbackName)
-      }
-      let value: string | null = null
-      if (iconPath) {
-        const conversionDirectory = await mkdtemp(path.join(os.tmpdir(), 'memento-icon-'))
-        const outputPath = path.join(conversionDirectory, 'icon.png')
-        try {
-          await execFileAsync('/usr/bin/sips', [
-            '-z',
-            '96',
-            '96',
-            '-s',
-            'format',
-            'png',
-            iconPath,
-            '--out',
-            outputPath
-          ], { timeout: 8_000 })
-          const png = await readFile(outputPath)
-          value = `data:image/png;base64,${png.toString('base64')}`
-        } finally {
-          await unlink(outputPath).catch(() => undefined)
-          await rmdir(conversionDirectory).catch(() => undefined)
-        }
-      }
-      applicationIconCache.set(target, value)
-      return value
-    } catch {
-      applicationIconCache.set(target, null)
-      return null
-    }
-  })
-  applicationIconQueue = operation.then(() => undefined, () => undefined)
-  return operation
-}
 
 function themeBackground(theme: AppTheme): string {
   const backgrounds: Record<AppTheme, string> = {
@@ -1790,7 +1722,7 @@ app.whenReady().then(async () => {
       registeredRevealTargets = new Map()
       registeredApplicationIconTargets = new Map()
       registeredTerminalFixes = new Map()
-      applicationIconCache.clear()
+      clearApplicationIconCache()
     }
     if (currentScanResult && (
       'serviceWhitelist' in input ||

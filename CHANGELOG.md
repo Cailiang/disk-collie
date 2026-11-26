@@ -4,6 +4,24 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.13 - 2026-11-26
+
+### English
+
+- Give large-file, duplicate and storage-analysis scans their own progress labels; add reviewed personal-file deletion to Space explorer with cross-index reconciliation.
+- Remove Overview's repeated recent list and unify successful cleanup bytes across deletion methods, with processed-item and session totals.
+- Persist cleanup records incrementally in the existing embedded SQLite database beside encrypted providers and custom settings; import legacy JSON once without losing or duplicating history.
+- Replace application sort controls with bidirectional column headers and separate User/System tabs. Hide system uninstall and enforce protection in Main.
+- Load real macOS bundle artwork for application logos and retry cached rows after live registration. Keep the app removable when related data is absent or cannot be measured.
+
+### 简体中文
+
+- 大文件、重复文件和空间分析分别显示对应扫描提示；空间分析文件行新增核对后移到废纸篓，并同步所有索引。
+- 首页移除重复的最近记录，统一累计成功清理的体积，展示处理项目及清理次数。
+- 清理记录改为增量写入现有内置 SQLite，与加密供应商和自定义配置同库；旧 JSON 一次迁入，保留历史并避免重复。
+- 应用管理改为列标题双向排序、用户／系统应用标签；系统应用不展示卸载，主进程也拒绝卸载。
+- 应用 Logo 优先使用真实 macOS 应用包图标，缓存转实时登记后重试；无关联数据或测量失败时仍可单独卸载应用本体。
+
 ## 1.0.12 - 2026-11-26
 
 ### English

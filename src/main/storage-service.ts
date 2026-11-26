@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises'
+import { lstat, readFile, readdir, realpath, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -23,6 +23,8 @@ import {discoverPrivacyRules} from './privacy-rules'
 import { storageRules } from './storage-rules'
 import { StorageTaskQueue } from './storage-task-queue'
 import { isStorageMutationAllowed } from './storage-policy'
+import {StorageLedger} from './storage-ledger'
+import {readApplicationIcon} from './application-icon'
 
 const exec = promisify(execFile)
 const home = os.homedir()
@@ -131,7 +133,7 @@ export class StorageService {
   }
   private related = new Map<string, { file: RelatedApplicationFile; snapshot: Snapshot; applicationId: string }>()
   private generation = 0
-  private historyPath = path.join(app.getPath('userData'), 'storage-history.json')
+  private ledger:StorageLedger|null=null
   async init(): Promise<void> {
     const cached=await this.applicationCache.read()
     if(cached){
@@ -142,16 +144,11 @@ export class StorageService {
         this.applications.set(application.id,application);this.measuredApplicationFingerprints.set(application.id,entry.fingerprint)
       }
     }
-    try {
-      const data: unknown = JSON.parse(await readFile(this.historyPath, 'utf8'))
-      const parsed = z.array(z.object({ id:z.string(), date:z.string(), kind:z.enum(['large','duplicates','cleanup','privacy','uninstall']), items:z.number().nonnegative(), bytes:z.number().nonnegative(), failures:z.number().nonnegative(), locations:z.array(z.string()) })).safeParse(data)
-      if (parsed.success) this.history = parsed.data
-    } catch { /* First launch has no ledger. */ }
+    this.ledger?.close();this.ledger=new StorageLedger(app.getPath('userData'));this.history=this.ledger.list()
   }
   private async save(): Promise<void> {
-    await mkdir(path.dirname(this.historyPath), { recursive: true })
-    await writeFile(`${this.historyPath}.tmp`, JSON.stringify(this.history), { mode: 0o600 })
-    await rename(`${this.historyPath}.tmp`, this.historyPath)
+    this.ledger??=new StorageLedger(app.getPath('userData'))
+    if(this.history[0])this.ledger.save(this.history[0])
   }
   private exclusive<T>(scope:import('../shared/storage-types').StorageTaskScope,work:()=>Promise<T>,mutation=false):Promise<T> {return this.queue.run(scope,work,mutation)}
   private session(generation:number) {
@@ -253,10 +250,11 @@ export class StorageService {
       return result
     },true)
   }
-  async trash(input: { generation: number; ids: number[]; kind: 'large' | 'duplicates'; groupId?: string }): Promise<StorageActivity> {
+  async trash(input: { generation: number; ids: number[]; kind: StorageMode; groupId?: string }): Promise<StorageActivity> {
     return this.exclusive(input.kind,async () => {
       const session=this.session(input.generation)
       const {index,engine}=session
+      if(index.mode!==input.kind)throw new Error('The selected files belong to another scan')
       const entries = await Promise.all(input.ids.map((id) => engine.request<StorageEntry>('entry', { id })))
       for (const entry of entries) if (!index.root || !isStorageMutationAllowed(entry.path, index.root.path) || entry.directory) throw new Error('This location is protected. Only personal files can be moved here.')
       if (input.kind === 'duplicates') {
@@ -411,10 +409,15 @@ export class StorageService {
       }
       const valid: Array<{ path:string;kind:RelatedApplicationFile['kind'];snapshot:Snapshot }>=[]
       for (const target of targets) { if (!target.path) continue; try { valid.push({...target,snapshot:await snapshot(target.path)}) } catch { continue } }
-      const measured=await this.engine.request<Array<{path:string;size:number;errors:number}>>('measure',{paths:valid.map((v)=>v.path)})
+      if(!valid.some((value)=>value.kind==='application'))throw new Error(translate(this.language(),'apps.filesUnavailable'))
+      const data=valid.filter((value)=>value.kind!=='application')
+      const timeout=setTimeout(()=>this.engine.stop('Application detail measurement timed out'),8000);timeout.unref()
+      let measured:Array<{path:string;size:number;errors:number}>=[]
+      try{if(data.length)measured=await this.engine.request('measure',{paths:data.map((value)=>value.path)})}catch{/* The application itself remains removable when related sizes cannot be read. */}finally{clearTimeout(timeout)}
       return valid.flatMap((v)=>{
-        const size=measured.find((m)=>m.path===v.path); if (!size || size.errors) return []
-        const file:RelatedApplicationFile={id:randomUUID(),path:v.path,kind:v.kind,size:size.size,directory:v.snapshot.directory}
+        const size=measured.find((m)=>m.path===v.path)
+        if(v.kind!=='application'&&(!size||size.errors))return []
+        const file:RelatedApplicationFile={id:randomUUID(),path:v.path,kind:v.kind,size:v.kind==='application'?application.size:size!.size,directory:v.snapshot.directory}
         this.related.set(file.id,{file,snapshot:v.snapshot,applicationId:id}); return [file]
       })
     })
@@ -423,7 +426,7 @@ export class StorageService {
     await this.registeredApplication(input.applicationId)
     return this.exclusive('apps',async () => {
       const application=this.applications.get(input.applicationId)
-      if (!application || application.protected) throw new Error('This application is protected')
+      if (!application || application.protected || application.system) throw new Error('This application is protected')
       if (application.method === 'system') {
         if (process.platform === 'win32') await shell.openExternal('ms-settings:appsfeatures')
         else await shell.openExternal(`appstream://${encodeURIComponent(application.bundleId || '')}`)
@@ -445,7 +448,7 @@ export class StorageService {
     if(!owner)return null
     const installed=[...this.applications.values()].find((application)=>owner.bundleIds.some((bundle)=>application.bundleId?.toLowerCase()===bundle.toLowerCase())||application.name===owner.name)
     for(const target of [...(installed?[installed.iconPath||installed.location]:[]),...owner.iconPaths]){
-      try{await lstat(target);const icon=await app.getFileIcon(target,{size:'normal'});if(!icon.isEmpty())return icon.toDataURL()}catch{/* Try the next installed location. */}
+      try{await lstat(target);const icon=await readApplicationIcon(target,installed?.version);if(icon)return icon}catch{/* Try the next installed location. */}
     }
     return null
   }
@@ -465,7 +468,7 @@ export class StorageService {
         session.groups=new Map(result.groups.map((group)=>[group.id,group]));return result
       }finally{this.activeEngines.delete('duplicates')}
     }))
-    handle('trash',(v)=>this.trash(scope.extend({ids:z.array(int).min(1).max(500).transform((v)=>[...new Set(v)]),kind:z.enum(['large','duplicates']),groupId:z.string().max(100).optional()}).parse(v)))
+    handle('trash',(v)=>this.trash(scope.extend({ids:z.array(int).min(1).max(500).transform((v)=>[...new Set(v)]),kind:z.enum(['analysis','large','duplicates']),groupId:z.string().max(100).optional()}).parse(v)))
     handle('reveal',async(v)=>{const q=entryInput.parse(v);const entry=await this.session(q.generation).engine.request<StorageEntry>('entry',q);shell.showItemInFolder(entry.path)})
     handle('reveal-target',async(v)=>{
       const q=z.discriminatedUnion('type',[
@@ -494,10 +497,10 @@ export class StorageService {
     handle('application-icon',async(v)=>{
       const id=z.string().uuid().parse(v);const application=this.applications.get(id)
       if(!application||(!application.location&&!application.iconPath))return null
-      try {if(process.platform==='linux'&&application.iconPath&&/\.(png|svg)$/i.test(application.iconPath)){const data=await readFile(application.iconPath);if(data.length<=2*1024*1024)return `data:image/${application.iconPath.endsWith('.svg')?'svg+xml':'png'};base64,${data.toString('base64')}`}const icon=await app.getFileIcon(application.iconPath||application.location,{size:'normal'});return icon.isEmpty()?null:icon.toDataURL()}catch{return null}
+      return readApplicationIcon(application.iconPath||application.location,this.applicationFingerprints.get(id)||application.version)
     })
     handle('related',(v)=>this.inspectApplication(z.string().uuid().parse(v)))
     handle('uninstall',(v)=>this.uninstall(z.object({applicationId:z.string().uuid(),ids:z.array(z.string().uuid()).max(500)}).parse(v)))
-    app.on('before-quit',()=>{this.stopApplicationInventory();this.engine.stop();for(const engine of this.activeEngines.values())engine.stop();this.cleanupEngines.cleanup.stop();this.cleanupEngines.privacy.stop();this.systemEngine.stop();for(const session of this.sessions.values())session.engine.stop()})
+    app.on('before-quit',()=>{this.ledger?.close();this.ledger=null;this.stopApplicationInventory();this.engine.stop();for(const engine of this.activeEngines.values())engine.stop();this.cleanupEngines.cleanup.stop();this.cleanupEngines.privacy.stop();this.systemEngine.stop();for(const session of this.sessions.values())session.engine.stop()})
   }
 }

@@ -1,4 +1,15 @@
-import type {RelatedApplicationFile} from './storage-types'
+import type {RelatedApplicationFile,StorageApplication} from './storage-types'
+export type ApplicationSort='name'|'used'|'size'
+export function compareApplications(a:StorageApplication,b:StorageApplication,sort:ApplicationSort,direction:'ascending'|'descending',locale:string):number{
+  const sign=direction==='ascending'?1:-1
+  if(sort==='used'){
+    const first=a.lastUsedAt?Date.parse(a.lastUsedAt):NaN,second=b.lastUsedAt?Date.parse(b.lastUsedAt):NaN
+    if(Number.isFinite(first)!==Number.isFinite(second))return Number.isFinite(first)?-1:1
+    if(Number.isFinite(first)&&first!==second)return (first-second)*sign
+  }
+  if(sort==='size'&&a.size!==b.size)return (a.size-b.size)*sign
+  return a.name.localeCompare(b.name,locale)*(sort==='name'?sign:1)
+}
 export function pathContains(parent:string,child:string):boolean {
   return child===parent||child.startsWith(parent.endsWith('/')||parent.endsWith('\\')?parent:parent+(parent.includes('\\')?'\\':'/'))
 }

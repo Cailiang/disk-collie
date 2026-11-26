@@ -57,7 +57,7 @@ export interface CleanupItem {
 export interface StorageActivity {
   id: string
   date: string
-  kind: 'large' | 'duplicates' | 'cleanup' | 'privacy' | 'uninstall'
+  kind: 'analysis' | 'large' | 'duplicates' | 'cleanup' | 'privacy' | 'uninstall'
   items: number
   bytes: number
   failures: number
@@ -105,7 +105,7 @@ export interface StorageApi {
   storageChildren: (input: { generation: number; id: number; offset?: number }) => Promise<{ parent: StorageEntry; items: StorageEntry[] }>
   storageLarge: (input: { generation: number; minimum: number; search: string; offset: number; category?: FileCategory | 'all' }) => Promise<{ count: number; items: StorageEntry[]; categories?: Record<string,number> }>
   storageDuplicates: (generation: number, minimum?:number) => Promise<{ groups: DuplicateGroup[]; elapsedMs: number }>
-  storageTrash: (input: { generation: number; ids: number[]; kind: 'large' | 'duplicates'; groupId?: string }) => Promise<StorageActivity>
+  storageTrash: (input: { generation: number; ids: number[]; kind: StorageMode; groupId?: string }) => Promise<StorageActivity>
   storageReveal: (input: { generation: number; id: number }) => Promise<void>
   storageRevealTarget: (target:StorageTarget) => Promise<void>
   storageCleanup: (privacy: boolean) => Promise<CleanupItem[]>
