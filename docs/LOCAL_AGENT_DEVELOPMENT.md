@@ -14,7 +14,7 @@ The old Renderer, hosted AI analysis, Memento Server, OAuth flow, AI Gateway pro
 React Renderer
   Home / Cleanup / Large files / Duplicates / Space explorer / Privacy
   Applications / Processes / Terminal
-  AI assistant / Activity / Settings
+  Cleanup advisor / Conversation history / Settings
                |
                | typed, narrow IPC
                v
@@ -274,3 +274,9 @@ Fixture tests cover SQLite table/record preservation, shared-source selection, c
 `AppSettings.scanExcludedDirectories` is normalized and persisted in the embedded settings row. Main owns native folder selection/canonicalization and publishes `memento:storage:scope-changed` after add/remove or a changed settings update. Storage workspaces invalidate retained results and guard asynchronous completion with a scope epoch. Discovery and mutation use component-aware exclusions; whole-folder deletion also rejects excluded descendants. Legacy whitelist fields are kept for migration compatibility but are no longer the Settings UI.
 
 Settings defaults to a custom OpenAI-compatible endpoint. Users enter name/address/key, explicitly fetch model IDs, select and save. Official presets have fixed URLs. Help uses a question-mark disclosure. Model responses are guarded by draft sequence; credential changes invalidate previous results, and changing destinations requires a new key instead of borrowing a saved secret.
+
+## Cleanup advisor and scan mascot
+
+`AgentPage` presents a focused Cleanup advisor with source-workspace navigation and three concrete intents. `App` retains its draft and provider-setup origin; initial evidence discovery is triggered by a submitted question, rather than visiting this page. The existing registered tool runtime keeps confirmation and contextual returns, and instructions prioritize cleanup recommendations, ownership, impact and recovery. The execution sidebar mounts only when the selected run contains a plan.
+
+`MascotScene` renders a 2×2 photographic sprite sheet via CSS background-position frames. Games differ by workspace and can be changed without affecting actual work. All frames stop with `prefers-reduced-motion: reduce`. Navigation icons live in `agent-ui/NavigationIcon.tsx`; app icon exports use `npm run icon` and the checked-in source PNG. No remote image URLs or runtime image-generation calls are used.

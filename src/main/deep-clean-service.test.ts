@@ -23,18 +23,29 @@ describe('deep clean registration and catalog',()=>{
     expect(scan.items.flatMap((item)=>item.sources).filter((source)=>npm.startsWith(source.path+path.sep))).toHaveLength(1)
     expect(scan.items.flatMap((item)=>item.sources).filter((source)=>browser.startsWith(source.path+path.sep))).toHaveLength(1)
   })
-  it('keeps entire model stores read-only and excludes Service Worker roots and credentials',async()=>{
+  it('skips entire model stores and excludes Service Worker roots and credentials',async()=>{
     const model=await file('.ollama/models/imported-local-model','user trained weights'),manifest=await file('Library/Application Support/Code/Service Worker/CacheStorage/extension-script','extension cache'),secret=await file('.codex/auth.json','SECRET'),cache=await file('.codex/tmp/old.bin','temporary')
     const catalog=await deepCleanDefinitions(context)
     expect(catalog.some((entry)=>entry.paths.some((target)=>manifest.startsWith(target+path.sep)))).toBe(false)
-    const service=new DeepCleanService(),scan=await service.scan(context),modelItem=scan.items.find((item)=>item.key==='ollama-models')!
-    expect(modelItem).toMatchObject({risk:'protected',recommended:false,status:'review-only'})
-    expect(modelItem.sources[0].cleanupMethod).toBe('none')
-    await expect(service.prepare([modelItem.sources[0].id],()=>false)).rejects.toThrow('deep.sourceUnavailable')
+    const service=new DeepCleanService(),scan=await service.scan(context)
+    expect(scan.items.some((item)=>item.key==='ollama-models')).toBe(false)
+    expect(catalog.some((item)=>item.paths.some((target)=>model.startsWith(target+path.sep)))).toBe(false)
     const cacheItem=scan.items.find((item)=>item.sources.some((source)=>cache.startsWith(source.path+path.sep)))!
     const prepared=await service.prepare(cacheItem.sources.map((source)=>source.id),()=>false)
     for(const entry of prepared.entries)await entry.snapshot.clean()
     expect(await readFile(secret,'utf8')).toBe('SECRET');expect(await readFile(model,'utf8')).toBe('user trained weights');expect(await readFile(manifest,'utf8')).toBe('extension cache')
+  })
+  it('prunes unsupported definitions before snapshots and sorts items, sources and preview files by size',async()=>{
+    const small=await file('small/data','s'),large=await file('large/data','largest'),medium=await file('medium/data','mid')
+    const never=vi.fn(async()=>{throw new Error('Unsupported sources must never be scanned')})
+    const excluded=[{...definition('protected',home),risk:'protected' as const},{...definition('readonly',home),options:{readOnly:true}},{...definition('none',home),cleanupMethod:'none' as const}].map((entry)=>({...entry,snapshot:never}))
+    const service=new DeepCleanService(async()=>[...excluded,{...definition('mixed',path.dirname(small)),paths:[path.dirname(small),path.dirname(large)]},definition('middle',path.dirname(medium))])
+    const scan=await service.scan(context)
+    expect(never).not.toHaveBeenCalled();expect(scan.items.map((item)=>item.key)).toEqual(['mixed','middle'])
+    expect(scan.items[0].sources.map((source)=>source.path)).toEqual([path.dirname(large),path.dirname(small)])
+    const root=path.join(home,'preview');await file('preview/small','x');await file('preview/large','longer')
+    const previewService=new DeepCleanService(async()=>[definition('preview',root)]),previewScan=await previewService.scan(context)
+    expect((await previewService.preview(previewScan.items[0].sources[0].id)).files.map((entry)=>entry.name)).toEqual(['large','small'])
   })
   it('retains stable opaque source IDs and pages 100 actual files',async()=>{
     const root=path.join(home,'cache');for(let index=0;index<103;index++)await file('cache/'+index)

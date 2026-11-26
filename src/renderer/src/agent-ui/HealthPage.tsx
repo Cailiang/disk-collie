@@ -1,3 +1,4 @@
+import {MascotScene} from '../MascotScene'
 import {
   AppWindow,
   Boxes,
@@ -354,7 +355,7 @@ export function HealthPage({
       </div>
 
       {scanBusy && progress && (
-        <div className="cleanup-scan-progress" role="status" aria-live="polite">
+        <div className="cleanup-scan-progress" role="status" aria-live="polite"><MascotScene activity="basketball"/>
           <span><LoaderCircle className="spinner" size={15} />{progress.message}</span>
           <div><i style={{ transform: `scaleX(${Math.max(0, Math.min(100, progress.progress)) / 100})` }} /></div>
           <strong>{progress.progress}%</strong>

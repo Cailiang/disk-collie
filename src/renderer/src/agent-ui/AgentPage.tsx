@@ -1,3 +1,8 @@
+import mascotLogo from '../assets/mascot/logo.png'
+import {NavigationIcon} from './NavigationIcon'
+import type {AgentViewKey} from './Shell'
+import {MascotScene} from '../MascotScene'
+import './CleanupAdvisor.css'
 import {
   ArrowLeft,
   ArrowUp,
@@ -22,32 +27,6 @@ import { useI18n } from '../i18n'
 import { AgentMarkdown } from './AgentMarkdown'
 import { AgentResults } from './AgentResults'
 import { formatBytes, runStatusLabel } from './utils'
-
-const QUICK_ACTIONS: Array<{
-  icon: typeof HardDrive
-  title: [string, string]
-  detail: [string, string]
-  prompt: [string, string]
-}> = [
-  {
-    icon: HardDrive,
-    title: ['释放磁盘空间', 'Free disk space'],
-    detail: ['检查缓存、旧文件和应用占用', 'Inspect caches, old files, and applications'],
-    prompt: ['帮我深度检查磁盘空间，找出可以安全清理的内容', 'Inspect disk usage and find content that can be cleaned safely']
-  },
-  {
-    icon: RadioTower,
-    title: ['检查后台服务', 'Check services'],
-    detail: ['定位异常启动项和常驻进程', 'Find unusual startup items and processes'],
-    prompt: ['检查最近拖慢电脑的后台服务，并给出处理计划', 'Inspect background services that may slow this computer and prepare a plan']
-  },
-  {
-    icon: SquareTerminal,
-    title: ['优化终端启动', 'Optimize terminal'],
-    detail: ['分析配置耗时并准备可撤销修复', 'Analyze startup cost and prepare reversible fixes'],
-    prompt: ['检查终端启动速度并自动修复可以安全处理的问题', 'Inspect terminal startup and prepare safe automatic fixes']
-  }
-]
 
 function runIsBusy(run: AgentRunRecord | null): boolean {
   return Boolean(run && ['preparing', 'analyzing', 'plan-ready', 'executing', 'verifying'].includes(run.status))
@@ -135,7 +114,11 @@ export function AgentPage({
   onAddPlanItem,
   onTogglePlanItem,
   onExecutePlan,
-  onDiscardPlan
+  onDiscardPlan,
+  preparing,
+  draft,
+  onDraftChange,
+  onNavigate
 }: {
   scan: ScanResult | null
   run: AgentRunRecord | null
@@ -147,7 +130,11 @@ export function AgentPage({
   addingOperationId: string | null
   openingApplicationId: string | null
   returnLabel: string | null
-  onSubmit: (prompt: string) => void
+  onSubmit: (prompt: string) => Promise<boolean>
+  preparing:boolean
+  draft:string
+  onDraftChange:(value:string)=>void
+  onNavigate:(view:AgentViewKey)=>void
   onSelectWorkspaceRun: (run: AgentRunRecord) => void
   onCloseWorkspaceRun: (conversationId: string) => void
   onNewTask: () => void
@@ -161,7 +148,8 @@ export function AgentPage({
   onDiscardPlan: () => void
 }): React.JSX.Element {
   const { language, text } = useI18n()
-  const [input, setInput] = useState('')
+  const input=draft,setInput=onDraftChange
+  const composerRef=useRef<HTMLTextAreaElement>(null)
   const conversationRef = useRef<HTMLDivElement>(null)
   const busy = runIsBusy(run)
   const waitingConfirmation = run?.status === 'awaiting-confirmation'
@@ -175,24 +163,23 @@ export function AgentPage({
     conversationRef.current?.scrollTo({ top: conversationRef.current.scrollHeight, behavior: 'smooth' })
   }, [conversationRuns.length, run?.status, run?.updatedAt, statusMessage])
 
-  const submit = (): void => {
-    const prompt = input.trim()
-    if (!prompt || busy || !scan) return
+  const submit = async (question=input): Promise<void> => {
+    const prompt = question.trim()
+    if (!prompt || busy || preparing) return
     if (!providerConfigured) {
       onOpenSettings()
       return
     }
-    setInput('')
-    onSubmit(prompt)
+    if(await onSubmit(prompt))setInput('')
   }
 
   return (
-    <section className="page agent-page is-active">
+    <section className={`page agent-page cleanup-advisor is-active ${run?.plan.length?'has-plan':''}`}>
       <div className="agent-main">
         <header className="agent-heading">
           <div>
-            <h1>{text("legacy.what_would_you_like_to_handle.04a7bd")}</h1>
-            <p>{text("legacy.agent_can_inspect_issues_prepare_a_plan_an.8f37dd")}</p>
+            <h1>{text('advisor.title')}</h1>
+            <p>{text('advisor.subtitle')}</p>
           </div>
           <div className="session-menu">
             {returnLabel && <button type="button" className="secondary-button return-origin-button" onClick={onReturn}><ArrowLeft size={15} />{text("legacy.back_to.f5c261", { p0: returnLabel })}</button>}
@@ -234,29 +221,17 @@ export function AgentPage({
         )}
 
         <div className="conversation" ref={conversationRef} aria-live="polite">
-          <div className="message assistant">
-            <span className="message-avatar"><Sparkles size={16} /></span>
-            <div className="message-body">
-              <p><strong>{text("legacy.the_device_is_ready.807c23")}</strong> {scan
-                ? text("legacy.the_latest_scan_found_items_you_can_inspec.3d2ca1", { p0: scan.candidates.length })
-                : text("legacy.preparing_the_first_health_scan.74b224")}</p>
+          {!conversationRuns.length&&<div className="advisor-start">
+            <img className="advisor-mascot" src={mascotLogo} alt={text('brand.collie')}/>
+            <h2>{text('advisor.startTitle')}</h2>
+            <div className="advisor-intents">
+              <button type="button" disabled={preparing||busy} onClick={()=>{const question=text('advisor.priorityPrompt');setInput(question);void submit(question)}}><NavigationIcon kind="health" size={23}/><span><strong>{text('advisor.priority')}</strong><small>{text('advisor.priorityDetail')}</small></span><ArrowUp size={16}/></button>
+              <button type="button" disabled={preparing||busy} onClick={()=>{setInput(text('advisor.fileDraft'));composerRef.current?.focus()}}><NavigationIcon kind="large" size={23}/><span><strong>{text('advisor.file')}</strong><small>{text('advisor.fileDetail')}</small></span><ArrowUp size={16}/></button>
+              <button type="button" onClick={()=>onNavigate('apps')}><NavigationIcon kind="apps" size={23}/><span><strong>{text('advisor.apps')}</strong><small>{text('advisor.appsDetail')}</small></span><ArrowUp size={16}/></button>
             </div>
-          </div>
-
-          {!conversationRuns.length && (
-            <div className="quick-actions">
-              {QUICK_ACTIONS.map((action) => {
-                const Icon = action.icon
-                return (
-                  <button key={action.title[0]} type="button" className="quick-action" onClick={() => onSubmit(text(...action.prompt))} disabled={!providerConfigured || !scan}>
-                    <span><Icon size={16} /></span>
-                    <span><strong>{text(...action.title)}</strong><small>{text(...action.detail)}</small></span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
+            <div className="advisor-source-links"><span>{text('advisor.fromResults')}</span>{(['large','health','disk'] as const).map((source)=><button type="button" key={source} onClick={()=>onNavigate(source)}><NavigationIcon kind={source} size={16}/>{text(`nav.${source==='health'?'cleanup':source}`)}</button>)}</div>
+          </div>}
+          {preparing&&<div className="advisor-preparing" role="status"><MascotScene activity="frisbee"/><span>{text('advisor.preparing')}</span></div>}
           {conversationRuns.map((conversationRun) => {
             const isActive = conversationRun.id === run?.id
             const runBusy = isActive && busy
@@ -309,17 +284,15 @@ export function AgentPage({
         </div>
 
         <div className="composer-wrap">
-          <form className="composer" onSubmit={(event) => { event.preventDefault(); submit() }}>
+          {!providerConfigured&&<div className="advisor-provider"><span>{text('advisor.providerNeeded')}</span><button type="button" className="space-button" onClick={onOpenSettings}>{text('tasks.configure')}</button></div>}
+          <form className="composer" onSubmit={(event) => { event.preventDefault(); void submit() }}>
             <textarea
+              ref={composerRef}
               rows={1}
               aria-label={text("legacy.enter_task.405f37")}
-              placeholder={providerConfigured
-                ? scan
-                  ? text("legacy.describe_what_you_want_to_inspect_or_handl.e70f0b")
-                  : text("legacy.preparing_the_local_rules_scan.58f6f7")
-                : text("legacy.configure_a_model_provider_in_settings_fir.f98816")}
+              placeholder={text('advisor.placeholder')}
               value={input}
-              disabled={busy || !scan}
+              disabled={busy||preparing}
               onChange={(event) => {
                 setInput(event.target.value)
                 event.currentTarget.style.height = 'auto'
@@ -328,18 +301,18 @@ export function AgentPage({
               onKeyDown={(event) => {
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault()
-                  submit()
+                  void submit()
                 }
               }}
             />
-            <button type="submit" className="send-button" title={text("legacy.send.f1004b")} aria-label={text("legacy.send.f1004b")} disabled={!input.trim() || busy || !scan}>
+            <button type="submit" className="send-button" title={text("legacy.send.f1004b")} aria-label={text("legacy.send.f1004b")} disabled={!input.trim()||busy||preparing}>
               {busy ? <LoaderCircle className="spinner" size={17} /> : <ArrowUp size={17} />}
             </button>
           </form>
         </div>
       </div>
 
-      <aside className="agent-rail" aria-label={text("legacy.current_task.711bf2")}>
+      {Boolean(run?.plan.length)&&<aside className="agent-rail" aria-label={text("legacy.current_task.711bf2")}>
         <div className="rail-header">
           <h2>{text("legacy.current_task.711bf2")}</h2>
           <span className="state-label">{run ? runStatusLabel(run.status, language) : text("legacy.waiting.b4e9d2")}</span>
@@ -383,7 +356,7 @@ export function AgentPage({
             )}
           </div>
         )}
-      </aside>
+      </aside>}
     </section>
   )
 }

@@ -4,6 +4,26 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.18 - 2026-11-26
+
+### English
+
+- Sort Deep cleanup categories, rules, source paths and file previews by descending size; preserve selections as remaining sizes change.
+- Skip unsupported inspection-only sources before discovery/measurement, including model stores, container virtual disks, protected archives and app architecture analysis. Keep permission, active-app and incomplete-scan states for supported cleanup rules.
+- Introduce the border collie application icon, startup/sidebar mark and four photographic scan animations: ball, frisbee, tug and basketball. Click to switch games; reduced-motion settings stop automatic animation. Actual progress and cancellation remain independent.
+- Draw a consistent semantic icon family for every navigation item and remove horizontal Settings separators.
+- Reposition AI assistant as Cleanup advisor: file identification, cleanup impact and size-based priorities, source-workspace links, retained questions across provider setup and contextual result navigation. Visiting the page no longer starts a scan; evidence is collected when a question is submitted. Show the execution rail only when a real plan exists.
+- Update bilingual UI coverage, native/Electron fixture assertions and asset provenance/export instructions.
+
+### 简体中文
+
+- 深度清理的分类、项目、来源路径及文件明细按体积倒序，清理后依据剩余体积重新排序并保留选择。
+- 在发现／测量前跳过模型库、容器虚拟盘、受保护归档和应用架构等仅供查看的来源；可清理规则的权限、占用和不完整状态继续明确展示。
+- 更换边牧应用图标、启动页和侧栏标识，加入玩球、接飞盘、拔河、篮球四组照片扫描动画；点击可切换游戏，遵循系统减少动态效果设置，扫描进度与取消不受影响。
+- 各菜单采用统一笔画、匹配功能的专属图标；移除设置页水平分隔线。
+- AI 助手改为清理顾问，聚焦文件用途、清理影响和空间优先级，提供扫描结果入口；进入页面不自动扫描，提交问题时读取本机信息。配置模型往返保留问题，分析结果可回原页面，仅有真实执行计划时展示侧栏。
+- 同步双语界面、UI 覆盖、原生／Electron 夹具及素材生成与导出说明。
+
 ## 1.0.17 - 2026-11-26
 
 ### English

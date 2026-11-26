@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import type {DeepCleanItem,DeepCleanPreview,DeepCleanScan,DeepCleanSource} from '../shared/deep-clean-types'
 import {privacyAccessFailure,type PrivacySource} from './privacy-resource'
 import {assertDeepNotCancelled,type DeepCleanContext} from './deep-clean-context'
-import {deepCleanDefinitions,type DeepCleanDefinition} from './deep-clean-rules'
+import {deepCleanDefinitions,supportsDeepCleanup,type DeepCleanDefinition} from './deep-clean-rules'
 import {deepFileSnapshot,type DeepCleanSnapshot} from './deep-clean-resource'
 
 export interface RegisteredDeepCleanSource {item:DeepCleanItem;source:DeepCleanSource;snapshot:DeepCleanSnapshot;definition:DeepCleanDefinition}
@@ -16,7 +16,7 @@ export class DeepCleanService {
   owner(id:string):PrivacySource|undefined{return this.registered.get(id)?.definition.owner||this.items.find((item)=>item.id===id)?.owner}
   forget(id:string):void{this.registered.delete(id)}
   async scan(context:DeepCleanContext,running:(name:string)=>boolean=()=>false,progress?:(done:number,total:number,path:string)=>void):Promise<DeepCleanScan>{
-    const started=Date.now(),definitions=await this.discover(context),until=Date.now(),previousIds=new Map([...this.registered].map(([id,value])=>[value.definition.key+'\0'+value.source.path,id])),previousItems=new Map(this.items.map((item)=>[item.key,item.id]))
+    const started=Date.now(),definitions=(await this.discover(context)).filter(supportsDeepCleanup),until=Date.now(),previousIds=new Map([...this.registered].map(([id,value])=>[value.definition.key+'\0'+value.source.path,id])),previousItems=new Map(this.items.map((item)=>[item.key,item.id]))
     const next=new Map<string,RegisteredDeepCleanSource>(),items:DeepCleanItem[]=[]
     let processed=0,errors=0,limited=false
     for(const definition of definitions){
@@ -29,6 +29,8 @@ export class DeepCleanService {
           assertDeepNotCancelled(context.signal)
           snapshot={count:0,size:0,modified:null,status:privacyAccessFailure(error)?'permission-required':(error as NodeJS.ErrnoException).code==='ENOENT'?'empty':'unavailable',files:[],validate:async()=>{throw new Error('deep.sourceUnavailable')},clean:async()=>{throw new Error('deep.sourceUnavailable')}}
         }
+        if(snapshot.status==='review-only')continue
+        snapshot={...snapshot,files:[...snapshot.files].sort((a,b)=>b.size-a.size||a.path.localeCompare(b.path))}
         const id=previousIds.get(definition.key+'\0'+target)||randomUUID()
         const source:DeepCleanSource={id,cleanupMethod:definition.cleanupMethod||(definition.options?.readOnly?'none':'delete'),path:target,name:target.split(/[/\\]/).filter(Boolean).at(-1)||target,size:snapshot.size,count:snapshot.count,modified:snapshot.modified,status:snapshot.status==='ready'&&item.runningApps.length?'requires-close':snapshot.status}
         item.sources.push(source);item.size+=source.size;item.count+=source.count
@@ -38,10 +40,12 @@ export class DeepCleanService {
       }
       const states=item.sources.map((source)=>source.status)
       item.status=states.includes('ready')?'ready':states.includes('requires-close')?'requires-close':states.includes('permission-required')?'permission-required':states.includes('limited')?'limited':states.includes('review-only')?'review-only':states.includes('unavailable')?'unavailable':'empty'
-      items.push(item);progress?.(++processed,definitions.length,definition.paths[0]||'')
+      item.sources.sort((a,b)=>b.size-a.size||a.path.localeCompare(b.path))
+      if(item.sources.length)items.push(item);progress?.(++processed,definitions.length,definition.paths[0]||'')
       // Yield to Electron between sources so navigation and independent jobs keep responding.
       await new Promise<void>((resolve)=>setImmediate(resolve))
     }
+    items.sort((a,b)=>b.size-a.size||a.key.localeCompare(b.key))
     this.registered=next;this.items=items
     return {items,elapsedMs:Date.now()-started,scannedAt:new Date(until).toISOString(),errors,limited}
   }

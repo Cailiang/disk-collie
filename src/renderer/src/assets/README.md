@@ -6,3 +6,5 @@ Production application management reads installed application logos through the 
 - `demo-figma.svg`: vector rendering of the Figma mark for its named demo application.
 
 The product marks belong to their respective owners and do not imply affiliation. No MangoDisk assets are bundled.
+
+`mascot/` contains the generated Memento border collie mark and four local photographic animation sheets. They are production branding, independent of the demo application logos. Prompts, exports and motion behavior are recorded in `docs/MASCOT_ASSETS.md`.

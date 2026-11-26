@@ -420,6 +420,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   viewRef.current=view
   const setView=useCallback((next:AgentViewKey):void=>{if(next===viewRef.current)return;viewScroll.current.set(viewRef.current,document.querySelector('.page-stack')?.scrollTop||0);viewRef.current=next;setViewState(next)},[])
   useEffect(()=>{const frame=requestAnimationFrame(()=>{const page=document.querySelector('.page-stack');if(page)page.scrollTop=viewScroll.current.get(view)||0});return()=>cancelAnimationFrame(frame)},[view])
+  const [advisorDraft,setAdvisorDraft]=useState('')
   const [aiSetupOrigin,setAiSetupOrigin]=useState<AiTaskOrigin|null>(null)
   const [processEntry,setProcessEntry]=useState<{sort:'cpuPercent'|'memoryBytes';token:number}|null>(null)
   const [applicationEntryFilter, setApplicationEntryFilter] = useState<ApplicationFilter>('all')
@@ -749,7 +750,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       !result &&
       !scanBusy &&
       !automaticScanStarted.current &&
-      (view === 'terminal' || view === 'agent')
+      view === 'terminal'
     ) {
       automaticScanStarted.current = true
       void scanNow()
@@ -864,6 +865,13 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     }).catch((error) => setToast(error instanceof Error
       ? error.message
       : uiText('无法启动 Agent', 'Could not start the Agent.')))
+  }
+
+  const submitAdvisor=async(prompt:string):Promise<boolean>=>{
+    if(!defaultProvider){setAiSetupOrigin({source:'agent',scrollTop:0});setView('settings');return false}
+    const evidence=resultRef.current||await scanNow()
+    if(!evidence||viewRef.current!=='agent')return false
+    startAgentRun(prompt);return true
   }
 
   const startQueuedExplanation=async(task:AiTask,publish:(run:AgentRunRecord)=>void,signal:AbortSignal):Promise<AgentRunRecord>=>{
@@ -1866,7 +1874,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       onInstallUpdate={installUpdate}
     >
       {<div hidden={view!=='processes'}><ProcessWorkspace entry={processEntry} metrics={overviewMetrics} paused={overviewPaused} error={overviewError} onPause={setOverviewPaused} onAsk={(p) => void askOverviewProcess(p)} onCopyName={(name) => void copyOverviewProcessName(name)} onCopyPid={(pid) => void copyOverviewProcessPid(pid)} onTerminate={terminateOverviewProcess} /></div>}
-      {view === 'agent' && <AgentPage scan={result} run={activeRun} conversationRuns={conversationRuns} workspaceRuns={workspaceRuns} statusMessage={runStatusMessage} selectedPlanIds={selectedPlanIds} providerConfigured={Boolean(defaultProvider)} addingOperationId={addingOperationId} openingApplicationId={openingApplicationId} returnLabel={agentOriginLabel} onSubmit={startAgentRun} onSelectWorkspaceRun={selectWorkspaceRun} onCloseWorkspaceRun={closeWorkspaceRun} onNewTask={() => { setActiveRun(null); activeRunId.current = null; setSelectedPlanIds(new Set()); setRunStatusMessage(''); setAgentOrigin(null) }} onOpenHistory={() => setView('history')} onOpenSettings={() => setView('settings')} onReturn={returnToAgentOrigin} onOpenApplication={openAgentApplication} onAddPlanItem={(id) => void addAgentPlanItem(id)} onTogglePlanItem={(id) => setSelectedPlanIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })} onExecutePlan={() => void executePlan()} onDiscardPlan={discardPlan} />}
+      {view === 'agent' && <AgentPage scan={result} run={activeRun} conversationRuns={conversationRuns} workspaceRuns={workspaceRuns} statusMessage={runStatusMessage} selectedPlanIds={selectedPlanIds} providerConfigured={Boolean(defaultProvider)} addingOperationId={addingOperationId} openingApplicationId={openingApplicationId} returnLabel={agentOriginLabel} preparing={scanBusy} draft={advisorDraft} onDraftChange={setAdvisorDraft} onNavigate={setView} onSubmit={submitAdvisor} onSelectWorkspaceRun={selectWorkspaceRun} onCloseWorkspaceRun={closeWorkspaceRun} onNewTask={() => { setActiveRun(null); activeRunId.current = null; setSelectedPlanIds(new Set()); setRunStatusMessage(''); setAgentOrigin(null) }} onOpenHistory={() => setView('history')} onOpenSettings={()=>{setAiSetupOrigin({source:'agent',scrollTop:0});setView('settings')}} onReturn={returnToAgentOrigin} onOpenApplication={openAgentApplication} onAddPlanItem={(id) => void addAgentPlanItem(id)} onTogglePlanItem={(id) => setSelectedPlanIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })} onExecutePlan={() => void executePlan()} onDiscardPlan={discardPlan} />}
       {view === 'terminal' && <HealthPage
         standaloneTerminal
         result={result}
@@ -1892,7 +1900,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       {(['overview','health','large','duplicates','disk','privacy','apps'] as StorageView[]).map((storageView)=><div key={storageView} hidden={view!==storageView}>
         <StorageWorkspace view={storageView} active={view===storageView} metrics={overviewMetrics} onProcess={(sort)=>{setProcessEntry({sort,token:Date.now()});setView('processes')}} onNavigate={setView} activity={storageActivity} onActivity={setStorageActivity} />
       </div>)}
-      {view==='settings'&&aiSetupOrigin&&<div className="ai-setup-return"><button className="space-button" onClick={()=>{viewScroll.current.set(aiSetupOrigin.source,aiSetupOrigin.scrollTop);setView(aiSetupOrigin.source);setAiSetupOrigin(null)}}><ArrowLeft size={15}/>{appText('tasks.return',{page:appText(`nav.${aiSetupOrigin.source==='overview'?'home':aiSetupOrigin.source==='health'?'cleanup':aiSetupOrigin.source}`)})}</button><span>{appText('tasks.resumeAfterSetup')}</span></div>}
+      {view==='settings'&&aiSetupOrigin&&<div className="ai-setup-return"><button className="space-button" onClick={()=>{viewScroll.current.set(aiSetupOrigin.source,aiSetupOrigin.scrollTop);setView(aiSetupOrigin.source);setAiSetupOrigin(null)}}><ArrowLeft size={15}/>{appText('tasks.return',{page:appText(`nav.${aiSetupOrigin.source==='overview'?'home':aiSetupOrigin.source==='health'?'cleanup':aiSetupOrigin.source}`)})}</button><span>{appText(aiSetupOrigin.source==='agent'?'advisor.setupReturn':'tasks.resumeAfterSetup')}</span></div>}
       {view==='history'&&<div className="space-workspace space-agent-history"><header className="space-heading"><h1>{appText('history.ai')}</h1><button className="space-button" onClick={()=>setView('agent')}>{appText('common.back')}</button></header><HistoryPage runs={runs} maintenanceRuns={maintenanceRuns} onOpenRun={(run) => { setActiveRun(run); activeRunId.current = run.id; setSelectedPlanIds(new Set()); setView('agent') }} onDeleteRuns={setPendingHistoryDelete} onDeleteMaintenanceRuns={setPendingMaintenanceDelete} onRevealRecovery={revealMaintenanceRecovery} /></div>}
       {view === 'settings' && <SettingsPage settings={settings} providers={providers} appVersion={appVersion} updateState={updateState} onUpdateSettings={updateSettings} onDiscoverModels={discoverProviderModels} onSaveProvider={saveProvider} onTestProvider={testProvider} onDeleteProvider={deleteProvider} onSetDefaultProvider={setDefaultProvider} onImportLocalAi={importLocalAiConfigurations} onImportCcSwitch={importCcSwitchProviders} onCheckUpdates={checkForUpdates} onAddScanDirectory={async()=>{if(window.memento)setSettings(await window.memento.addScanExcludedDirectory());else await updateSettings({scanExcludedDirectories:[...new Set([...settings.scanExcludedDirectories,'/Users/alex/Private'])]})}} onRemoveScanDirectory={async(directory)=>{if(window.memento)setSettings(await window.memento.removeScanExcludedDirectory(directory));else await updateSettings({scanExcludedDirectories:settings.scanExcludedDirectories.filter((entry)=>entry!==directory)})}} onToast={setToast} />}
 

@@ -3,7 +3,7 @@ import {existsSync,mkdirSync,readFileSync,realpathSync,utimesSync,writeFileSync}
 import {homedir} from 'node:os'
 import path from 'node:path'
 
-const groupNames={system:'系统垃圾','user-cache':'用户缓存',browser:'浏览器缓存',application:'应用数据',development:'开发工具',project:'项目依赖',xcode:'Xcode',ai:'AI 模型与缓存',container:'容器与虚拟机','application-optimization':'应用优化',custom:'其他位置'}
+const groupNames={system:'系统垃圾','user-cache':'用户缓存',browser:'浏览器缓存',application:'应用数据',development:'开发工具',project:'项目依赖',xcode:'Xcode',ai:'AI 缓存',container:'容器缓存','application-optimization':'应用优化',custom:'其他位置'}
 const within=(root,target)=>{const relative=path.relative(root,target);return relative!==''&&!relative.startsWith('..'+path.sep)&&relative!=='..'&&!path.isAbsolute(relative)}
 const sorted=(values)=>[...values].sort()
 
@@ -86,24 +86,25 @@ export async function verifyDeepFixture(page,fixture){
   for(const {source} of pairs)assert(within(fixture.root,source.path),`A fixture scan must not register a source outside its owned home: ${source.path}`)
   const find=(target)=>pairs.find(({source})=>source.path===target)
   const pip=find(fixture.pipRoot),manual=find(fixture.manualRoot),project=find(fixture.projectArtifact),model=pairs.find(({source})=>within(source.path,fixture.model)||source.path===fixture.model)
-  assert(pip&&manual&&project&&model,'Expected Python, manual-review cache, project and protected-model sources')
+  assert(pip&&manual&&project&&!model,'Expected actionable Python/cache/project sources, with model stores excluded')
+  assert(scan.items.every((item)=>item.risk!=='protected'&&item.sources.every((source)=>source.cleanupMethod!=='none'&&source.status!=='review-only')),'Deep cleanup must not register inspection-only sources')
+  assert(scan.items.every((item,index,items)=>index===0||items[index-1].size>=item.size),'Cleanup items must be largest first')
   assert.equal(pip.source.count,128);assert.equal(pip.source.status,'ready','Pip/uv must be stopped for this cleanup fixture')
   assert.equal(manual.item.risk,'review');assert.equal(manual.item.recommended,false);assert.equal(manual.source.status,'ready')
   assert.equal(project.item.risk,'review');assert.equal(project.source.cleanupMethod,'trash')
   assert(!find(path.dirname(fixture.protectedArtifact)),'A project build directory containing key material must not be a cleanup candidate')
-  assert.equal(model.item.risk,'protected');assert.equal(model.source.cleanupMethod,'none')
   const first=await page.evaluate(id=>window.memento.storageDeepPreview({id,offset:0}),pip.source.id)
   const second=await page.evaluate(id=>window.memento.storageDeepPreview({id,offset:100}),pip.source.id)
   assert.equal(first.files.length,100);assert.equal(first.total,128);assert.equal(first.nextOffset,100);assert.equal(second.files.length,28);assert.equal(second.nextOffset,null)
   const previewed=[...first.files,...second.files]
   assert.deepEqual(sorted(previewed.map((file)=>file.path)),sorted(fixture.pipFiles));assert(previewed.every((file)=>within(fixture.root,file.path)))
-  const invalid=await page.evaluate(async({cleanId,protectedId})=>{
+  const invalid=await page.evaluate(async({cleanId,unregisteredId})=>{
     const unknown=await window.memento.storageDeepPreview({id:crypto.randomUUID(),offset:0}).then(()=>false,()=>true)
-    const protectedSelection=await window.memento.storageDeepClean({ids:[cleanId,protectedId],skipRunning:false}).then(()=>false,()=>true)
-    return {unknown,protectedSelection}
-  },{cleanId:pip.source.id,protectedId:model.source.id})
-  assert(invalid.unknown&&invalid.protectedSelection,'IPC must reject unknown preview IDs and preflight protected mixed selections')
-  assert(fixture.pipFiles.every(existsSync),'Protected mixed selection must leave every valid source intact')
+    const unregisteredSelection=await window.memento.storageDeepClean({ids:[cleanId,unregisteredId],skipRunning:false}).then(()=>false,()=>true)
+    return {unknown,unregisteredSelection}
+  },{cleanId:pip.source.id,unregisteredId:crypto.randomUUID()})
+  assert(invalid.unknown&&invalid.unregisteredSelection,'IPC must reject unknown preview IDs and reject mixed selections containing unregistered IDs')
+  assert(fixture.pipFiles.every(existsSync),'An unregistered mixed selection must leave every valid source intact')
   // Build a real retained index that contains these same files, then verify cleanup reconciles it.
   const index=await page.evaluate(()=>window.memento.storageScan({mode:'analysis',includeHidden:true}))
   assert(index?.root&&(index.root.path===fixture.root||within(index.root.path,fixture.root)),'Set MEMENTO_TEST_STORAGE_ROOT to contain the owned deep-clean home')
@@ -114,7 +115,6 @@ export async function verifyDeepFixture(page,fixture){
   assert.match(await preview.innerText(),/deep-smoke-cache-/);await preview.locator('.deep-preview-pagination button').click();await page.waitForFunction(()=>document.querySelectorAll('.deep-preview-file').length===128)
   await preview.getByRole('button',{name:'选择此来源',exact:true}).click();await preview.getByRole('button',{name:'关闭',exact:true}).click()
   source=await showSource(page,manual);assert.equal(await source.locator('input').isChecked(),false);await source.locator('input').check()
-  source=await showSource(page,model);assert.equal(await source.locator('input').isEnabled(),false)
   source=await showSource(page,project);await source.locator('input').check()
   const projectSkipped=project.source.status==='requires-close'
   if(projectSkipped){

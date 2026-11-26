@@ -1,0 +1,33 @@
+.cleanup-advisor.agent-page { grid-template-columns:minmax(0,1fr); background:var(--bg); }
+.cleanup-advisor.agent-page.has-plan { grid-template-columns:minmax(0,1fr) 300px; }
+.cleanup-advisor .agent-main { display:flex; flex-direction:column; width:100%; max-width:1080px; margin:0 auto; }
+.cleanup-advisor .agent-heading { padding:25px 30px 18px; }
+.cleanup-advisor .agent-heading h1 { font-size:24px; }
+.cleanup-advisor .agent-heading p { margin-top:7px; }
+.cleanup-advisor .conversation { flex:1; padding:0 30px 22px; }
+.advisor-start { max-width:680px; margin:clamp(22px,7vh,76px) auto 20px; }
+.advisor-mascot { display:block; width:68px; height:68px; object-fit:contain; margin:0 0 16px; }
+.advisor-start h2 { margin:0 0 24px; font-size:26px; line-height:1.35; letter-spacing:-.7px; font-weight:650; }
+.advisor-intents { display:grid; gap:8px; }
+.advisor-intents>button { display:flex; align-items:center; gap:16px; width:100%; padding:15px 18px; border:0; border-radius:9px; background:var(--surface); color:var(--text); text-align:left; transition:background 160ms,transform 160ms; }
+.advisor-intents>button:hover { background:var(--accent-soft); transform:translateX(2px); }
+.advisor-intents>button>svg:first-child { color:var(--accent); flex-shrink:0; }
+.advisor-intents>button>svg:last-child { margin-left:auto; color:var(--text-tertiary); transform:rotate(45deg); }
+.advisor-intents span { display:grid; gap:5px; min-width:0; }
+.advisor-intents strong { font-size:14px; font-weight:620; }
+.advisor-intents small { font-size:11px; color:var(--text-tertiary); line-height:1.6; }
+.advisor-source-links { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:22px; font-size:11px; color:var(--text-tertiary); }
+.advisor-source-links>span { margin-right:5px; }
+.advisor-source-links button { display:flex; align-items:center; gap:6px; border:0; padding:6px 8px; color:var(--text-secondary); background:transparent; border-radius:5px; }
+.advisor-source-links button:hover { color:var(--accent); background:var(--accent-soft); }
+.cleanup-advisor .composer-wrap { padding:12px 30px 22px; border:0; background:transparent; }
+.cleanup-advisor .composer { max-width:100%; padding:12px; border:1px solid var(--line-strong); border-radius:12px; background:var(--surface); box-shadow:0 4px 20px color-mix(in srgb,var(--accent) 3%,transparent); }
+.cleanup-advisor .composer:focus-within { border-color:var(--accent); }
+.cleanup-advisor .composer textarea { font-size:13px; }
+.advisor-provider { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; font-size:12px; color:var(--text-secondary); }
+.advisor-preparing { display:flex; align-items:center; justify-content:center; gap:12px; font-size:12px; color:var(--text-secondary); }
+.advisor-preparing .mascot-scene { width:100px; height:100px; flex-shrink:0; }
+.cleanup-advisor .agent-rail { border-left:1px solid var(--line); background:var(--surface-subtle); }
+@media(max-width:1100px) { .cleanup-advisor.agent-page.has-plan { grid-template-columns:minmax(0,1fr) 260px; } }
+@media(max-width:760px) { .cleanup-advisor.agent-page.has-plan { display:flex; flex-direction:column; overflow:auto; }.cleanup-advisor .agent-main { min-height:620px; flex:1 0 auto; }.cleanup-advisor .agent-rail { display:block; width:100%; border:0; }.cleanup-advisor .agent-heading { padding:20px 17px 15px; gap:10px; }.cleanup-advisor .agent-heading h1 { font-size:22px; }.cleanup-advisor .agent-heading p { max-width:190px; }.cleanup-advisor .conversation { padding:0 17px 15px; }.advisor-start { margin:28px 0 18px; }.advisor-start h2 { font-size:23px; }.advisor-intents>button { padding:14px 12px; gap:12px; }.cleanup-advisor .composer-wrap { padding:12px 17px 20px; }.advisor-source-links>span { width:100%; }.cleanup-advisor .session-menu { flex-wrap:wrap; justify-content:flex-end; }.cleanup-advisor .return-origin-button { max-width:150px; }.advisor-provider { font-size:11px; } }
+@media(prefers-reduced-motion:reduce) { .advisor-intents>button { transition:none; }.advisor-intents>button:hover { transform:none; } }

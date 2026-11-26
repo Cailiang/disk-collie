@@ -1,3 +1,12 @@
+# Memento 1.0.18 — 边牧与清理顾问 / Collie and Cleanup advisor
+
+- 深度清理按占用空间从大到小排列分类、项目、路径和文件；仅供查看的来源不再扫描。
+- 边牧成为新的应用 Logo；扫描时可看它玩球、接飞盘、拔河和玩篮球，点击可换游戏，减少动态效果时静止。
+- 菜单图标逐项重新绘制，设置页移除水平分隔线。
+- AI 助手改为清理顾问，集中解答文件用途、是否适合删除和清理影响。问题可从扫描结果发起，也可直接输入；模型配置往返保留草稿，执行计划按需展示。
+
+English: Deep cleanup orders actionable categories/items/paths/files by size and avoids unsupported inspection-only sources. A border collie icon and four photographic sprite animations replace the generic scan spinner, with game switching and reduced-motion support. Semantic navigation icons and separator-free Settings accompany a focused Cleanup advisor for file decisions, cleanup impact and priorities, with deliberate evidence collection, retained provider-setup drafts and contextual return navigation.
+
 # Memento 1.0.17 — 隐私读取与扫描配置 / Privacy reads and scan settings
 
 - 修复 Chrome 浏览历史、搜索、下载读取失败；兼容数据库锁定和真实关联表结构。

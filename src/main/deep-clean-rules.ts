@@ -9,8 +9,6 @@ import type {PrivacySource} from './privacy-resource'
 import {assertDeepNotCancelled,type DeepCleanContext} from './deep-clean-context'
 import {CLEANUP_RULES} from './cleanup-rules'
 import {discoverProjectArtifacts} from './project-artifacts'
-import {containerDiskSnapshot} from './deep-clean-container-storage'
-import {applicationArchitectureDefinitions} from './deep-clean-app-architecture'
 import {projectArtifactSnapshot} from './deep-clean-projects'
 import {type DeepCleanSnapshot,type DeepFileOptions} from './deep-clean-resource'
 
@@ -28,6 +26,7 @@ export interface DeepCleanDefinition {
   options?:DeepFileOptions
   snapshot?:(target:string,until:number)=>Promise<DeepCleanSnapshot>
 }
+export const supportsDeepCleanup=(definition:DeepCleanDefinition):boolean=>definition.risk!=='protected'&&!definition.options?.readOnly&&definition.cleanupMethod!=='none'
 const rebuild:DeepCleanCopy={zh:'可重新生成的缓存。清理后首次启动或下载可能更慢，账号、设置和文档会保留。',en:'Regenerable cache. The next launch or download may be slower; accounts, settings and documents are kept.'}
 const downloaded:DeepCleanCopy={zh:'已经下载的资源；清理后需要重新下载。请逐项确认，不会删除账号、配置或对话。',en:'Downloaded resources that must be downloaded again after cleanup. Review each source; accounts, settings and conversations are kept.'}
 const protectedIdentity=(name:string):boolean=>/1password|agilebits|bitwarden|keychain|authenticator|authy|lastpass|dashlane|credential/i.test(name)
@@ -44,10 +43,10 @@ export async function deepCleanDefinitions(context:DeepCleanContext):Promise<Dee
   }
   if(mac){
     for(const rule of CLEANUP_RULES){
-      if(rule.category==='browsers')continue
+      if(rule.category==='browsers'||rule.actionable===false||rule.risk==='protected')continue
       const group:DeepCleanGroup=rule.id.startsWith('xcode-')||rule.id.startsWith('ios-')?'xcode':/claude|codex|grok|antigravity/.test(rule.id)?'ai':rule.category==='developer'?'development':rule.category==='applications'?'application':'system'
       const runningNames:Record<string,string[]>={'claude-caches':['Claude'],'codex-caches':['Codex'],'antigravity-caches':['Antigravity'],'grok-caches':['Grok'],'work-app-caches':['Slack','Discord','Notion'],'editor-app-caches':['Visual Studio Code','Cursor'],'xcode-derived-data':['Xcode','xcodebuild','swift-frontend','clang'],'ios-device-support':['Xcode','xcodebuild'],'ios-simulator-caches':['Simulator','CoreSimulatorService'],'homebrew-downloads':['brew'],'npm-content-cache':['npm','npx'],'pnpm-store':['pnpm'],'yarn-cache':['yarn'],'gradle-cache':['gradle','GradleDaemon'],'cocoapods-cache':['pod'],'python-download-caches':['pip','pip3','uv'],'go-build-caches':['go'],'rust-download-caches':['cargo','rustc'],'android-cache':['gradle','GradleDaemon'],'maven-repository':['mvn']}
-      add(rule.id,group,rule.name.zh,rule.name.en,rule.relativeTargets.filter((parts)=>!parts.includes('Service Worker')).map((parts)=>p.join(home,...parts)),{description:rule.id==='system-saved-state'?{zh:'可能包含窗口恢复和未保存工作记录。请先保存工作并退出应用，清理后无法恢复这些状态。',en:'May include restoration data and unsaved work. Save your work and quit applications first; these states cannot be recovered after cleanup.'}:rule.description,risk:rule.risk==='protected'?'protected':rule.risk==='safe'?'safe':'review',recommended:rule.risk==='safe',applications:runningNames[rule.id]||[],options:rule.actionable===false?{readOnly:true}:undefined})
+      add(rule.id,group,rule.name.zh,rule.name.en,rule.relativeTargets.filter((parts)=>!parts.includes('Service Worker')).map((parts)=>p.join(home,...parts)),{description:rule.id==='system-saved-state'?{zh:'可能包含窗口恢复和未保存工作记录。请先保存工作并退出应用，清理后无法恢复这些状态。',en:'May include restoration data and unsaved work. Save your work and quit applications first; these states cannot be recovered after cleanup.'}:rule.description,risk:rule.risk,recommended:rule.risk==='safe',applications:runningNames[rule.id]||[]})
     }
     add('system-old-logs','system','旧日志与诊断报告','Old logs and diagnostic reports',[p.join(home,'Library/Logs/DiagnosticReports'),p.join(home,'Library/Logs/CrashReporter')],{description:{zh:'七天前的诊断报告；保留近期记录和原始用户文件。',en:'Diagnostic reports older than seven days. Recent reports and original user files are kept.'},options:{olderThanDays:7}})
     if(home===homedir())for(const [flag,key,zh,en] of [['DARWIN_USER_TEMP_DIR','user-temporary','旧用户临时文件','Old user temporary files'],['DARWIN_USER_CACHE_DIR','darwin-user-cache','旧运行时缓存','Old runtime caches']] as const)try{const {stdout}=await promisify(execFile)('/usr/bin/getconf',[flag],{timeout:3000,maxBuffer:4096}),root=await realpath(stdout.trim()),stat=await lstat(root);if(root.startsWith('/private/var/folders/')&&stat.isDirectory()&&stat.uid===process.getuid?.())add(key,'system',zh,en,[root],{risk:'review',recommended:false,options:{olderThanDays:7},description:{zh:'当前用户七天前的临时文件和运行时缓存。请先退出相关应用；不会处理其他用户的目录。',en:'Temporary/runtime data for the current user older than seven days. Quit related applications first; other users’ directories are not processed.'}})}catch{/* Per-user runtime directories may be unavailable. */}
@@ -103,15 +102,9 @@ export async function deepCleanDefinitions(context:DeepCleanContext):Promise<Dee
   }
   const docker=owner('docker','Docker Desktop',['com.docker.docker'],'Docker')
   if(mac)add('docker-diagnostics','container','Docker 旧诊断日志','Old Docker diagnostic logs',[p.join(home,'Library/Containers/com.docker.docker/Data/log'),p.join(home,'Library/Containers/com.docker.docker/Data/vms/0/log')],{risk:'review',recommended:false,owner:docker,applications:['Docker Desktop','Docker','com.docker.backend','com.docker.virtualization','vpnkit'],options:{olderThanDays:7},description:{zh:'仅处理七天前的诊断日志，保留镜像、容器、卷、虚拟盘和配置。请先退出 Docker。',en:'Only diagnostic logs older than seven days. Images, containers, volumes, virtual disks and configuration are kept. Quit Docker first.'}})
-  const dockerDisks=mac?[p.join(home,'Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw')]:win?[p.join(local,'Docker/wsl/disk/docker_data.vhdx'),p.join(local,'Docker/wsl/data/ext4.vhdx')]:[p.join(home,'.docker/desktop/vms/0/data/Docker.raw')]
-  add('docker-virtual-storage','container','Docker 虚拟磁盘','Docker virtual disk',dockerDisks,{risk:'protected',recommended:false,cleanupMethod:'none',owner:docker,options:{readOnly:true},description:{zh:'包含镜像、容器和卷，仅分析已分配磁盘块，不在此删除。请在 Docker 中管理存储。',en:'Contains images, containers and volumes. Allocated disk blocks are analyzed only; manage this storage in Docker.'},snapshot:(target,until)=>containerDiskSnapshot(target,until,context.signal,context.excludedPaths)})
-  add('podman-virtual-storage','container','Podman 虚拟磁盘','Podman virtual disks',[p.join(home,'.local/share/containers/podman/machine'),...(win?[p.join(local,'containers/podman/machine'),p.join(config,'containers/podman/machine')]:[])],{risk:'protected',recommended:false,cleanupMethod:'none',options:{readOnly:true},description:{zh:'仅分析虚拟磁盘已分配块，不删除容器、卷、机器配置或 SSH 密钥。请在 Podman 中管理存储。',en:'Allocated disk blocks are analyzed only. Containers, volumes, machine configuration and SSH keys are kept; manage storage in Podman.'},snapshot:(target,until)=>containerDiskSnapshot(target,until,context.signal,context.excludedPaths)})
   add('claude-code','ai','Claude Code 缓存','Claude Code cache',[p.join(home,'.claude/cache'),p.join(cache,'claude-cli-nodejs')])
   add('codex-diagnostics','ai','Codex 日志与临时缓存','Codex logs and temporary cache',[p.join(home,'.codex/log'),p.join(home,'.codex/tmp')],{description:{zh:'仅处理诊断日志和临时文件，保留凭据、配置、会话与工作树。',en:'Only diagnostic logs and temporary files; credentials, settings, sessions and worktrees are kept.'}})
   add('huggingface-downloads','ai','Hugging Face 下载缓存','Hugging Face download cache',[p.join(home,'.cache/huggingface/xet')])
-  add('ollama-models','ai','Ollama 已下载模型','Downloaded Ollama models',[p.join(home,'.ollama/models')],{risk:'protected',recommended:false,description:{zh:'模型可能被共享、导入或用于运行中的任务，仅提供占用分析；请在 Ollama 中管理模型。',en:'Models may be shared, imported or in use. This is storage analysis only; manage models in Ollama.'},options:{readOnly:true},applications:['ollama','Ollama']})
-  add('huggingface-models','ai','Hugging Face 已下载模型','Downloaded Hugging Face models',[p.join(home,'.cache/huggingface/hub')],{risk:'protected',recommended:false,description:{zh:'模型与共享下载资源，仅提供占用分析；请在模型管理工具中删除。',en:'Models and shared downloads are analysis only; remove them with their model manager.'},options:{readOnly:true}})
-  add('lmstudio-models','ai','LM Studio 已下载模型','Downloaded LM Studio models',[p.join(home,'.lmstudio/models'),p.join(home,'.cache/lm-studio/models')],{risk:'protected',recommended:false,description:{zh:'可能包含导入或自行训练的模型，仅提供占用分析；请在 LM Studio 中管理。',en:'May contain imported or trained models. Analysis only; manage them in LM Studio.'},options:{readOnly:true},applications:['LM Studio']})
   if(mac){
     for(const root of [p.join(home,'Library/Caches'),p.join(home,'Library/Logs')])try{for(const entry of await readdir(root,{withFileTypes:true})){
       if(!entry.isDirectory()||entry.isSymbolicLink()||entry.name.startsWith('com.apple.')||protectedIdentity(entry.name))continue
@@ -123,11 +116,10 @@ export async function deepCleanDefinitions(context:DeepCleanContext):Promise<Dee
       add('sandbox:'+app.bundleId,'application',app.name+' 沙盒缓存',app.name+' sandbox cache',[p.join(home,'Library/Containers',app.bundleId,'Data/Library/Caches'),p.join(home,'Library/Containers',app.bundleId,'Data/tmp')],{owner:owner(app.bundleId,app.name,[app.bundleId]),applications:[app.name]})
     }
   }
-  for(const artifact of await discoverProjectArtifacts(home,Date.now(),context.signal,context.excludedPaths))add('project:'+artifact.target,'project',artifact.projectName+' / '+artifact.artifactName,artifact.projectName+' / '+artifact.artifactName,[artifact.target],{risk:'review',recommended:false,applications:['npm','npx','pnpm','yarn','bun','gradle','GradleDaemon','mvn','cargo','rustc','swift','xcodebuild','cmake','ninja','make'],description:{zh:'已识别的构建目录或项目依赖会移到废纸篓；保留项目根目录和源码。包含 Git 或密钥、扫描不完整、内容变化时不处理。',en:'Recognized build output or dependencies move to Trash; project roots and source are kept. Git/key material, incomplete scans or changed contents block cleanup.'},cleanupMethod:context.trash?'trash':'none',snapshot:async()=>{const snapshot=await projectArtifactSnapshot(artifact,home,context.trash||(async()=>{throw new Error('deep.sourceUnavailable')}),200000,context.signal);return context.trash?snapshot:{...snapshot,status:'review-only'}}})
-  result.push(...await applicationArchitectureDefinitions(context))
+  for(const artifact of context.trash?await discoverProjectArtifacts(home,Date.now(),context.signal,context.excludedPaths):[])add('project:'+artifact.target,'project',artifact.projectName+' / '+artifact.artifactName,artifact.projectName+' / '+artifact.artifactName,[artifact.target],{risk:'review',recommended:false,applications:['npm','npx','pnpm','yarn','bun','gradle','GradleDaemon','mvn','cargo','rustc','swift','xcodebuild','cmake','ninja','make'],description:{zh:'已识别的构建目录或项目依赖会移到废纸篓；保留项目根目录和源码。包含 Git 或密钥、扫描不完整、内容变化时不处理。',en:'Recognized build output or dependencies move to Trash; project roots and source are kept. Git/key material, incomplete scans or changed contents block cleanup.'},cleanupMethod:context.trash?'trash':'none',snapshot:async()=>{const snapshot=await projectArtifactSnapshot(artifact,home,context.trash||(async()=>{throw new Error('deep.sourceUnavailable')}),200000,context.signal);return context.trash?snapshot:{...snapshot,status:'review-only'}}})
   // Deduplicate overlapping filesystem rules before traversal, keeping explicit rules ahead of generic caches.
   const accepted:string[]=[]
-  for(const rule of result){
+  for(const rule of result.filter(supportsDeepCleanup)){
     assertDeepNotCancelled(context.signal)
     const roots:string[]=[]
     for(const target of [...new Set(rule.paths.map((target)=>p.normalize(target)))]){
@@ -137,5 +129,5 @@ export async function deepCleanDefinitions(context:DeepCleanContext):Promise<Dee
     }
     rule.paths=roots
   }
-  return result.filter((rule)=>rule.paths.length)
+  return result.filter((rule)=>supportsDeepCleanup(rule)&&rule.paths.length)
 }
