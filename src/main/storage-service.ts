@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises'
@@ -6,7 +6,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { z } from 'zod'
-import type { CleanupItem, DuplicateGroup, RelatedApplicationFile, StorageActivity, StorageApplication, StorageEntry, StorageIndex } from '../shared/storage-types'
+import type { CleanupItem, DuplicateGroup, RelatedApplicationFile, StorageActivity, StorageApplication, StorageEntry, StorageIndex, StorageMode } from '../shared/storage-types'
 import { fileCategories } from '../shared/file-categories'
 import type { StorageScanOptions } from '../shared/storage-types'
 import { NativeEngine } from './native-engine'
@@ -36,12 +36,16 @@ async function unchanged(old: Snapshot): Promise<void> {
 
 export class StorageService {
   private engine = new NativeEngine((progress) => { for (const window of BrowserWindow.getAllWindows()) window.webContents.send('memento:storage:progress', progress) })
-  private index: StorageIndex | null = null
+  private sessions = new Map<StorageMode,{index:StorageIndex;engine:NativeEngine;groups:Map<string,DuplicateGroup>}>()
+  private latest: StorageMode | null = null
+  private activeEngine: NativeEngine | null = null
+  private progress(progress: import('../shared/storage-types').StorageProgress):void {
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.send('memento:storage:progress',progress)
+  }
   private history: StorageActivity[] = []
   private rules = new Map<string, { item: CleanupItem; snapshots: Snapshot[]; browser?: string }>()
   private applications = new Map<string, StorageApplication>()
   private related = new Map<string, { file: RelatedApplicationFile; snapshot: Snapshot; applicationId: string }>()
-  private duplicateGroups = new Map<string, DuplicateGroup>()
   private busy = false
   private generation = 0
   private historyPath = path.join(app.getPath('userData'), 'storage-history.json')
@@ -49,12 +53,12 @@ export class StorageService {
     try {
       const data: unknown = JSON.parse(await readFile(this.historyPath, 'utf8'))
       const parsed = z.array(z.object({ id:z.string(), date:z.string(), kind:z.enum(['large','duplicates','cleanup','privacy','uninstall']), items:z.number().nonnegative(), bytes:z.number().nonnegative(), failures:z.number().nonnegative(), locations:z.array(z.string()) })).safeParse(data)
-      if (parsed.success) this.history = parsed.data.slice(0, 500)
+      if (parsed.success) this.history = parsed.data
     } catch { /* First launch has no ledger. */ }
   }
   private async save(): Promise<void> {
     await mkdir(path.dirname(this.historyPath), { recursive: true })
-    await writeFile(`${this.historyPath}.tmp`, JSON.stringify(this.history.slice(0, 500)), { mode: 0o600 })
+    await writeFile(`${this.historyPath}.tmp`, JSON.stringify(this.history), { mode: 0o600 })
     await rename(`${this.historyPath}.tmp`, this.historyPath)
   }
   private async exclusive<T>(work: () => Promise<T>): Promise<T> {
@@ -62,33 +66,51 @@ export class StorageService {
     this.busy = true
     try { return await work() } finally { this.busy = false }
   }
-  private requireIndex(generation: number): StorageIndex {
-    if (!this.index || this.index.generation !== generation) throw new Error('The scan has changed. Refresh this view.')
-    return this.index
+  private session(generation:number) {
+    const session=[...this.sessions.values()].find((s)=>s.index.generation===generation)
+    if(!session)throw new Error('The scan has changed. Refresh this view.')
+    return session
+  }
+  private async reconcile(locations:string[]):Promise<void> {
+    if(!locations.length)return
+    for(const session of this.sessions.values()) {
+      const summary=await session.engine.request<StorageIndex>('forget',{paths:locations})
+      session.index={...summary,generation:session.index.generation}
+      for(const [id,group] of session.groups) {
+        group.files=group.files.filter((file)=>!locations.some((p)=>file.path===p||file.path.startsWith(p+path.sep)))
+        group.reclaimable=group.files.slice(1).reduce((s,f)=>s+f.allocated,0)
+        if(group.files.length<2)session.groups.delete(id)
+      }
+    }
   }
   private async activity(kind: StorageActivity['kind'], jobs: Array<{ path: string; size: number; run: () => Promise<void> }>): Promise<StorageActivity> {
     const record: StorageActivity = { id: randomUUID(), date: new Date().toISOString(), kind, items: 0, bytes: 0, failures: 0, locations: [] }
     this.history.unshift(record); await this.save()
+    const started=Date.now()
     for (const job of jobs) {
+      this.progress({phase:'cleaning',entries:record.items+record.failures,total:jobs.length,elapsedMs:Date.now()-started,path:job.path})
       try { await job.run(); record.items++; record.bytes += job.size; record.locations.push(job.path) }
       catch { record.failures++ }
       await this.save()
+      this.progress({phase:'cleaning',entries:record.items+record.failures,total:jobs.length,elapsedMs:Date.now()-started,path:job.path})
     }
+    await this.reconcile(record.locations)
     return record
   }
   async scan(options: StorageScanOptions): Promise<StorageIndex | null> {
     return this.exclusive(async () => {
-      let root = process.env.MEMENTO_TEST_RUN === '1' && process.env.MEMENTO_TEST_STORAGE_ROOT ? process.env.MEMENTO_TEST_STORAGE_ROOT : home
-      if (options.mode === 'analysis' && process.env.MEMENTO_TEST_RUN !== '1') root = path.parse(home).root
-      if (options.choose) {
-        const selected = await dialog.showOpenDialog({ properties: ['openDirectory'], defaultPath: home })
-        if (selected.canceled || !selected.filePaths[0]) return null
-        root = selected.filePaths[0]
-      }
-      this.index = null; this.duplicateGroups.clear()
-      this.index = await this.engine.request<StorageIndex>('scan', { root, ...options, excludePaths: (options.mode==='duplicates'||options.mode==='large')&&!options.choose&&!options.includeHidden ? [path.join(home,'Library'),path.join(home,'AppData')] : [] })
-      this.index.generation = ++this.generation // cancellation may restart the sidecar; never reuse IPC generations
-      return this.index
+      const root = process.env.MEMENTO_TEST_RUN === '1' && process.env.MEMENTO_TEST_STORAGE_ROOT ? process.env.MEMENTO_TEST_STORAGE_ROOT : path.parse(home).root
+      const mode=options.mode||'analysis'
+      const includeHidden=options.includeHidden??true
+      const engine=new NativeEngine((p)=>this.progress(p))
+      this.activeEngine=engine
+      try {
+        const index=await engine.request<StorageIndex>('scan',{root,...options,mode,includeHidden,excludePaths:!includeHidden&&mode!=='analysis'?[path.join(home,'Library'),path.join(home,'AppData')]:[]})
+        index.generation=++this.generation
+        this.sessions.get(mode)?.engine.stop()
+        this.sessions.set(mode,{index,engine,groups:new Map()});this.latest=mode
+        return index
+      } catch(e) {engine.stop();throw e} finally {this.activeEngine=null}
     })
   }
   async cleanup(privacy: boolean): Promise<CleanupItem[]> {
@@ -132,22 +154,22 @@ export class StorageService {
         // Never follow links: rm unlinks nested symlinks rather than traversing them.
         for(const s of value.snapshots)await rm(s.path, { recursive: true, force: false }); this.rules.delete(value.item.id)
       } })))
-      this.index = null; this.duplicateGroups.clear()
       return result
     })
   }
   async trash(input: { generation: number; ids: number[]; kind: 'large' | 'duplicates'; groupId?: string }): Promise<StorageActivity> {
     return this.exclusive(async () => {
-      const index = this.requireIndex(input.generation)
-      const entries = await Promise.all(input.ids.map((id) => this.engine.request<StorageEntry>('entry', { id })))
+      const session=this.session(input.generation)
+      const {index,engine}=session
+      const entries = await Promise.all(input.ids.map((id) => engine.request<StorageEntry>('entry', { id })))
       for (const entry of entries) if (!index.root || !isStorageMutationAllowed(entry.path, index.root.path) || entry.directory) throw new Error('This location is protected. Only personal files can be moved here.')
       if (input.kind === 'duplicates') {
-        const group = input.groupId ? this.duplicateGroups.get(input.groupId) : undefined
+        const group = input.groupId ? session.groups.get(input.groupId) : undefined
         if (!group || entries.some((e) => !group.files.some((f) => f.id === e.id))) throw new Error('Unknown duplicate selection')
         const keep = group.files.find((e) => !input.ids.includes(e.id))
         if (!keep) throw new Error('Keep at least one copy')
         for (const entry of [keep, ...entries]) {
-          const fresh = await this.engine.request<{ hash: string }>('hash', { id: entry.id })
+          const fresh = await engine.request<{ hash: string }>('hash', { id: entry.id })
           if (fresh.hash !== group.id) throw new Error('Duplicate contents changed. Scan again.')
         }
       }
@@ -155,7 +177,6 @@ export class StorageService {
       const result = await this.activity(input.kind, entries.map((entry,i) => ({ path: entry.path, size: entry.allocated, run: async () => {
         await unchanged(snapshots[i]); await shell.trashItem(entry.path)
       } })))
-      this.index = null; this.duplicateGroups.clear()
       return result
     })
   }
@@ -233,20 +254,36 @@ export class StorageService {
       await this.requireBrowserClosed(application.location)
       for (const value of values) await unchanged(value.snapshot)
       const result=await this.activity('uninstall',values.map((v)=>({path:v.file.path,size:v.file.size,run:async()=>{await unchanged(v.snapshot); await shell.trashItem(v.file.path)}})))
-      this.related.clear(); this.applications.delete(application.id); this.index=null
+      for(const [id,value] of this.related)if(result.locations.includes(value.file.path))this.related.delete(id)
+      if(result.locations.includes(application.location))this.applications.delete(application.id)
       return result
     })
   }
   register(): void {
     const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`memento:storage:${name}`,(_event,input)=>fn(input))}
-    handle('state',()=>({index:this.index,history:this.history,home}))
-    handle('scan',(v)=>this.scan(typeof v==='boolean'?{choose:v,mode:'analysis'}:z.object({choose:z.boolean().optional(),mode:z.enum(['analysis','large','duplicates']).default('analysis'),minimum:z.number().int().min(1024).optional(),includeHidden:z.boolean().optional()}).parse(v||{})))
-    handle('cancel',()=>{ if (this.busy) {this.engine.stop(); this.index=null; this.duplicateGroups.clear()} })
-    handle('children',(v)=>{const q=entryInput.extend({offset:int.optional()}).parse(v);this.requireIndex(q.generation);return this.engine.request('children',q)})
-    handle('large',(v)=>{const q=scope.extend({minimum:z.number().nonnegative(),search:z.string().max(500),offset:int,category:z.enum(['all','video','image','audio','archive','installer','document','other']).default('all')}).parse(v);this.requireIndex(q.generation);return this.engine.request('large',{...q,categories:fileCategories})})
-    handle('duplicates',(v)=>this.exclusive(async()=>{const q=typeof v==='number'?{generation:v,minimum:1024}:scope.extend({minimum:z.number().int().min(1024).default(200*1024)}).parse(v);this.requireIndex(q.generation);const result=await this.engine.request<{groups:DuplicateGroup[];elapsedMs:number}>('duplicates',{minimum:q.minimum});this.duplicateGroups=new Map(result.groups.map((g)=>[g.id,g]));return result}))
+    handle('state',()=>({index:this.latest?this.sessions.get(this.latest)?.index||null:null,indexes:Object.fromEntries([...this.sessions].map(([mode,s])=>[mode,s.index])),history:this.history,home}))
+    handle('scan',(v)=>this.scan(z.object({mode:z.enum(['analysis','large','duplicates']).default('analysis'),minimum:z.number().int().min(1024).optional(),includeHidden:z.boolean().optional()}).parse(v||{})))
+    handle('cancel',()=>{this.activeEngine?.stop();for(const [mode,s] of this.sessions)if(s.engine===this.activeEngine)this.sessions.delete(mode)})
+    handle('children',(v)=>{const q=entryInput.extend({offset:int.optional()}).parse(v);return this.session(q.generation).engine.request('children',q)})
+    handle('large',(v)=>{const q=scope.extend({minimum:z.number().nonnegative(),search:z.string().max(500),offset:int,category:z.enum(['all','video','image','audio','archive','installer','document','other']).default('all')}).parse(v);return this.session(q.generation).engine.request('large',{...q,categories:fileCategories})})
+    handle('duplicates',(v)=>this.exclusive(async()=>{const q=typeof v==='number'?{generation:v,minimum:1024}:scope.extend({minimum:z.number().int().min(1024).default(200*1024)}).parse(v);const session=this.session(q.generation);this.activeEngine=session.engine;try{const result=await session.engine.request<{groups:DuplicateGroup[];elapsedMs:number}>('duplicates',{minimum:q.minimum});session.groups=new Map(result.groups.map((g)=>[g.id,g]));return result}finally{this.activeEngine=null}}))
     handle('trash',(v)=>this.trash(scope.extend({ids:z.array(int).min(1).max(500).transform((v)=>[...new Set(v)]),kind:z.enum(['large','duplicates']),groupId:z.string().max(100).optional()}).parse(v)))
-    handle('reveal',async(v)=>{const q=entryInput.parse(v);this.requireIndex(q.generation);const entry=await this.engine.request<StorageEntry>('entry',q);shell.showItemInFolder(entry.path)})
+    handle('reveal',async(v)=>{const q=entryInput.parse(v);const entry=await this.session(q.generation).engine.request<StorageEntry>('entry',q);shell.showItemInFolder(entry.path)})
+    handle('reveal-target',async(v)=>{
+      const q=z.discriminatedUnion('type',[
+        entryInput.extend({type:z.literal('entry')}),
+        z.object({type:z.literal('rule'),id:z.string().uuid(),path:z.string()}),
+        z.object({type:z.literal('related'),id:z.string().uuid()}),
+        z.object({type:z.literal('application'),id:z.string().uuid()})
+      ]).parse(v)
+      let location:string|undefined
+      if(q.type==='entry')location=(await this.session(q.generation).engine.request<StorageEntry>('entry',q)).path
+      else if(q.type==='rule'){const rule=this.rules.get(q.id);location=rule?.snapshots.find((s)=>s.path===q.path)?.path}
+      else if(q.type==='related')location=this.related.get(q.id)?.file.path
+      else location=this.applications.get(q.id)?.location
+      if(!location)throw new Error('The item is no longer available. Scan again.')
+      shell.showItemInFolder(location)
+    })
     handle('cleanup',(v)=>this.cleanup(z.boolean().parse(v)))
     handle('clean',(v)=>this.clean(z.array(z.string().uuid()).min(1).max(100).transform((ids)=>[...new Set(ids)]).parse(v)))
     handle('applications',()=>this.listApplications())
@@ -257,6 +294,6 @@ export class StorageService {
     })
     handle('related',(v)=>this.inspectApplication(z.string().uuid().parse(v)))
     handle('uninstall',(v)=>this.uninstall(z.object({applicationId:z.string().uuid(),ids:z.array(z.string().uuid()).max(100)}).parse(v)))
-    app.on('before-quit',()=>this.engine.stop())
+    app.on('before-quit',()=>{this.engine.stop();this.activeEngine?.stop();for(const session of this.sessions.values())session.engine.stop()})
   }
 }

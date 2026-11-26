@@ -1,3 +1,16 @@
+# Memento 1.0.8 — 保留整理成果 / Keep your progress
+
+- 大文件清理一部分后回到剩余结果；成功项移除，失败项保留，继续处理无需重新扫描。
+- 大文件、重复文件和空间分析分别保留结果；切页和询问 AI 后返回时，筛选与勾选仍在。
+- 删除选择文件夹功能，统一扫描系统磁盘，默认包含隐藏目录和应用数据。
+- 新增清理动画、实际处理数量和当前路径；文件与目录各层级增加打开位置和询问 AI。
+- 首页累计整理立即更新，新增近 14 天累计折线图、每日整理柱状图和每日任务数。
+- 累计整理包含永久清理与移入废纸篓；废纸篓未清空前仍占磁盘，明细继续分别显示。
+
+English: retained results and selections across pages/AI, independent full-drive scan sessions, remaining results after partial cleanup, actual cleanup progress animation and per-file AI explanations. The homepage updates immediately with organized totals, a 14-day cumulative line and daily bars; permanent cleanup and Trash remain distinct.
+
+---
+
 # Memento 1.0.7 — 紧凑工作区与扫描改进
 
 - 删除大段页面说明，必要说明收进可点击问号；大文件支持类型筛选。

@@ -4,6 +4,26 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.8 - 2026-11-26
+
+### English
+
+- Keep scan results, filters, selections and directory navigation across workspace/AI switches. Large files, duplicates and disk analysis retain independent native sessions; a rescan replaces only its own session.
+- Remove folder picking and scan the system drive in all file workspaces, including hidden/app-data locations by default. Existing protected-path and duplicate-survivor checks still apply.
+- After cleanup, return to the remaining results and reconcile only confirmed successes across indexes. Retain failed items for review; show animated cleanup with actual processed-item progress.
+- Add Show in folder and Ask AI to file, duplicate, directory, cleanup/privacy path and application-related rows. AI receives metadata with a return path to the original workspace.
+- Update the homepage immediately with total organized bytes (permanent cleanup plus Trash), a 14-day cumulative line and daily bars. Preserve the full local ledger and distinguish permanently cleaned bytes from items still in Trash.
+- Add native reconciliation, partial-failure/session and calendar aggregation regressions plus four-viewport and real Electron workflows.
+
+### 简体中文
+
+- 切换页面或进入 AI 后保留扫描结果、筛选、勾选和目录位置；大文件、重复文件、空间分析各自保留原生会话，重新扫描只替换当前类别。
+- 移除选择文件夹入口，统一扫描系统磁盘，默认包含隐藏目录和个人应用数据；仍保留受保护路径与重复文件至少留一份的校验。
+- 清理后回到剩余结果，只移除实际成功的项目并同步其他索引，失败项保留供检查；新增跟随实际处理数量推进的清理动画。
+- 文件、重复副本、目录树、缓存／隐私路径及应用关联文件均提供打开位置和询问 AI，可返回原工作区；AI 解释使用文件元数据。
+- 首页即时更新累计整理体积，增加最近 14 天累计折线图和每日柱状图；完整保存本地账本，分别展示永久清理与仍占用磁盘的废纸篓体积。
+- 补充原生索引协调、部分失败、独立会话、自然日统计，以及四视口和真实 Electron 回归覆盖。
+
 ## 1.0.7 - 2026-11-25
 
 ### English

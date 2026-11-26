@@ -12,7 +12,7 @@ export interface StorageEntry {
   links: number
 }
 export type StorageMode = 'analysis' | 'large' | 'duplicates'
-export interface StorageScanOptions { choose?:boolean; mode?:StorageMode; minimum?:number; includeHidden?:boolean }
+export interface StorageScanOptions { mode?:StorageMode; minimum?:number; includeHidden?:boolean }
 export interface StorageIndex {
   mode?: StorageMode
   retained?: number
@@ -25,7 +25,7 @@ export interface StorageIndex {
   elapsedMs: number
 }
 export interface StorageProgress {
-  phase: 'indexing' | 'sampling' | 'hashing'
+  phase: 'indexing' | 'sampling' | 'hashing' | 'cleaning'
   entries: number
   total?: number
   elapsedMs: number
@@ -69,15 +69,21 @@ export interface StorageApplication {
   protected: boolean
   method: 'trash' | 'system'
 }
+export type StorageTarget =
+  | { type:'entry'; generation:number; id:number }
+  | { type:'rule'; id:string; path:string }
+  | { type:'related'; id:string }
+  | { type:'application'; id:string }
 export interface StorageApi {
-  storageState: () => Promise<{ index: StorageIndex | null; history: StorageActivity[]; home: string }>
-  storageScan: (options?: boolean | StorageScanOptions) => Promise<StorageIndex | null>
+  storageState: () => Promise<{ index: StorageIndex | null; indexes: Partial<Record<StorageMode,StorageIndex>>; history: StorageActivity[]; home: string }>
+  storageScan: (options?: StorageScanOptions) => Promise<StorageIndex | null>
   storageCancel: () => Promise<void>
   storageChildren: (input: { generation: number; id: number; offset?: number }) => Promise<{ parent: StorageEntry; items: StorageEntry[] }>
   storageLarge: (input: { generation: number; minimum: number; search: string; offset: number; category?: FileCategory | 'all' }) => Promise<{ count: number; items: StorageEntry[]; categories?: Record<string,number> }>
   storageDuplicates: (generation: number, minimum?:number) => Promise<{ groups: DuplicateGroup[]; elapsedMs: number }>
   storageTrash: (input: { generation: number; ids: number[]; kind: 'large' | 'duplicates'; groupId?: string }) => Promise<StorageActivity>
   storageReveal: (input: { generation: number; id: number }) => Promise<void>
+  storageRevealTarget: (target:StorageTarget) => Promise<void>
   storageCleanup: (privacy: boolean) => Promise<CleanupItem[]>
   storageClean: (ids: string[]) => Promise<StorageActivity>
   storageApplications: () => Promise<StorageApplication[]>

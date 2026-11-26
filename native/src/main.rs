@@ -222,6 +222,7 @@ impl Record {
 #[derive(Default)]
 struct Index {
     entries: Vec<Record>,
+    removed: HashSet<usize>,
     root: String,
     visited: usize,
     errors: usize,
@@ -252,6 +253,7 @@ impl Index {
             return Err("Choose a directory".into());
         }
         self.entries = Vec::new();
+        self.removed.clear();
         self.root = root.to_string_lossy().into();
         self.errors = 0;
         self.skipped = 0;
@@ -378,6 +380,9 @@ impl Index {
         json!({"generation":self.generation,"root":if self.entries.is_empty(){None}else{self.get(0).ok()},"entries":self.visited,"retained":self.entries.len(),"errors":self.errors,"skipped":self.skipped,"limited":false,"elapsedMs":self.elapsed,"mode":self.mode})
     }
     fn get(&self, id: usize) -> Result<Entry, String> {
+        if self.removed.contains(&id) {
+            return Err("Item was removed".into());
+        }
         let e = self.entries.get(id).ok_or("Unknown index entry")?;
         Ok(Entry {
             id,
@@ -421,7 +426,7 @@ impl Index {
         let started = Instant::now();
         let mut by_size: HashMap<u64, Vec<usize>> = HashMap::new();
         for (id, e) in self.entries.iter().enumerate() {
-            if !e.directory && e.size >= minimum && e.links == 1 {
+            if !self.removed.contains(&id) && !e.directory && e.size >= minimum && e.links == 1 {
                 by_size.entry(e.size).or_default().push(id)
             }
         }
@@ -647,13 +652,44 @@ fn handle(index: &mut Index, req: &Request) -> Result<Value, String> {
             req.request,
             &req.args,
         ),
+        "forget" => {
+            let paths = req.args["paths"].as_array().ok_or("Missing paths")?;
+            // Only reconcile main-process-confirmed removals; IDs remain stable.
+            for id in 1..index.entries.len() {
+                if index.removed.contains(&id) {
+                    continue;
+                }
+                let current = index.path(id);
+                if paths
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .any(|p| Path::new(&current).starts_with(p))
+                {
+                    index.removed.insert(id);
+                    if !index.entries[id].directory {
+                        let size = index.entries[id].size;
+                        let allocated = index.entries[id].allocated;
+                        let mut parent = index.entries[id].parent;
+                        while parent != NONE {
+                            let record = &mut index.entries[parent as usize];
+                            record.size = record.size.saturating_sub(size);
+                            record.allocated = record.allocated.saturating_sub(allocated);
+                            parent = record.parent;
+                        }
+                    }
+                }
+            }
+            Ok(index.summary())
+        }
         "summary" => Ok(index.summary()),
         "children" => {
             index.get(id)?;
             let mut children = Vec::new();
             let mut child = index.entries[id].first;
             while child != NONE {
-                children.push(child as usize);
+                if !index.removed.contains(&(child as usize)) {
+                    children.push(child as usize);
+                }
                 child = index.entries[child as usize].next;
             }
             children.sort_by_key(|i| std::cmp::Reverse(index.entries[*i].size));
@@ -668,7 +704,11 @@ fn handle(index: &mut Index, req: &Request) -> Result<Value, String> {
             let mut counts: HashMap<String, usize> = HashMap::new();
             let mut items = Vec::new();
             for (id, e) in index.entries.iter().enumerate() {
-                if e.directory || e.size < min || !e.name.to_lowercase().contains(&search) {
+                if index.removed.contains(&id)
+                    || e.directory
+                    || e.size < min
+                    || !e.name.to_lowercase().contains(&search)
+                {
                     continue;
                 }
                 let extension = e
@@ -940,5 +980,57 @@ mod tests {
         )
         .unwrap();
         assert_eq!(children["items"].as_array().unwrap().len(), 3);
+    }
+    #[test]
+    fn confirmed_removals_preserve_ids_queries_and_ancestor_totals() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join("cache")).unwrap();
+        for name in ["cache/a.mov", "cache/b.mov", "cache-other.mov", "keep.mov"] {
+            fs::write(dir.path().join(name), vec![1; 2048]).unwrap();
+        }
+        let mut index = Index::default();
+        index.scan(dir.path().to_str().unwrap(), 1).unwrap();
+        let keep = index
+            .entries
+            .iter()
+            .position(|e| e.name.as_ref() == "keep.mov")
+            .unwrap();
+        let removed = index
+            .entries
+            .iter()
+            .position(|e| e.name.as_ref() == "cache")
+            .unwrap();
+        let location = index.get(removed).unwrap().path;
+        let query = |command: &str, args: Value| Request {
+            request: 2,
+            command: command.into(),
+            args,
+        };
+        handle(&mut index, &query("forget", json!({"paths":[location]}))).unwrap();
+        assert_eq!(index.get(0).unwrap().size, 4096);
+        assert_eq!(index.get(keep).unwrap().name, "keep.mov");
+        assert!(index.get(removed).is_err());
+        assert_eq!(
+            handle(&mut index, &query("large", json!({"minimum":1}))).unwrap()["count"],
+            2
+        );
+        let children = handle(&mut index, &query("children", json!({"id":0}))).unwrap();
+        assert_eq!(children["items"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            index.duplicates(3).unwrap()["groups"][0]["files"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        handle(&mut index, &query("forget", json!({"paths":[location]}))).unwrap();
+        assert_eq!(
+            index.get(0).unwrap().size,
+            4096,
+            "Repeated reconciliation must be idempotent"
+        );
+        index.scan(dir.path().to_str().unwrap(), 4).unwrap();
+        assert_eq!(index.get(0).unwrap().size, 8192);
+        assert!(index.removed.is_empty());
     }
 }

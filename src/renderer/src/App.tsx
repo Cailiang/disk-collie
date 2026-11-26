@@ -356,6 +356,7 @@ function demoPlanItemFromPresentation(
 }
 
 type AgentOrigin =
+  | { view: 'storage'; source: StorageView }
   | { view: 'overview' }
   | { view: 'health'; tab: HealthTab; category?: CleanupCategoryFilter; itemId?: string; scrollTop: number }
   | { view: 'terminal'; tab: 'terminal'; category: 'terminal'; itemId?: string; scrollTop: number }
@@ -427,6 +428,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   const [diskUsageError, setDiskUsageError] = useState<string | null>(null)
   const [pendingDiskUsageTrash, setPendingDiskUsageTrash] = useState<DiskUsageNode | null>(null)
   const [diskUsageTrashBusy, setDiskUsageTrashBusy] = useState(false)
+  const [storageActivity,setStorageActivity]=useState<import('../../shared/storage-types').StorageActivity|null>(null)
   const [agentOrigin, setAgentOrigin] = useState<AgentOrigin | null>(null)
   const [restoreTarget, setRestoreTarget] = useState<RestoreTarget | null>(null)
   const [pendingDirectAction, setPendingDirectAction] = useState<DirectActionRequest | null>(null)
@@ -1236,6 +1238,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const returnToAgentOrigin = (): void => {
     if (!agentOrigin) return
+    if(agentOrigin.view==='storage'){setView(agentOrigin.source);setAgentOrigin(null);return}
     if (agentOrigin.view === 'overview') {
       setAgentOrigin(null)
       setView('processes')
@@ -1779,7 +1782,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     setSelectedPlanIds(new Set())
     setRunStatusMessage('')
   }
-  const agentOriginLabel = agentOrigin?.view === 'overview'
+  const agentOriginLabel = agentOrigin?.view === 'storage'
+    ? appText(`nav.${agentOrigin.source==='health'?'cleanup':agentOrigin.source}`)
+    : agentOrigin?.view === 'overview'
     ? appText('nav.processes')
     : agentOrigin?.view === 'apps'
     ? appText("legacy.applications.516cc6")
@@ -1847,9 +1852,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         onIgnore={setPendingIgnore}
         onManageIgnored={openIgnoredManager}
       />}
-      <div style={{ display: ['overview','health','large','duplicates','disk','privacy','apps','history'].includes(view) ? undefined : 'none' }}>
-        <StorageWorkspace view={(['overview','health','large','duplicates','disk','privacy','apps','history'].includes(view) ? view : 'overview') as StorageView} metrics={overviewMetrics} onNavigate={setView} historyChildren={<HistoryPage runs={runs} maintenanceRuns={maintenanceRuns} onOpenRun={(run) => { setActiveRun(run); activeRunId.current = run.id; setSelectedPlanIds(new Set()); setView('agent') }} onDeleteRuns={setPendingHistoryDelete} onDeleteMaintenanceRuns={setPendingMaintenanceDelete} onRevealRecovery={revealMaintenanceRecovery} />} />
-      </div>
+      {(['overview','health','large','duplicates','disk','privacy','apps','history'] as StorageView[]).map((storageView)=><div key={storageView} hidden={view!==storageView}>
+        <StorageWorkspace view={storageView} active={view===storageView} metrics={overviewMetrics} onNavigate={setView} activity={storageActivity} onActivity={setStorageActivity} onAsk={(prompt)=>{void (async()=>{if(!resultRef.current&&!await scanNow())return;startAgentRun(prompt,{isolated:true,origin:{view:'storage',source:storageView}})})()}} historyChildren={storageView==='history'?<HistoryPage runs={runs} maintenanceRuns={maintenanceRuns} onOpenRun={(run) => { setActiveRun(run); activeRunId.current = run.id; setSelectedPlanIds(new Set()); setView('agent') }} onDeleteRuns={setPendingHistoryDelete} onDeleteMaintenanceRuns={setPendingMaintenanceDelete} onRevealRecovery={revealMaintenanceRecovery} />:undefined} />
+      </div>)}
       {view === 'settings' && <SettingsPage settings={settings} providers={providers} appVersion={appVersion} updateState={updateState} onUpdateSettings={updateSettings} onDiscoverModels={discoverProviderModels} onSaveProvider={saveProvider} onTestProvider={testProvider} onDeleteProvider={deleteProvider} onSetDefaultProvider={setDefaultProvider} onImportLocalAi={importLocalAiConfigurations} onImportCcSwitch={importCcSwitchProviders} onCheckUpdates={checkForUpdates} onManageIgnored={() => openIgnoredManager()} onToast={setToast} />}
 
       {pendingDirectAction && <DirectActionConfirmDialog action={pendingDirectAction} onClose={() => setPendingDirectAction(null)} onConfirm={() => void executeDirectAction()} />}
