@@ -1,6 +1,8 @@
 import type { ApplicationUpdateMode, ApplicationUpdateResult, ApplicationUpdateSource } from './types'
 import type { FileCategory } from './file-categories'
 export interface StorageEntry {
+  /** Main-process policy metadata; never authorizes a mutation on its own. */
+  trashable?:boolean
   id: number
   parent: number | null
   name: string

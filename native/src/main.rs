@@ -270,6 +270,9 @@ impl Index {
             .as_array()
             .map(|v| v.iter().filter_map(|v| v.as_str()).map(|p| fs::canonicalize(p).unwrap_or_else(|_| std::path::PathBuf::from(p))).collect())
             .unwrap_or_default();
+        let excluded_names: Vec<_> = options["excludeNames"].as_array()
+            .map(|names| names.iter().filter_map(|name| name.as_str()).collect())
+            .unwrap_or_default();
         self.entries.push(Record::from(&inspect(&root, 0, None)?));
         #[allow(unused_mut)] // mutated only for macOS system/Data firmlinks below
         let mut volumes = HashSet::from([self.entries[0].volume]);
@@ -299,6 +302,11 @@ impl Index {
                 self.skipped += skipped;
                 for entry in children {
                     self.visited += 1;
+                    if excluded.contains(&std::path::PathBuf::from(&entry.path))
+                        || excluded_names.iter().any(|name| if cfg!(windows) {entry.name.eq_ignore_ascii_case(name)} else {entry.name == *name}) {
+                        self.skipped += 1;
+                        continue;
+                    }
                     let mut record = Record::from(&entry);
                     let parent = record.parent as usize;
                     if !volumes.contains(&record.volume) {
@@ -308,7 +316,6 @@ impl Index {
                     if entry.directory {
                         if (root == Path::new("/")
                             && (entry.path == "/System/Volumes" || entry.path == "/Volumes"))
-                            || excluded.contains(&std::path::PathBuf::from(&entry.path))
                             || (!include_hidden && entry.name.starts_with('.'))
                             || !directories.insert((record.volume, record.file))
                         {
@@ -931,6 +938,29 @@ mod tests {
             assert_eq!(index.get(0).unwrap().size, 11 * 1024 * 1024);
             index.scan_options(dir.path().to_str().unwrap(), 2, &json!({"mode":mode,"includeHidden":true})).unwrap();
             assert_eq!(index.entries.len(), 7);
+        }
+    }
+    #[test]
+    fn cleanup_exclusions_prune_protected_trees_and_names_before_duplicate_hashing() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["private/var/db", "Downloads", "Projects/.ssh", "private-copy"] {
+            fs::create_dir_all(dir.path().join(name)).unwrap();
+            for file in ["a.bin", "b.bin"] {
+                fs::write(dir.path().join(name).join(file), vec![3; 2048]).unwrap();
+            }
+        }
+        for mode in ["large", "duplicates"] {
+            let mut index = Index::default();
+            index.scan_options(dir.path().to_str().unwrap(), 1, &json!({"mode":mode,"minimum":1024,"includeHidden":true,"excludePaths":[dir.path().join("private")],"excludeNames":[".ssh"]})).unwrap();
+            for id in 1..index.entries.len() {
+                let entry = index.get(id).unwrap();
+                assert!(!entry.path.starts_with(&dir.path().join("private").to_string_lossy().to_string()) || entry.path.contains("private-copy"));
+                assert!(!entry.path.contains(".ssh"));
+            }
+            if mode == "duplicates" {
+                let result = index.duplicates(2).unwrap();
+                assert_eq!(result["groups"][0]["files"].as_array().unwrap().len(), 4);
+            }
         }
     }
     #[test]

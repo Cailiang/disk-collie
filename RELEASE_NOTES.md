@@ -1,3 +1,12 @@
+# Memento 1.0.14 — 扫描边界与操作弹窗 / Cleanup scope and operation dialogs
+
+- 大文件、重复文件扫描提前跳过无法在此清理的系统和应用目录，包括 `/private/var`；隐藏目录选项不会绕过保护。
+- 空间分析中的受保护文件可查看占用，删除操作禁用并说明原因。
+- 操作结果和错误统一在居中弹窗中展示，用户关闭前不会消失，并发提示排队去重。
+- 文件变化时停止删除，弹出中文说明，保留文件和页面结果，可重新扫描后重试。
+
+English: cleanup discovery and deletion share one protection policy, pruning system/app data, credentials and Trash before traversal and hashing. Analysis keeps protected items read-only. Operation outcomes use persistent centered dialogs with queued/deduplicated messages, keyboard dismissal and focus restoration; changed-file rejection is localized and preserves results.
+
 # Memento 1.0.13 — 文件直删与应用管理修复 / File actions and app management
 
 - 扫描提示与当前页面对应；空间分析文件行可核对后移到废纸篓，成功后同步目录图表和其他页面。

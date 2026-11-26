@@ -7,4 +7,12 @@ describe('scan scope defaults',()=>{
     expect(storageScanScope('C:\\Users\\test',false,'win32',{}).excludePaths).toContain('C:\\Users\\test\\AppData')
     expect(storageScanScope('/home/test',false,'linux').includeHidden).toBe(false)
   })
+  it.each(['large','duplicates'] as const)('always excludes protected locations from %s, even with hidden files enabled',mode=>{
+    for(const includeHidden of [false,true]){
+      const scope=storageScanScope('/Users/test',includeHidden,'darwin',{},mode)
+      for(const location of ['/private','/var','/System','/Applications','/Users/test/Library'])expect(scope.excludePaths).toContain(location)
+      expect(scope.excludeNames).toEqual(expect.arrayContaining(['.ssh','.aws','.Trash']))
+    }
+    expect(storageScanScope('C:\\Users\\test',true,'win32',{},mode).excludePaths).toEqual(expect.arrayContaining(['C:\\Windows','C:\\Program Files','C:\\Users\\test\\AppData']))
+  })
 })

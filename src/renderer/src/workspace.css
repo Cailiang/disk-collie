@@ -625,3 +625,14 @@ summary::-webkit-details-marker { display:none; }
 .file-trash:hover { color:var(--usage-danger)!important; background:var(--danger-soft,var(--surface-subtle))!important; }
 @media(max-width:900px) { .manager-table-head { display:grid; grid-template-columns:minmax(0,1fr) 105px 70px 152px; padding-left:76px; }.manager-table-head>span:nth-child(2) { display:block; } }
 @media(max-width:700px) { .manager-table-head { display:grid; grid-template-columns:minmax(0,1fr) 105px 68px; padding:12px; gap:6px; }.manager-table-head>span:last-child { display:none; }.manager-table-head button { font-size:10px; gap:4px; }.overview-totals { grid-template-columns:1.3fr 1fr 1fr; gap:10px; }.overview-totals strong,.overview-totals b { font-size:19px; }.space-folder-row .space-file-actions .icon-button { width:22px; } }
+
+/* Explicit operation notices stay visible until acknowledged. */
+.message-backdrop { z-index:180; }
+.message-backdrop .space-dialog { width:min(460px,100%); }
+.message-body { display:flex; align-items:flex-start; gap:14px; padding:7px 0 12px; }
+.message-body>svg { flex-shrink:0; color:var(--accent); margin-top:1px; }
+.message-body>p { white-space:pre-wrap; overflow-wrap:anywhere; max-height:50dvh; overflow:auto; user-select:text; margin:0; color:var(--text-secondary); font-size:13px; line-height:1.8; }
+.message-backdrop.tone-error .message-body>svg { color:var(--usage-danger); }
+.message-pending { margin-right:auto; color:var(--text-secondary); font-size:11px; }
+.file-trash:disabled { opacity:.4; }
+@media(max-width:700px) { .message-body { gap:11px; }.message-body>p { font-size:12px; }.message-backdrop .space-dialog { padding:22px; }.message-backdrop .space-dialog h2 { font-size:18px; } }

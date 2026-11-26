@@ -190,7 +190,7 @@ export class StorageService {
     return this.exclusive(options.mode||'analysis',async () => {
       const root = process.env.MEMENTO_TEST_RUN === '1' && process.env.MEMENTO_TEST_STORAGE_ROOT ? process.env.MEMENTO_TEST_STORAGE_ROOT : path.parse(home).root
       const mode=options.mode||'analysis'
-      const scanScope=storageScanScope(home,options.includeHidden??false)
+      const scanScope=storageScanScope(home,options.includeHidden??false,process.platform,process.env,mode)
       const engine=new NativeEngine((p)=>this.progress({...p,scope:mode}))
       this.activeEngines.set(mode,engine);const removed=new Set<string>();this.scanRemovals.set(mode,removed)
       try {
@@ -256,7 +256,7 @@ export class StorageService {
       const {index,engine}=session
       if(index.mode!==input.kind)throw new Error('The selected files belong to another scan')
       const entries = await Promise.all(input.ids.map((id) => engine.request<StorageEntry>('entry', { id })))
-      for (const entry of entries) if (!index.root || !isStorageMutationAllowed(entry.path, index.root.path) || entry.directory) throw new Error('This location is protected. Only personal files can be moved here.')
+      for (const entry of entries) if (!index.root || !isStorageMutationAllowed(entry.path, index.root.path) || entry.directory) throw new Error(translate(this.language(),'storage.protectedPath',{path:entry.path}))
       if (input.kind === 'duplicates') {
         const batches=duplicateRemovalGroups([...session.groups.values()],new Set(input.ids),input.groupId)
         for(const {group,keep,files} of batches)for(const entry of [keep,...files]) {
@@ -453,11 +453,11 @@ export class StorageService {
     return null
   }
   register(): void {
-    const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`memento:storage:${name}`,(_event,input)=>fn(input))}
+    const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`memento:storage:${name}`,async(_event,input)=>{try{return await fn(input)}catch(error){const message=error instanceof Error?error.message:String(error);if(/Item changed since scan|item changed since it was inspected|Path changed or became a link/.test(message))throw new Error(translate(this.language(),'storage.changed'));throw error}})}
     handle('state',()=>({index:this.latest?this.sessions.get(this.latest)?.index||null:null,indexes:Object.fromEntries([...this.sessions].map(([mode,s])=>[mode,s.index])),history:this.history,home}))
     handle('scan',(v)=>this.scan(z.object({mode:z.enum(['analysis','large','duplicates']).default('analysis'),minimum:z.number().int().min(10*1024**2).optional(),includeHidden:z.boolean().optional()}).parse(v||{})))
     handle('cancel',(v)=>{const scope=z.enum(['analysis','large','duplicates','cleanup','privacy','apps']).optional().parse(v)||this.queue.activeScopes[0];if(!scope)return false;this.queue.cancelPending(scope);const engine=this.activeEngines.get(scope as StorageMode);if(!engine)return false;engine.stop();for(const [mode,session] of this.sessions)if(session.engine===engine)this.sessions.delete(mode);return true})
-    handle('children',(v)=>{const q=entryInput.extend({offset:int.optional()}).parse(v);return this.session(q.generation).engine.request('children',q)})
+    handle('children',async(v)=>{const q=entryInput.extend({offset:int.optional()}).parse(v),session=this.session(q.generation);const result=await session.engine.request<{parent:StorageEntry;items:StorageEntry[]}>('children',q);return {...result,items:result.items.map((entry)=>({...entry,trashable:!entry.directory&&Boolean(session.index.root&&isStorageMutationAllowed(entry.path,session.index.root.path))}))}})
     handle('large',(v)=>{const q=scope.extend({minimum:z.number().nonnegative(),search:z.string().max(500),offset:int,category:z.enum(['all','video','image','audio','archive','installer','document','other']).default('all')}).parse(v);return this.session(q.generation).engine.request('large',{...q,categories:fileCategories})})
     handle('duplicates',(v)=>this.exclusive('duplicates',async()=>{
       const q=typeof v==='number'?{generation:v,minimum:10*1024**2}:scope.extend({minimum:z.number().int().min(10*1024**2).default(10*1024**2)}).parse(v)

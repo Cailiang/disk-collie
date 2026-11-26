@@ -1,3 +1,4 @@
+import {acknowledgeMessage} from './message-smoke.mjs'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 
@@ -49,6 +50,7 @@ export async function verifyProviderKeyEditing(page) {
     await page.locator('#provider-name').fill('Edited local copy')
     await page.getByRole('button', { name: '测试连接', exact: true }).click()
     await page.locator('.provider-editor-header .risk-label').filter({ hasText: '已连接' }).waitFor()
+    await acknowledgeMessage(page,/工具调用|tool/i)
     assert.equal(await key.inputValue(), 'smoke-replacement-2222', 'Testing must retain the unsaved replacement key')
     assert.equal(await page.locator('#provider-name').inputValue(), 'Edited local copy')
     assert(requests.some((request) => request.path === '/v1/chat/completions' &&
@@ -72,9 +74,11 @@ export async function verifyProviderKeyEditing(page) {
     assert(savedRequests.every((request) => request.authorization === 'Bearer smoke-replacement-2222'),
       'Requests after reload must use the encrypted saved replacement key')
 
+    await acknowledgeMessage(page,/工具调用|tool/i)
     await key.fill('smoke-invalid-3333')
     await page.getByRole('button', { name: '测试连接', exact: true }).click()
     await page.locator('.provider-error-panel').filter({ hasText: '连接测试失败' }).waitFor()
+    await acknowledgeMessage(page,/invalid|401|失败/i)
     assert.equal(await key.inputValue(), 'smoke-invalid-3333', 'Failed tests must retain edits too')
     const saved = await page.evaluate(async (id) => (await window.memento.listAgentProviders()).find((item) => item.id === id), input.id)
     assert.equal(saved.keyHint, '••••2222', 'Testing must not save a draft key')
@@ -83,15 +87,18 @@ export async function verifyProviderKeyEditing(page) {
     await key.fill('smoke-direct-save-4444')
     await page.getByRole('button', { name: '保存配置', exact: true }).click()
     await page.waitForFunction(() => document.querySelector('#provider-key')?.placeholder === '••••4444')
+    await acknowledgeMessage(page,/已加密保存/)
     await page.locator('#provider-name').fill('Renamed without changing the key')
     await page.getByRole('button', { name: '保存配置', exact: true }).click()
     await page.waitForFunction(() => document.querySelector('.provider-item.is-active strong')?.textContent === 'Renamed without changing the key')
     assert.equal(await key.getAttribute('placeholder'), '••••4444', 'Blank key must preserve the saved credential')
+    await acknowledgeMessage(page,/已加密保存/)
     const finalOffset = requests.length
     await page.getByRole('button', { name: '测试连接', exact: true }).click()
     await page.locator('.provider-editor-header .risk-label').filter({ hasText: '已连接' }).waitFor()
     assert(requests.slice(finalOffset).filter((request) => request.path === '/v1/chat/completions')
       .every((request) => request.authorization === 'Bearer smoke-direct-save-4444'))
+    await acknowledgeMessage(page,/工具调用|tool/i)
     console.log('Provider key regression passed: edit, test, save, reload, failure and blank-key preservation')
   } finally {
     await new Promise((resolve) => server.close(resolve))

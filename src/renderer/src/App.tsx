@@ -1,3 +1,4 @@
+import {MessageProvider,useMessages} from './Messages'
 import { ProcessWorkspace } from './ProcessWorkspace'
 import { StorageWorkspace, type StorageView } from './StorageWorkspace'
 import { AiTaskProvider, type AiTask, type AiTaskOrigin } from './AiTasks'
@@ -457,7 +458,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   const [pendingHistoryDelete, setPendingHistoryDelete] = useState<AgentRunRecord[] | null>(null)
   const [pendingMaintenanceDelete, setPendingMaintenanceDelete] = useState<MaintenanceRunRecord[] | null>(null)
   const [historyDeleteBusy, setHistoryDeleteBusy] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
+  const {show:showMessage}=useMessages()
+  const setToast=useCallback((message:string|null):void=>{if(message)showMessage({message})},[showMessage])
   const started = useRef(false)
   const activeRunId = useRef<string | null>(null)
   const latestAgentStartToken = useRef(0)
@@ -758,11 +760,6 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     if (view === 'history') void refreshMaintenanceRuns()
   }, [refreshMaintenanceRuns, view])
 
-  useEffect(() => {
-    if (!toast) return
-    const timeout = window.setTimeout(() => setToast(null), 2600)
-    return () => window.clearTimeout(timeout)
-  }, [toast])
 
   const updateSettings = async (input: UpdateAppSettingsInput): Promise<void> => {
     const previousLanguage = settings.language
@@ -1907,7 +1904,6 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       {ignoredManagerOpen && <IgnoredItemsDialog initialKind={ignoredManagerKind} serviceValues={settings.serviceWhitelist} storageValues={settings.storageWhitelist} applicationValues={settings.applicationWhitelist} ignoredApplications={result?.ignoredApplications ?? []} busyValue={restoreBusyValue} onRestore={(kind, value) => void restoreIgnored(kind, value)} onClose={() => setIgnoredManagerOpen(false)} />}
       {pendingHistoryDelete && <DeleteHistoryDialog runs={pendingHistoryDelete} busy={historyDeleteBusy} onClose={() => setPendingHistoryDelete(null)} onConfirm={() => void deleteHistoryRun()} />}
       {pendingMaintenanceDelete && <DeleteMaintenanceHistoryDialog runs={pendingMaintenanceDelete} busy={historyDeleteBusy} onClose={() => setPendingMaintenanceDelete(null)} onConfirm={() => void deleteMaintenanceHistory()} />}
-      {toast && <div className="toast is-visible" role="status"><CheckCircle2 size={16} /><span>{toast}</span></div>}
     </Shell>
     </AiTaskProvider>
   )
@@ -1915,5 +1911,5 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
 export default function App(): React.JSX.Element {
   const [language, setLanguage] = useState(DEFAULT_APP_SETTINGS.language)
-  return <I18nProvider language={language}><AppContent onLanguageChange={setLanguage} /></I18nProvider>
+  return <I18nProvider language={language}><MessageProvider><AppContent onLanguageChange={setLanguage} /></MessageProvider></I18nProvider>
 }

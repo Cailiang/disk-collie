@@ -25,6 +25,7 @@ vi.mock('./native-engine',()=>({NativeEngine:class {
     if(command==='duplicates'){const groups=[{id:'hash-a',files:this.entries.slice(0,2),reclaimable:2048}];if(state.hashGate)await state.hashGate;return {groups,elapsedMs:1}}
     if(command==='hash')return {hash:state.hashes.get(args.id)||'hash-a'}
     if(command==='entry')return this.entries.find((e)=>e.id===args.id)
+    if(command==='children')return {parent:this.index!.root,items:this.entries}
     if(command==='forget'){this.entries=this.entries.filter((e)=>!args.paths.includes(e.path));return this.index}
     if(command==='system')return {processes:[],processCommands:state.processCommands,processNames:[]}
     if(command==='measure')return args.paths.map((path:string)=>({path,size:2048,errors:0}))
@@ -67,21 +68,30 @@ describe('storage scan sessions and partial cleanup',()=>{
     const service=new StorageService();service.register()
     const large=await service.scan({mode:'large'}),duplicates=await service.scan({mode:'duplicates'})
     await service.scan({mode:'large'})
-    expect(()=>call('large',{generation:large!.generation,minimum:1,search:'',offset:0})).toThrow(/scan has changed/)
+    await expect(call('large',{generation:large!.generation,minimum:1,search:'',offset:0})).rejects.toThrow(/scan has changed/)
     expect((await call('large',{generation:duplicates!.generation,minimum:1,search:'',offset:0})).count).toBe(3)
     expect(state.engines.filter((engine)=>engine.index)[0].stopped).toBe(true)
     expect(state.engines.filter((engine)=>engine.index)[1].stopped).toBe(false)
   })
   it('trashes a file from analysis, reconciles other scans, and rejects directories or a mismatched purpose',async()=>{
-    const service=new StorageService();service.register()
+    const service=new StorageService(()=> 'en-US');service.register()
     const analysis=await service.scan({mode:'analysis'}),large=await service.scan({mode:'large'})
     await expect(service.trash({generation:analysis!.generation,ids:[1],kind:'duplicates'})).rejects.toThrow('another scan')
     const engine=state.engines.find((engine)=>engine.index?.mode==='analysis')
     engine.entries.push({...engine.entries[0],id:4,directory:true})
-    await expect(service.trash({generation:analysis!.generation,ids:[4],kind:'analysis'})).rejects.toThrow('Only personal files')
+    await expect(service.trash({generation:analysis!.generation,ids:[4],kind:'analysis'})).rejects.toThrow('protected')
     const result=await service.trash({generation:analysis!.generation,ids:[1],kind:'analysis'})
     expect(result).toMatchObject({kind:'analysis',items:1,bytes:2048,failures:0})
     expect((await call('large',{generation:large!.generation,minimum:1,search:'',offset:0})).count).toBe(2)
+  })
+  it('marks system files read-only during analysis and rejects removal with a localized explanation',async()=>{
+    const service=new StorageService();service.register();const index=await service.scan({mode:'analysis'}),engine=state.engines.find((engine)=>engine.index)
+    engine.entries.push({...engine.entries[0],id:4,path:'/private/var/db/fixture',name:'fixture'})
+    const result=await call('children',{generation:index!.generation,id:0})
+    expect(result.items.find((entry:StorageEntry)=>entry.id===4).trashable).toBe(false)
+    expect(result.items.find((entry:StorageEntry)=>entry.id===1).trashable).toBe(true)
+    await expect(service.trash({generation:index!.generation,ids:[4],kind:'analysis'})).rejects.toThrow('受保护')
+    expect((await call('state')).history).toEqual([])
   })
   it('finishes privacy cleanup during a file scan without publishing deleted entries afterward',async()=>{
     const service=new StorageService();service.register();let release!:()=>void

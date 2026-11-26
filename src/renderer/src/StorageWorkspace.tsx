@@ -1,3 +1,6 @@
+import {useMessages} from './Messages'
+import {WorkspaceDialog as StorageDialog} from './WorkspaceDialog'
+export {WorkspaceDialog as StorageDialog} from './WorkspaceDialog'
 import { ArrowLeft, ArrowDown, ArrowRight, ArrowUpRight, Check, CheckCircle2, ChevronRight, CircleHelp, Copy, File, Folder, FolderOpen, HardDrive, Layers3, LoaderCircle, Search, ShieldCheck, Sparkles, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CleanupItem, DuplicateGroup, RelatedApplicationFile, StorageActivity, StorageApplication, StorageEntry, StorageIndex, StorageProgress, StorageTarget } from '../../shared/storage-types'
@@ -31,8 +34,9 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const [busy,setBusy]=useState(false)
   const [task,setTask]=useState<'scan'|'duplicates'|'cleanup'|'apps'|'related'|null>(null)
   const [progress,setProgress]=useState<StorageProgress|null>(null)
-  const [error,setError]=useState('')
-  const [notice,setNotice]=useState('')
+  const {show}=useMessages()
+  const setError=useCallback((message:string):void=>{if(message)show({message,tone:'error'})},[show])
+  const setNotice=useCallback((message:string):void=>{if(message)show({message,tone:'success'})},[show])
   const [large,setLarge]=useState<StorageEntry[]>([])
   const [largeCount,setLargeCount]=useState(0)
   const [removedPaths,setRemovedPaths]=useState<string[]>([])
@@ -209,7 +213,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   }
   const toggle=<T,>(setter:React.Dispatch<React.SetStateAction<Set<T>>>,id:T):void=>setter((prev)=>{const next=new Set(prev);if(next.has(id))next.delete(id);else next.add(id);return next})
   const reveal=async(entry:StorageEntry):Promise<void>=>{if(!index)return;try{if(window.memento)await window.memento.storageReveal({generation:index.generation,id:entry.id});else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}
-  const fileActions=(file:{path:string;size:number;name?:string;modified?:number},target:StorageTarget,onTrash?:()=>void):React.JSX.Element=><FileActions file={file} target={target} onTrash={onTrash} onReveal={async(target)=>{try{if(window.memento)await window.memento.storageRevealTarget(target);else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}}/>
+  const fileActions=(file:{path:string;size:number;name?:string;modified?:number;trashable?:boolean},target:StorageTarget,onTrash?:()=>void):React.JSX.Element=><FileActions file={file} target={target} onTrash={onTrash} onReveal={async(target)=>{try{if(window.memento)await window.memento.storageRevealTarget(target);else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}}/>
   const formatDate=(date:string|number):string=>new Intl.DateTimeFormat(locale,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(date))
   const heading=(title:string,subtitle:string,action?:React.ReactNode):React.JSX.Element=><header className="space-heading"><div><h1>{t(title)}</h1>{['large','duplicates','privacy'].includes(view)&&<WorkspaceHelp>{t(subtitle)}{view==='duplicates'&&<p>{t('compact.duplicateHelp')}</p>}{view==='large'&&<p>{t('compact.largeHelp')}</p>}{view==='privacy'&&<p>{t('privacy.warning')}</p>}</WorkspaceHelp>}</div>{action}</header>
   const scanButtons=<div className="space-actions"><button className="space-button primary" disabled={busy} onClick={()=>void scan()}><Search size={16}/>{t(index?'common.rescan':'common.scan')}</button></div>
@@ -242,13 +246,11 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const selectedDuplicates=selectedDuplicateGroups.flatMap((group)=>group.files.filter((file)=>selected.has(file.id)))
   const rules=view==='privacy'?privacy:cleanup
   return <div className={`space-workspace space-${view}`} ref={mainRef}>
-    {error&&<div className="space-alert" role="alert"><CircleHelp size={18}/><span>{error}</span><button className="icon-button" aria-label={t('common.close')} onClick={()=>setError('')}><X size={16}/></button></div>}
-    {notice&&<div className="space-alert" role="status">{notice}</div>}
     {view==='overview'&&<HomeOverview metrics={metrics} history={history} bytes={bytes} onProcess={onProcess} onNavigate={onNavigate}/>}
     {(view==='large'||view==='disk'||view==='duplicates')&&<>
       {heading(`${view}.title`,`${view}.subtitle`,index?scanButtons:undefined)}
-      {<div className="space-toolbar duplicate-options">{view==='duplicates'&&<label>{t('large.minimum')} <select aria-label={t('large.minimum')} disabled={busy} value={duplicateMinimum} onChange={(e)=>{setDuplicateMinimum(Number(e.target.value));setIndex(null);setGroups(null)}}>{[10*MB,50*MB,100*MB,1024*MB].map((n)=><option value={n} key={n}>{bytes(n)} +</option>)}</select></label>}<label className="space-inline-check"><input type="checkbox" aria-describedby={`${view}-scan-scope`} disabled={busy} checked={includeHidden} onChange={(e)=>{setIncludeHidden(e.target.checked);setIndex(null);setGroups(null)}}/>{t('compact.includeHidden')}</label></div>}
-      <p className={`space-scan-scope ${includeHidden?'is-expanded':''}`} id={`${view}-scan-scope`}><ShieldCheck size={15}/><span>{t(includeHidden?'scan.scopeExpanded':'scan.scopeDefault')}</span></p>
+      {<div className="space-toolbar duplicate-options">{view==='duplicates'&&<label>{t('large.minimum')} <select aria-label={t('large.minimum')} disabled={busy} value={duplicateMinimum} onChange={(e)=>{setDuplicateMinimum(Number(e.target.value));setIndex(null);setGroups(null)}}>{[10*MB,50*MB,100*MB,1024*MB].map((n)=><option value={n} key={n}>{bytes(n)} +</option>)}</select></label>}<label className="space-inline-check"><input type="checkbox" aria-describedby={`${view}-scan-scope`} disabled={busy} checked={includeHidden} onChange={(e)=>{setIncludeHidden(e.target.checked);setIndex(null);setGroups(null)}}/>{t(view==='disk'?'compact.includeHidden':'scan.includeHiddenFiles')}</label></div>}
+      <p className={`space-scan-scope ${includeHidden?'is-expanded':''}`} id={`${view}-scan-scope`}><ShieldCheck size={15}/><span>{t(view==='disk'?(includeHidden?'scan.scopeExpanded':'scan.scopeDefault'):(includeHidden?'scan.cleanupScopeExpanded':'scan.cleanupScopeDefault'))}</span></p>
       {taskProgress}
       {!index&&!busy?scanPrompt:index&&<>{scanStatus}
         {view==='large'&&<>
@@ -261,7 +263,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
         </>}
         {view==='disk'&&folder&&<>
           <div className="space-disk-toolbar"><div className="space-disk-navigation"><button className="space-button space-disk-back" disabled={breadcrumbs.length<2} onClick={()=>void openFolder(breadcrumbs[breadcrumbs.length-2],breadcrumbs.slice(0,-1))}><ArrowLeft size={16}/>{t('disk.back')}</button><nav className="space-breadcrumbs" aria-label={t('disk.root')}>{breadcrumbs.map((crumb,i)=><button key={crumb.id} disabled={i===breadcrumbs.length-1} onClick={()=>void openFolder(crumb,breadcrumbs.slice(0,i+1))}>{i===0&&<HardDrive size={14}/>}<span>{crumb.name}</span>{i<breadcrumbs.length-1&&<ChevronRight size={14}/>}</button>)}</nav></div><div><strong>{bytes(folder.size)}</strong><small>{t('disk.total')}</small></div></div>
-          <div className="space-explorer"><DirectoryTree key={`${index.generation}:${activity?.id||''}`} index={index} selected={folder.id} activeTrail={breadcrumbs} bytes={bytes} onOpen={openFolder} onReveal={reveal} removedPaths={demo?removedPaths:[]} actions={(file)=>fileActions(file,{type:'entry',generation:index.generation,id:file.id},file.directory?undefined:()=>confirmTrash([file]))}/><div className="space-map-column"><div className="space-map-caption"><span title={t('disk.areaHint')}>{t('disk.top10')}{mapOffset>0&&` / ${t('disk.other')}`}</span>{mapOffset>0&&<button className="space-text-button" onClick={()=>setMapOffset((offset)=>Math.max(0,offset-10))}><ArrowLeft size={13}/>{t('disk.backTop')}</button>}</div><div className="space-treemap" ref={mapRef} role="group" aria-label={t('disk.map')}>{map.map((rect,i)=>{const file=mapEntries.find((entry)=>entry.id===rect.id)!;return <button className="space-treemap-cell" key={rect.id} style={{left:`${rect.x}%`,top:`${rect.y}%`,width:`${rect.width}%`,height:`${rect.height}%`,background:colors[i%colors.length],color:i%colors.length===3||i%colors.length===4?'#27382c':'#fff'}} title={`${file.name} · ${bytes(file.size)}`} aria-label={`${file.name} ${bytes(file.size)}`} onClick={()=>file.id===-1?void openMapOther():file.directory?void openFolder(file,[...breadcrumbs,file]):void reveal(file)}>{rect.height*mapSize.height/100>=90&&rect.width*mapSize.width/100>=75&&<span>{file.directory?<Folder size={16}/>:<File size={16}/>}</span>}<strong>{file.name}</strong><small>{bytes(file.size)}</small></button>})}{!map.length&&<div className="space-empty">{t('common.empty')}</div>}</div></div></div>
+          <div className="space-explorer"><DirectoryTree key={`${index.generation}:${activity?.id||''}`} index={index} selected={folder.id} activeTrail={breadcrumbs} bytes={bytes} onOpen={openFolder} onReveal={reveal} onError={setError} removedPaths={demo?removedPaths:[]} actions={(file)=>fileActions(file,{type:'entry',generation:index.generation,id:file.id},file.directory?undefined:()=>confirmTrash([file]))}/><div className="space-map-column"><div className="space-map-caption"><span title={t('disk.areaHint')}>{t('disk.top10')}{mapOffset>0&&` / ${t('disk.other')}`}</span>{mapOffset>0&&<button className="space-text-button" onClick={()=>setMapOffset((offset)=>Math.max(0,offset-10))}><ArrowLeft size={13}/>{t('disk.backTop')}</button>}</div><div className="space-treemap" ref={mapRef} role="group" aria-label={t('disk.map')}>{map.map((rect,i)=>{const file=mapEntries.find((entry)=>entry.id===rect.id)!;return <button className="space-treemap-cell" key={rect.id} style={{left:`${rect.x}%`,top:`${rect.y}%`,width:`${rect.width}%`,height:`${rect.height}%`,background:colors[i%colors.length],color:i%colors.length===3||i%colors.length===4?'#27382c':'#fff'}} title={`${file.name} · ${bytes(file.size)}`} aria-label={`${file.name} ${bytes(file.size)}`} onClick={()=>file.id===-1?void openMapOther():file.directory?void openFolder(file,[...breadcrumbs,file]):void reveal(file)}>{rect.height*mapSize.height/100>=90&&rect.width*mapSize.width/100>=75&&<span>{file.directory?<Folder size={16}/>:<File size={16}/>}</span>}<strong>{file.name}</strong><small>{bytes(file.size)}</small></button>})}{!map.length&&<div className="space-empty">{t('common.empty')}</div>}</div></div></div>
         </>}
         {view==='duplicates'&&<>
           {groups===null&&!busy&&<div className="space-start compact"><Copy size={28}/><button className="space-button primary" onClick={()=>void findDuplicates()}><Search size={16}/>{t('duplicates.find')}</button></div>}
@@ -310,39 +312,21 @@ function SelectionBar({count,size,detail,disabled,onClear,onReview,label}:{count
   return <section ref={ref} style={position} data-batch-actions className="space-selection-bar" role="region" aria-label={t('selection.actions')}><div><strong>{t('common.selected',{count})}</strong><span>{size}{detail&&` · ${detail}`}</span></div><div className="space-selection-actions"><button className="space-text-button" disabled={disabled} onClick={onClear}>{t('selection.clear')}</button><button className="space-button primary" disabled={disabled} onClick={onReview}><Trash2 size={16}/>{label||t('common.review')}</button></div></section>
 }
 
-export function StorageDialog({title,dismiss,children}:{title:string;dismiss:()=>void;children:React.ReactNode}):React.JSX.Element {
-  const ref=useRef<HTMLDivElement>(null)
-  const dismissRef=useRef(dismiss);dismissRef.current=dismiss
-  useEffect(()=>{
-    const previous=document.activeElement as HTMLElement|null
-    const body=ref.current
-    const focusable=():HTMLElement[]=>Array.from(body?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),[tabindex="0"]')||[])
-    ;(focusable()[0]||body)?.focus()
-    const key=(e:KeyboardEvent):void=>{
-      if(e.key==='Escape'){e.preventDefault();dismissRef.current()}
-      if(e.key==='Tab'){const nodes=focusable();const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}}
-    }
-    document.addEventListener('keydown',key)
-    return ()=>{document.removeEventListener('keydown',key);previous?.focus()}
-  },[])
-  return <div className="space-dialog-backdrop"><div className="space-dialog" role="dialog" aria-modal="true" aria-labelledby="storage-dialog-title" tabIndex={-1} ref={ref}><h2 id="storage-dialog-title">{title}</h2>{children}</div></div>
-}
 
-function DirectoryTree({index,selected,activeTrail,bytes,onOpen,onReveal,actions,removedPaths}:{index:StorageIndex;selected:number;activeTrail:StorageEntry[];bytes:(n:number)=>string;onOpen:(e:StorageEntry,trail:StorageEntry[])=>Promise<void>;onReveal:(e:StorageEntry)=>Promise<void>;actions:(e:StorageEntry)=>React.ReactNode;removedPaths:string[]}):React.JSX.Element {
+function DirectoryTree({index,selected,activeTrail,bytes,onOpen,onReveal,actions,removedPaths,onError}:{index:StorageIndex;selected:number;activeTrail:StorageEntry[];bytes:(n:number)=>string;onOpen:(e:StorageEntry,trail:StorageEntry[])=>Promise<void>;onReveal:(e:StorageEntry)=>Promise<void>;actions:(e:StorageEntry)=>React.ReactNode;removedPaths:string[];onError:(message:string)=>void}):React.JSX.Element {
   const {t}=useI18n()
   const [nodes,setNodes]=useState<Map<number,StorageEntry[]>>(new Map())
   const [more,setMore]=useState<Map<number,boolean>>(new Map())
   const [expanded,setExpanded]=useState<Set<number>>(new Set([0]))
   const [loading,setLoading]=useState<Set<number>>(new Set())
-  const [error,setError]=useState('')
   const current=useRef(index.generation)
   const load=useCallback(async(entry:StorageEntry,offset=0):Promise<void>=>{
     const generation=index.generation
-    setLoading((s)=>new Set([...s,entry.id]));setError('')
+    setLoading((s)=>new Set([...s,entry.id]))
     try{
       const result=window.memento?await window.memento.storageChildren({generation,id:entry.id,offset}):{items:demoChildren(entry)}
       if(current.current===generation){setNodes((s)=>new Map(s).set(entry.id,offset?[...(s.get(entry.id)||[]),...result.items]:result.items));setMore((s)=>new Map(s).set(entry.id,result.items.length===200))}
-    }catch(e){if(current.current===generation)setError(readableTaskError(e))}finally{if(current.current===generation)setLoading((s)=>{const next=new Set(s);next.delete(entry.id);return next})}
+    }catch(e){if(current.current===generation)onError(readableTaskError(e))}finally{if(current.current===generation)setLoading((s)=>{const next=new Set(s);next.delete(entry.id);return next})}
   },[index.generation])
   useEffect(()=>{current.current=index.generation;setNodes(new Map());setMore(new Map());setExpanded(new Set([0]));if(index.root)void load(index.root);return()=>{current.current=-1}},[index.generation,load])
   useEffect(()=>{setExpanded((s)=>new Set([...s,...activeTrail.map((e)=>e.id)]));for(const entry of activeTrail){if(entry.id!==0&&!nodes.has(entry.id))void load(entry)}},[selected,index.generation,load])
@@ -353,7 +337,7 @@ function DirectoryTree({index,selected,activeTrail,bytes,onOpen,onReveal,actions
       <button className="tree-folder-name" title={entry.path} onClick={()=>entry.directory?void onOpen(entry,trail):void onReveal(entry)}>{entry.directory?<Folder size={16}/>:<File size={16}/>}<span>{entry.name}</span><b>{bytes(entry.size)}</b></button>{actions(entry)}
     </div>{open&&entry.directory&&<div role="group">{loading.has(entry.id)&&<span className="tree-loading"><LoaderCircle className="spinner" size={15}/></span>}{children.map((child)=>branch(child,[...trail,child],depth+1))}{more.get(entry.id)&&<button className="space-text-button space-load-more" onClick={()=>void load(entry,children.length)}>{t('common.more')}</button>}</div>}</div>
   }
-  return <div className="space-folder-list"><div className="space-folder-list-heading"><h2>{t('disk.list')}</h2></div>{error&&<div role="alert" className="space-alert">{error}</div>}<div role="tree" aria-label={t('disk.list')}>{index.root&&branch(index.root,[index.root],0)}</div></div>
+  return <div className="space-folder-list"><div className="space-folder-list-heading"><h2>{t('disk.list')}</h2></div><div role="tree" aria-label={t('disk.list')}>{index.root&&branch(index.root,[index.root],0)}</div></div>
 }
 
 function CleanupTree({rules,selected,onToggle,bytes,actions}:{rules:CleanupItem[];selected:Set<string>;onToggle:(id:string)=>void;bytes:(n:number)=>string;actions:(file:{path:string;size:number},target:StorageTarget)=>React.ReactNode}):React.JSX.Element {
@@ -367,13 +351,13 @@ function CleanupTree({rules,selected,onToggle,bytes,actions}:{rules:CleanupItem[
   })}</div>
 }
 
-function FileActions({file,target,onReveal,onTrash}:{file:{path:string;size:number;name?:string;modified?:number};target:StorageTarget;onReveal:(target:StorageTarget)=>Promise<void>;onTrash?:()=>void}):React.JSX.Element {
+function FileActions({file,target,onReveal,onTrash}:{file:{path:string;size:number;name?:string;modified?:number;trashable?:boolean};target:StorageTarget;onReveal:(target:StorageTarget)=>Promise<void>;onTrash?:()=>void}):React.JSX.Element {
   const {t}=useI18n()
   const name=file.name||file.path.split(/[/\\]/).pop()||file.path
   return <span className="space-file-actions" onClick={(e)=>e.stopPropagation()}>
     <button className="icon-button" title={t('common.reveal')} aria-label={`${t('common.reveal')} ${name}`} onClick={()=>void onReveal(target)}><FolderOpen size={15}/></button>
     <AiActionButton request={{key:`file:${file.path}:${file.modified||file.size}`,title:name,prompt:t('file.prompt',{path:JSON.stringify(file.path),size:file.size,modified:file.modified?new Date(file.modified/1e6).toISOString():t('file.unknown')})}}/>
-    {onTrash&&<button className="icon-button file-trash" title={t('common.trash')} aria-label={`${t('common.trash')} ${name}`} onClick={onTrash}><Trash2 size={15}/></button>}
+    {onTrash&&<button className="icon-button file-trash" disabled={file.trashable===false} title={t(file.trashable===false?'storage.readOnly':'common.trash')} aria-label={`${t(file.trashable===false?'storage.readOnly':'common.trash')} ${name}`} onClick={onTrash}><Trash2 size={15}/></button>}
   </span>
 }
 

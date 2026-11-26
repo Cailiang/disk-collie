@@ -1,3 +1,4 @@
+import {useMessages} from './Messages'
 import {AppWindow,ArrowDown,ArrowUp,ArrowDownToLine,ArrowUpRight,ChevronRight,Clock3,File,Folder,LoaderCircle,LockKeyhole,Play,RefreshCw,Search,Trash2} from 'lucide-react'
 import {useEffect,useMemo,useRef,useState} from 'react'
 import type {ApplicationInventoryState,RelatedApplicationFile,StorageApplication,StorageApplicationUpdateResult,StorageTarget} from '../../shared/storage-types'
@@ -9,7 +10,8 @@ import {demoRelatedChildren} from './storage-demo'
 type Props={inventory:ApplicationInventoryState|null;applications:StorageApplication[]|null;onApplications:(apps:StorageApplication[])=>void;busy:boolean;loadingFiles:boolean;application:StorageApplication|null;files:RelatedApplicationFile[];selected:Set<string>;onSelect:(ids:Set<string>)=>void;onFiles:(files:RelatedApplicationFile[])=>void;onInspect:(app:StorageApplication|null)=>void;onRefresh:()=>void;onConfirm:()=>void;actions:(file:{path:string;size:number},target:StorageTarget)=>React.ReactNode;bytes:(n:number)=>string;onNotice:(message:string)=>void;onError:(message:string)=>void}
 export function ApplicationManager(props:Props):React.JSX.Element {
   const {inventory,applications,onApplications,busy,loadingFiles,application,files,selected,onSelect,onFiles,onInspect,onRefresh,onConfirm,actions,bytes,onNotice,onError}=props
-  const {t,locale}=useI18n()
+  const {t,locale}=useI18n(),{show}=useMessages()
+  useEffect(()=>{if(inventory?.error)show({message:inventory.error,tone:'error',title:t('apps.refreshFailed')})},[inventory?.error,show])
   const [search,setSearch]=useState(''),[filter,setFilter]=useState<'all'|'updates'|'unused'>('all'),[scope,setScope]=useState<'user'|'system'>('user'),[sort,setSort]=useState<ApplicationSort>('name'),[direction,setDirection]=useState<'ascending'|'descending'>('ascending')
   const [checking,setChecking]=useState(false),[updating,setUpdating]=useState<string|null>(null)
   const [expanded,setExpanded]=useState(new Set<string>()),[loading,setLoading]=useState<string|null>(null),[loaded,setLoaded]=useState(new Map<string,{more:boolean;offset:number}>())
@@ -48,7 +50,6 @@ export function ApplicationManager(props:Props):React.JSX.Element {
   return <>
     <header className="space-heading"><div><h1>{t('apps.title')}</h1></div><div className="space-actions">{scope==='user'&&<button className="space-button" disabled={!applications||busy||checking||Boolean(updating)} onClick={()=>void check()}>{checking?<LoaderCircle className="spinner" size={15}/>:<ArrowDownToLine size={15}/>}<span>{t('apps.checkUpdates')}</span></button>}<button className="space-button" disabled={busy||checking||Boolean(updating)} onClick={onRefresh}><RefreshCw size={15}/>{t('common.refresh')}</button></div></header>
     <div className="manager-inventory-status" role="status">{inventory?.refreshing||inventory?.measuringSizes?<LoaderCircle className="spinner" size={13}/>:<RefreshCw size={13}/>}<span>{t(inventory?.refreshing?applications?.length?'apps.refreshing':'apps.loading':inventory?.measuringSizes?'apps.measuringSizes':'apps.cacheReady')}</span>{inventory?.updatedAt&&<time dateTime={inventory.updatedAt}>{new Intl.DateTimeFormat(locale,{hour:'2-digit',minute:'2-digit'}).format(new Date(inventory.updatedAt))}</time>}</div>
-    {inventory?.error&&<div className="space-alert" role="alert">{t('apps.refreshFailed')} {inventory.error}</div>}
     <div className="manager-summary"><span><b>{visible.length}</b> {t('apps.applicationCount')}</span><span>{t('apps.occupied')} <b>{bytes(visible.reduce((n,a)=>n+a.size,0))}</b></span></div>
     <div className="manager-scope-tabs" role="tablist" aria-label={t('apps.scope')}>{(['user','system'] as const).map((key)=><button key={key} role="tab" aria-selected={scope===key} onClick={()=>{setScope(key);setFilter('all');onInspect(null)}}>{t(`apps.scope.${key}`)}<span>{(applications||[]).filter((app)=>Boolean(app.system)===(key==='system')).length}</span></button>)}</div>
     <div className="manager-toolbar"><label className="space-search"><Search size={16}/><input type="search" aria-label={t('apps.search')} placeholder={t('apps.search')} value={search} onChange={(e)=>setSearch(e.target.value)}/></label>{scope==='user'&&<div className="space-segmented" role="group" aria-label={t('apps.filter')}>{(['all','updates','unused'] as const).map((key)=><button key={key} className={filter===key?'is-active':''} onClick={()=>setFilter(key)}>{t(`apps.filter.${key}`)}</button>)}</div>}</div>

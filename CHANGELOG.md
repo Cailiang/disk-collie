@@ -4,6 +4,22 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.14 - 2026-11-26
+
+### English
+
+- Align large-file/duplicate discovery with deletion policy: prune protected system/app data, credentials and Trash before traversal/hash work, including `/private/var`, even with hidden directories enabled.
+- Keep broad storage analysis read-only where required; protected file delete actions are disabled and explained, while Main independently validates every selection.
+- Replace page-top operation alerts and transient toasts with persistent centered dialogs, with concurrent-message queuing, deduplication, Escape and focus restoration.
+- Localize changed-file/protected-path errors and verify that failed deletion leaves the file and results available for rescan/retry.
+
+### 简体中文
+
+- 大文件／重复文件扫描与删除策略统一，扫描前跳过系统／应用数据、凭据和废纸篓，包含 `/private/var`；勾选隐藏目录也不会绕过保护，避免无效扫描及哈希。
+- 空间分析保留只读查看，受保护文件的删除按钮禁用并说明原因，主进程继续独立校验。
+- 操作提示由页顶提示条、短暂 Toast 改为居中弹窗，用户关闭前保留；并发提示排队去重，支持 Escape 和焦点返回。
+- 文件变化及受保护位置改为对应语言提示，验证失败后保留文件和结果，可重新扫描后重试。
+
 ## 1.0.13 - 2026-11-26
 
 ### English
