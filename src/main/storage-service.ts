@@ -19,12 +19,14 @@ import { NativeEngine } from './native-engine'
 import type { AppLanguage } from '../shared/app-settings'
 import { discoverApplicationUpdates, findApplications, inspectApplication, type ApplicationMetadata, type ApplicationUpdate } from './scanner'
 import { updateRegisteredApplication } from './storage-application-actions'
-import {discoverPrivacyRules} from './privacy-rules'
 import { storageRules } from './storage-rules'
 import { StorageTaskQueue } from './storage-task-queue'
 import { isStorageMutationAllowed } from './storage-policy'
 import {StorageLedger} from './storage-ledger'
 import {readApplicationIcon} from './application-icon'
+import {PrivacyService} from './privacy-service'
+import type {PrivacyItem,PrivacyTimeRange} from '../shared/privacy-types'
+import {PrivacyCleanupError,type PrivacyOutcome} from './privacy-resource'
 
 const exec = promisify(execFile)
 const home = os.homedir()
@@ -58,6 +60,7 @@ export class StorageService {
   private scanRemovals=new Map<StorageMode,Set<string>>()
   private cleanupEngines={cleanup:new NativeEngine(),privacy:new NativeEngine()}
   private systemEngine=new NativeEngine()
+  private privacyService=new PrivacyService()
   private queue=new StorageTaskQueue((scope,queued,blockedBy)=>this.progress({scope,phase:queued?'queued':'indexing',blockedBy:blockedBy||undefined,entries:0,elapsedMs:0}))
   private progress(progress: import('../shared/storage-types').StorageProgress):void {
     for (const window of BrowserWindow.getAllWindows()) window.webContents.send('memento:storage:progress',{...progress,scope:progress.scope})
@@ -172,18 +175,27 @@ export class StorageService {
     }
     await Promise.all(pending)
   }
-  private async activity(kind: StorageActivity['kind'], jobs: Array<{ path: string; size: number; run: () => Promise<void> }>): Promise<StorageActivity> {
-    const record: StorageActivity = { id: randomUUID(), date: new Date().toISOString(), kind, items: 0, bytes: 0, failures: 0, locations: [] }
+  private async activity(kind: StorageActivity['kind'], jobs: Array<{ path: string; size: number; run: () => Promise<void|PrivacyOutcome>;privacyId?:string }>,skipped=0): Promise<StorageActivity> {
+    const record: StorageActivity = { id: randomUUID(), date: new Date().toISOString(), kind, items: 0, bytes: 0, failures: 0, locations: [],removedPaths:[],...(kind==='privacy'?{privacyIds:[],traces:0,skipped,unchanged:0}:{}) }
     this.history.unshift(record); await this.save()
-    const started=Date.now()
+    const started=Date.now();let processed=0
     for (const job of jobs) {
-      this.progress({scope:kind==='uninstall'?'apps':kind,phase:'cleaning',entries:record.items+record.failures,total:jobs.length,elapsedMs:Date.now()-started,path:job.path})
-      try { await job.run(); record.items++; record.bytes += job.size; record.locations.push(job.path);for(const removed of this.scanRemovals.values())removed.add(job.path) }
-      catch { record.failures++ }
-      await this.save()
-      this.progress({scope:kind==='uninstall'?'apps':kind,phase:'cleaning',entries:record.items+record.failures,total:jobs.length,elapsedMs:Date.now()-started,path:job.path})
+      this.progress({scope:kind==='uninstall'?'apps':kind,phase:'cleaning',entries:processed,total:jobs.length,elapsedMs:Date.now()-started,path:job.path})
+      const accept=(outcome:void|PrivacyOutcome):void=>{
+        const changed=outcome?outcome.changed:true
+        if(changed){record.items++;record.bytes+=outcome?outcome.size:job.size;record.locations.push(job.path)}else record.unchanged=(record.unchanged||0)+1
+        if(outcome)record.traces=(record.traces||0)+outcome.count
+        if(job.privacyId)record.privacyIds?.push(job.privacyId)
+        const removedPaths=outcome?outcome.removedPaths||[]:[job.path]
+        record.removedPaths!.push(...removedPaths)
+        for(const location of removedPaths)for(const removed of this.scanRemovals.values())removed.add(location)
+      }
+      try{accept(await job.run())}
+      catch(error) {if(error instanceof PrivacyCleanupError)accept(error.outcome);record.failures++;const message=error instanceof Error?error.message:String(error);(record.errors??=[]).push({path:job.path,message:message.startsWith('privacy.')?translate(this.language(),message):message})}
+      processed++;await this.save()
+      this.progress({scope:kind==='uninstall'?'apps':kind,phase:'cleaning',entries:processed,total:jobs.length,elapsedMs:Date.now()-started,path:job.path})
     }
-    await this.reconcile(record.locations)
+    await this.reconcile(record.removedPaths!)
     return record
   }
   async scan(options: StorageScanOptions): Promise<StorageIndex | null> {
@@ -204,13 +216,14 @@ export class StorageService {
     })
   }
   async cleanup(privacy: boolean,refresh=true): Promise<CleanupItem[]> {
+    if(privacy)return this.scanPrivacy('all')
     const retained=[...this.rules.values()].filter((value)=>(value.item.category==='privacy')===privacy).map((value)=>value.item)
     if(!refresh&&retained.length)return retained
     return this.exclusive(privacy?'privacy':'cleanup',async () => {
       // Invalidate only this kind so an unrelated scan cannot authorize stale IDs.
       for (const [id, value] of this.rules) if ((value.item.category === 'privacy') === privacy) this.rules.delete(id)
       const available: Array<{ rule: ReturnType<typeof storageRules>[number]; snapshots: Snapshot[]; path:string }> = []
-      for (const rule of privacy?await discoverPrivacyRules(process.platform,home,[...this.applications.values()]):storageRules(process.platform,home).filter((rule)=>rule.category!=='privacy')) {
+      for (const rule of storageRules(process.platform,home).filter((rule)=>rule.category!=='privacy')) {
         const target = path.resolve(home, rule.relative)
         const snapshots:Snapshot[]=[]
         for(const item of rule.sqlite||rule.category==='privacy'&&rule.effect==='history'?[target,`${target}-wal`,`${target}-shm`,`${target}-journal`]:[target]) {
@@ -236,6 +249,7 @@ export class StorageService {
     if (result.processCommands.some((p)=>p.toLowerCase().includes(browser.toLowerCase())) || result.processNames.some((p) => p.toLowerCase().includes(browser.toLowerCase())) || result.processes.some((p) => `${p.name} ${p.command}`.toLowerCase().includes(browser.toLowerCase()))) throw new Error(translate(this.language(),'privacy.closeBrowser',{browser}))
   }
   async clean(ids: string[]): Promise<StorageActivity> {
+    if(this.privacyService.has(ids[0]))return this.cleanPrivacy({ids,skipRunning:false})
     return this.exclusive(this.rules.get(ids[0])?.item.category==='privacy'?'privacy':'cleanup',async () => {
       const values = ids.map((id) => { const v=this.rules.get(id); if (!v) throw new Error('Cleanup selection expired. Scan again.'); return v })
       if (new Set(values.map((v) => v.item.category === 'privacy')).size !== 1) throw new Error('Review privacy and caches separately')
@@ -248,6 +262,27 @@ export class StorageService {
         for(const s of value.snapshots)await rm(s.path, { recursive: true, force: false }); this.rules.delete(value.item.id)
       } })))
       return result
+    },true)
+  }
+  private async privacyProcesses():Promise<(browser:string)=>boolean>{
+    const result=await this.systemEngine.request<{processes:Array<{name:string;command:string}>;processNames:string[];processCommands:string[]}>('system')
+    const names=[...(result.processCommands||[]),...(result.processNames||[]),...(result.processes||[]).map((process)=>`${process.name} ${process.command}`)].map((name)=>name.toLowerCase())
+    return (browser)=>names.some((name)=>name.includes(browser.toLowerCase()))
+  }
+  async scanPrivacy(range:PrivacyTimeRange):Promise<PrivacyItem[]>{
+    return this.exclusive('privacy',async()=>{
+      if(this.applicationRefresh)await this.applicationRefresh.catch(()=>undefined)
+      const running=await this.privacyProcesses()
+      const fixtureHome=process.env.MEMENTO_TEST_RUN==='1'?process.env.MEMENTO_TEST_PRIVACY_HOME:undefined
+      return this.privacyService.scan({platform:process.platform,home:fixtureHome||home,env:fixtureHome?{...process.env,LOCALAPPDATA:path.join(fixtureHome,'AppData/Local'),APPDATA:path.join(fixtureHome,'AppData/Roaming'),XDG_CONFIG_HOME:path.join(fixtureHome,'.config'),XDG_DATA_HOME:path.join(fixtureHome,'.local/share'),XDG_CACHE_HOME:path.join(fixtureHome,'.cache')}:process.env,applications:fixtureHome?[]:[...this.applications.values()]},range,running)
+    })
+  }
+  async cleanPrivacy(input:{ids:string[];skipRunning:boolean}):Promise<StorageActivity>{
+    return this.exclusive('privacy',async()=>{
+      const {entries,skipped}=await this.privacyService.prepare(input.ids,await this.privacyProcesses(),input.skipRunning)
+      return this.activity('privacy',entries.map((entry)=>({path:entry.item.path,size:entry.item.size,privacyId:entry.item.id,run:async()=>{
+        const outcome=await entry.snapshot.clean();this.privacyService.forget(entry.item.id);return outcome
+      }})),skipped)
     },true)
   }
   async trash(input: { generation: number; ids: number[]; kind: StorageMode; groupId?: string }): Promise<StorageActivity> {
@@ -444,7 +479,7 @@ export class StorageService {
     },true)
   }
   async cleanupIcon(id:string):Promise<string|null> {
-    const owner=this.rules.get(id)?.source
+    const owner=this.rules.get(id)?.source||this.privacyService.source(id)
     if(!owner)return null
     const installed=[...this.applications.values()].find((application)=>owner.bundleIds.some((bundle)=>application.bundleId?.toLowerCase()===bundle.toLowerCase())||application.name===owner.name)
     for(const target of [...(installed?[installed.iconPath||installed.location]:[]),...owner.iconPaths]){
@@ -453,7 +488,7 @@ export class StorageService {
     return null
   }
   register(): void {
-    const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`memento:storage:${name}`,async(_event,input)=>{try{return await fn(input)}catch(error){const message=error instanceof Error?error.message:String(error);if(/Item changed since scan|item changed since it was inspected|Path changed or became a link/.test(message))throw new Error(translate(this.language(),'storage.changed'));throw error}})}
+    const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`memento:storage:${name}`,async(_event,input)=>{try{return await fn(input)}catch(error){const message=error instanceof Error?error.message:String(error);if(message.startsWith('privacy.'))throw new Error(translate(this.language(),message));if(/Item changed since scan|item changed since it was inspected|Path changed or became a link/.test(message))throw new Error(translate(this.language(),'storage.changed'));throw error}})}
     handle('state',()=>({index:this.latest?this.sessions.get(this.latest)?.index||null:null,indexes:Object.fromEntries([...this.sessions].map(([mode,s])=>[mode,s.index])),history:this.history,home}))
     handle('scan',(v)=>this.scan(z.object({mode:z.enum(['analysis','large','duplicates']).default('analysis'),minimum:z.number().int().min(10*1024**2).optional(),includeHidden:z.boolean().optional()}).parse(v||{})))
     handle('cancel',(v)=>{const scope=z.enum(['analysis','large','duplicates','cleanup','privacy','apps']).optional().parse(v)||this.queue.activeScopes[0];if(!scope)return false;this.queue.cancelPending(scope);const engine=this.activeEngines.get(scope as StorageMode);if(!engine)return false;engine.stop();for(const [mode,session] of this.sessions)if(session.engine===engine)this.sessions.delete(mode);return true})
@@ -479,13 +514,17 @@ export class StorageService {
       ]).parse(v)
       let location:string|undefined
       if(q.type==='entry')location=(await this.session(q.generation).engine.request<StorageEntry>('entry',q)).path
-      else if(q.type==='rule'){const rule=this.rules.get(q.id);location=rule?.snapshots.find((s)=>s.path===q.path)?.path}
+      else if(q.type==='rule'){const rule=this.rules.get(q.id);location=rule?.snapshots.find((s)=>s.path===q.path)?.path||this.privacyService.paths(q.id).find((target)=>target===q.path)}
       else if(q.type==='related')location=this.related.get(q.id)?.file.path
       else location=this.applications.get(q.id)?.location
       if(!location)throw new Error('The item is no longer available. Scan again.')
       shell.showItemInFolder(location)
     })
     handle('cleanup',(v)=>this.cleanup(z.boolean().parse(v)))
+    handle('privacy-scan',(v)=>this.scanPrivacy(z.enum(['hour','today','week','all']).parse(v)))
+    handle('privacy-preview',(v)=>{const q=z.object({id:z.string().uuid(),offset:int.max(100000).default(0)}).parse(v);return this.privacyService.preview(q.id,q.offset)})
+    handle('privacy-clean',(v)=>this.cleanPrivacy(z.object({ids:z.array(z.string().uuid()).min(1).max(500),skipRunning:z.boolean().default(false)}).parse(v)))
+    handle('privacy-permissions',async()=>{if(process.platform==='darwin')await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles');else if(process.platform==='win32')await shell.openExternal('ms-settings:privacy-broadfilesystemaccess');else throw new Error('privacy.permissionsManual')})
     handle('cleanup-icon',(value)=>this.cleanupIcon(z.string().uuid().parse(value)))
     handle('clean',(v)=>this.clean(z.array(z.string().uuid()).min(1).max(100).transform((ids)=>[...new Set(ids)]).parse(v)))
     handle('applications',(v)=>this.listApplications(z.boolean().optional().parse(v)||false))

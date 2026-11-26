@@ -36,6 +36,8 @@ vi.mock('./native-engine',()=>({NativeEngine:class {
 }}))
 import {StorageService} from './storage-service'
 import {StorageLedger} from './storage-ledger'
+import {PrivacyService} from './privacy-service'
+import {PrivacyCleanupError,type PrivacyResource} from './privacy-resource'
 const call=(name:string,input?:unknown)=>state.handlers.get(`memento:storage:${name}`)!(null,input)
 describe('storage scan sessions and partial cleanup',()=>{
   let fixture:string
@@ -63,6 +65,27 @@ describe('storage scan sessions and partial cleanup',()=>{
     const ledger=new StorageLedger(state.profile);expect(ledger.list()[0]).toEqual(result);ledger.close()
     const restored=new StorageService();await restored.init();restored.register()
     expect((await call('state')).history[0]).toEqual(result)
+  })
+  it('cleans logical privacy records without removing a surviving source database from file indexes',async()=>{
+    const service=new StorageService();await service.init();service.register()
+    const index=await service.scan({mode:'large'}),target=path.join(state.root,'b.mov')
+    const resource:PrivacyResource={key:'history-fixture',kind:'history',category:'browser-activity',source:{key:'fixture',name:'Fixture',bundleIds:[],iconPaths:[]},paths:[target],risk:'recent',supportsRange:true,scan:async()=>({count:7,size:2048,capability:'ready',preview:async()=>[],validate:async()=>undefined,clean:async()=>({count:7,size:0,changed:true,removedPaths:[]})})}
+    ;(service as any).privacyService=new PrivacyService(async()=>[resource])
+    const [item]=await service.scanPrivacy('all'),result=await service.cleanPrivacy({ids:[item.id],skipRunning:false})
+    expect(result).toMatchObject({kind:'privacy',items:1,traces:7,bytes:0,failures:0,locations:[target],removedPaths:[],privacyIds:[item.id]})
+    expect((await call('large',{generation:index!.generation,minimum:1,search:'',offset:0})).count).toBe(3)
+    expect(await readFile(target)).toHaveLength(2048)
+    const ledger=new StorageLedger(state.profile);expect(ledger.list()[0]).toEqual(result);ledger.close()
+  })
+  it('journals confirmed partial privacy removals and reconciles only those paths',async()=>{
+    const service=new StorageService();await service.init();service.register()
+    const index=await service.scan({mode:'large'}),target=path.join(state.root,'a.mov'),id=crypto.randomUUID()
+    const result=await (service as any).activity('privacy',[{path:state.root,size:6144,privacyId:id,run:async()=>{await rm(target);throw new PrivacyCleanupError({count:1,size:2048,changed:true,removedPaths:[target]},new Error('privacy.sourceChanged'))}}])
+    expect(result).toMatchObject({items:1,failures:1,traces:1,bytes:2048,locations:[state.root],removedPaths:[target],privacyIds:[id]})
+    expect(result.errors[0].message).toContain('发生了变化')
+    expect((await call('large',{generation:index!.generation,minimum:1,search:'',offset:0})).items.map((entry:StorageEntry)=>entry.name)).toEqual(['b.mov','c.mov'])
+    expect(state.progress.filter((value)=>value.phase==='cleaning').map((value)=>value.entries)).toEqual([0,1])
+    const ledger=new StorageLedger(state.profile);expect(ledger.list()[0]).toEqual(result);ledger.close()
   })
   it('rescanning one purpose expires only that purpose',async()=>{
     const service=new StorageService();service.register()

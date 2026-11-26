@@ -1,5 +1,6 @@
 import type { ApplicationUpdateMode, ApplicationUpdateResult, ApplicationUpdateSource } from './types'
 import type { FileCategory } from './file-categories'
+import type {PrivacyItem,PrivacyPreview,PrivacyTimeRange} from './privacy-types'
 export interface StorageEntry {
   /** Main-process policy metadata; never authorizes a mutation on its own. */
   trashable?:boolean
@@ -57,6 +58,12 @@ export interface CleanupItem {
   browser?: string
 }
 export interface StorageActivity {
+  removedPaths?:string[]
+  privacyIds?:string[]
+  traces?:number
+  skipped?:number
+  unchanged?:number
+  errors?:Array<{path:string;message:string}>
   id: string
   date: string
   kind: 'analysis' | 'large' | 'duplicates' | 'cleanup' | 'privacy' | 'uninstall'
@@ -111,6 +118,10 @@ export interface StorageApi {
   storageReveal: (input: { generation: number; id: number }) => Promise<void>
   storageRevealTarget: (target:StorageTarget) => Promise<void>
   storageCleanup: (privacy: boolean) => Promise<CleanupItem[]>
+  storagePrivacyScan:(range:PrivacyTimeRange)=>Promise<PrivacyItem[]>
+  storagePrivacyPreview:(input:{id:string;offset?:number})=>Promise<PrivacyPreview>
+  storagePrivacyClean:(input:{ids:string[];skipRunning:boolean})=>Promise<StorageActivity>
+  storagePrivacyPermissions:()=>Promise<void>
   storageCleanupIcon: (id:string) => Promise<string|null>
   storageClean: (ids: string[]) => Promise<StorageActivity>
   storageApplications: (refresh?:boolean) => Promise<StorageApplication[]>

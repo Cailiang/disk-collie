@@ -4,6 +4,26 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.15 - 2026-11-26
+
+### English
+
+- Replace file-only privacy results with four layered categories, real source icons, actual record previews with pagination, real timestamp filters and explicit permission/range states.
+- Separate Chromium browsing, search and download cleanup; preserve schema, bookmarks, downloaded files and unselected records. Add supported Firefox/Safari adapters and manual account/credential selections with redacted previews.
+- Discover macOS SFL2/3/4 recent items, Finder history, clipboard summary, shell commands, known app recents/cache/logs and Code edit/workspace history. Keep native recent-list graphs intact.
+- Add recommended/manual/all/none selection and bulk confirmation, running-browser close/skip guards, preflight snapshots, record-change validation and persisted measured outcomes. AI receives only type metadata.
+- Make file deletion discoverable from both Space explorer tiles and tree selections through a labeled Open / Ask AI / Move to Trash action strip, retaining reviewed deletion and index reconciliation.
+- Add synthetic database, native SFL, record/time/safety, Electron and four-viewport UI coverage. Safari and Windows capabilities remain explicit rather than implying complete cross-platform parity.
+
+### 简体中文
+
+- 隐私清理由文件路径升级为四类分层记录，提供真实应用图标、分页详情、真实时间范围及权限／范围能力状态。
+- Chromium 浏览／搜索／下载分别清理，保留库结构、书签、下载文件及未选记录；增加已适配 Firefox／Safari 类型，账户和敏感项手动选择，预览隐藏秘密值。
+- macOS 补齐 SFL2／3／4 最近项目、Finder 历史、剪贴板摘要、终端命令、特定应用最近项目／缓存／日志及 Code 编辑和工作区记录，清理保留原生记录结构。
+- 新增推荐／手动／全选／取消、底部批量核对、运行中浏览器退出／跳过、全体快照预校验及记录内容变化检测；实际痕迹数、释放体积和失败信息持久保存，询问 AI 只发送类型元数据。
+- 空间分析点击图块或目录树中的文件，直接显示带文字的打开／询问 AI／移到废纸篓操作栏，核对后删除并同步其他索引。
+- 补充合成数据库、原生 SFL、记录／时间／边界、真实 Electron 和四尺寸 UI 验证，明确 Safari 和 Windows 的当前适配边界。
+
 ## 1.0.14 - 2026-11-26
 
 ### English

@@ -1,3 +1,15 @@
+# Memento 1.0.15 — 隐私记录与直接文件操作 / Privacy records and file actions
+
+- 隐私清理重新设计为四类分层列表，应用 Logo、配置目录、真实记录数，点击可分页查看浏览历史、搜索词、下载记录和系统活动。
+- 时间范围支持最近一小时、今天、近七天、全部；没有可靠时间的来源明确标记仅支持全部时间，权限不足可打开系统设置后重扫。
+- 浏览／搜索／下载独立清理，书签、下载文件和原始文档保留；账户和敏感记录需明确选择，浏览器运行中要求退出或跳过。
+- macOS 补齐新版 SFL4 最近记录、Finder 与终端活动、剪贴板摘要及已适配应用活动；记录预览仅在本机，AI 只收到类型元数据。
+- 空间分析选中文件图块或目录树文件后，出现带文字的打开、询问 AI、移到废纸篓按钮，核对后删除并更新剩余结果。
+
+涉及源文件大小与实际释放空间分开：数据库删除记录不一定立即缩小，清理结果按实测记录。Safari 目前适配历史／会话／缓存；Windows 系统活动目前为 Recent 快捷方式，不宣称完整平台对齐。
+
+English: redesigned four-category privacy workspace with local paginated record previews, actual timestamp filters, permission/range states, separate Chromium history/search/download transactions, redacted account previews and explicit sensitive selections. macOS SFL4/Finder/shell/app activity is supported with structure-preserving cleanup. Running browsers must close or be skipped; AI receives type metadata only. Space explorer tile/tree file selections expose labeled, reviewed file deletion. Source size and measured freed bytes are distinct; Safari/Windows adapter limits are explicit.
+
 # Memento 1.0.14 — 扫描边界与操作弹窗 / Cleanup scope and operation dialogs
 
 - 大文件、重复文件扫描提前跳过无法在此清理的系统和应用目录，包括 `/private/var`；隐藏目录选项不会绕过保护。
