@@ -1,3 +1,4 @@
+import {normalizeScanExcludedDirectories} from './scan-exclusions'
 import { supportedLocales, type LocaleId } from './localization'
 export type AppLanguage = LocaleId
 export type AppTheme =
@@ -15,6 +16,7 @@ export interface AppSettings {
   theme: AppTheme
   launchAtLogin: boolean
   closeToTray: boolean
+  scanExcludedDirectories: string[]
   serviceWhitelist: string[]
   storageWhitelist: string[]
   applicationWhitelist: string[]
@@ -23,6 +25,8 @@ export interface AppSettings {
 export type UpdateAppSettingsInput = Partial<AppSettings>
 
 export interface MementoSettingsApi {
+  addScanExcludedDirectory:()=>Promise<AppSettings>
+  removeScanExcludedDirectory:(directory:string)=>Promise<AppSettings>
   getAppSettings: () => Promise<AppSettings>
   updateAppSettings: (input: UpdateAppSettingsInput) => Promise<AppSettings>
 }
@@ -32,6 +36,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'mars',
   launchAtLogin: false,
   closeToTray: false,
+  scanExcludedDirectories: [],
   serviceWhitelist: [],
   storageWhitelist: [],
   applicationWhitelist: []
@@ -82,6 +87,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       : DEFAULT_APP_SETTINGS.theme,
     launchAtLogin: candidate.launchAtLogin === true,
     closeToTray: candidate.closeToTray === true,
+    scanExcludedDirectories: normalizeScanExcludedDirectories(candidate.scanExcludedDirectories),
     serviceWhitelist: normalizeServiceWhitelist(candidate.serviceWhitelist),
     storageWhitelist: normalizeStorageWhitelist(candidate.storageWhitelist),
     applicationWhitelist: normalizeApplicationWhitelist(candidate.applicationWhitelist)

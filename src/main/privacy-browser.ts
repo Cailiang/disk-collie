@@ -1,7 +1,10 @@
-import {lstat,readFile,readdir,rename,rm,writeFile} from 'node:fs/promises'
+import {chmod,copyFile,lstat,mkdtemp,readFile,readdir,realpath,rename,rm,writeFile} from 'node:fs/promises'
+import {createReadStream} from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import {createHash,randomUUID} from 'node:crypto'
 import type {PrivacyKind,PrivacyRecord,PrivacyTimeRange} from '../shared/privacy-types'
+import {isScanPathExcluded} from '../shared/scan-exclusions'
 import {privacyAccessFailure,privacyFileResource,privacyPathSnapshot,privacySince,privacyUnavailable,validatePrivacyPath,type PrivacyContext,type PrivacyDefinition,type PrivacyPathSnapshot,type PrivacyResource,type PrivacySnapshot,type PrivacySource} from './privacy-resource'
 
 const {DatabaseSync}=require('node:sqlite') as typeof import('node:sqlite')
@@ -17,6 +20,42 @@ function tableExists(database:Database,table:string):boolean{return Boolean(data
 function columns(database:Database,table:string):Set<string>{return new Set((database.prepare(`PRAGMA table_info(${quote(table)})`).all() as Array<{name:string}>).map((row)=>row.name))}
 function requireSchema(database:Database,spec:SqlSpec):void{for(const [table,needed] of Object.entries(spec.required)){if(!tableExists(database,table)||needed.some((name)=>!columns(database,table).has(name)))throw new Error('privacy.sourceUnavailable')}}
 function openDatabase(filename:string,writable=false):Database{const database=new DatabaseSync(filename,{readOnly:!writable});database.exec('PRAGMA busy_timeout=200; PRAGMA foreign_keys=ON;');if(!writable)database.exec('PRAGMA query_only=ON;');return database}
+function databaseBusy(error:unknown):boolean{return [5,6].includes(Number((error as {errcode?:number})?.errcode))||/database (?:is )?(?:locked|busy)/i.test(String(error))}
+async function contentHash(filename:string):Promise<string>{const hash=createHash('sha256');for await(const bytes of createReadStream(filename))hash.update(bytes);return hash.digest('hex')}
+/** A locked browser is read through a verified, short-lived private copy; the source is never opened for recovery. */
+async function readBrowserDatabase<T>(filename:string,read:(database:Database)=>T):Promise<T>{
+  let live:Database|undefined
+  try{live=openDatabase(filename);return read(live)}catch(error){if(!databaseBusy(error))throw error}finally{live?.close()}
+  for(let attempt=0;attempt<3;attempt++){
+    const directory=await realpath(await mkdtemp(path.join(os.tmpdir(),'memento-private-browser-')))
+    let copy:Database|undefined
+    try{
+      await chmod(directory,0o700)
+      const observed=await observedDatabase(filename),primary=observed.get('')
+      if(!primary||primary.directory)throw new Error('privacy.sourceUnavailable')
+      const sources=[...observed].filter(([suffix,value])=>suffix!=='-shm'&&value)
+      if(sources.reduce((sum,[,value])=>sum+(value?.size||0),0)>2*1024**3)throw new Error('privacy.sourceUnavailable')
+      const target=path.join(directory,'records.sqlite')
+      for(const [suffix,value] of sources){await copyFile(value!.path,target+suffix);await chmod(target+suffix,0o600)}
+      await validateDatabase(observed)
+      let stable=true
+      for(const [suffix,value] of sources)if(await contentHash(value!.path)!==await contentHash(target+suffix)){stable=false;break}
+      await validateDatabase(observed)
+      if(!stable){if(attempt<2)continue;throw new Error('privacy.sourceChanged')}
+      // Recovery can write to this isolated copy, including a captured rollback journal, never to browser files.
+      copy=new DatabaseSync(target);copy.exec('PRAGMA busy_timeout=200; PRAGMA foreign_keys=ON; PRAGMA query_only=ON;')
+      const checks=copy.prepare('PRAGMA quick_check').all() as Array<Record<string,unknown>>
+      if(checks.length!==1||Object.values(checks[0])[0]!=='ok')throw new Error('privacy.sourceUnavailable')
+      return read(copy)
+    }catch(error){
+      // A concurrent checkpoint can remove a companion between observing and copying it.
+      if((error as Error).message==='privacy.sourceChanged'||isMissing(error)){if(attempt<2)continue;throw new Error('privacy.sourceChanged')}
+      throw error
+    }
+    finally{copy?.close();await rm(directory,{recursive:true,force:true})}
+  }
+  throw new Error('privacy.sourceChanged')
+}
 function isMissing(error:unknown):boolean{return (error as NodeJS.ErrnoException)?.code==='ENOENT'}
 function unavailable(error:unknown):PrivacySnapshot{return privacyUnavailable(privacyAccessFailure(error)||/permission|not authorized|access is denied/i.test(String(error))?'permission-required':'unavailable')}
 function epoch(value:number,family:Family):SqlValue{if(family==='safari')return value/1000-SAFARI_SECONDS;return (BigInt(Math.trunc(value))+(family==='chromium'?CHROME_MS:0n))*1000n}
@@ -74,12 +113,17 @@ function queryFingerprint(database:Database,query:string):string{
   return hash.digest('hex')
 }
 /** Capture record contents and their affected relations, excluding sibling-maintained counters. */
+function fingerprintOrder(database:Database,table:string):string{
+  const info=database.prepare(`PRAGMA table_info(${quote(table)})`).all() as Array<{name:string;pk:number}>
+  const primary=info.filter((column)=>column.pk>0).sort((a,b)=>a.pk-b.pk)
+  return (primary.length?primary:info).map((column)=>quote(column.name)).join(',')
+}
 function rowsFingerprint(database:Database,spec:SqlSpec,source:string):string{
   const fingerprints=[queryFingerprint(database,`SELECT * FROM ${quote(spec.table)} WHERE rowid IN (${source}) ORDER BY rowid`)]
   for(const related of spec.related||[]){
     if(!tableExists(database,related.table)||related.requires?.some((name)=>!columns(database,related.table).has(name))){fingerprints.push(`missing:${related.table}`);continue}
     const fields=related.fields?.map(quote).join(',')||'*'
-    fingerprints.push(queryFingerprint(database,`SELECT ${fields} FROM ${quote(related.table)} WHERE ${related.where.replaceAll('$IDS',source)} ORDER BY rowid`))
+    fingerprints.push(queryFingerprint(database,`SELECT ${fields} FROM ${quote(related.table)} WHERE ${related.where.replaceAll('$IDS',source)} ORDER BY ${fingerprintOrder(database,related.table)}`))
   }
   return createHash('sha256').update(JSON.stringify(fingerprints)).digest('hex')
 }
@@ -118,15 +162,16 @@ function chromiumSearch(database:Database):void{
 function sqlResource(definition:PrivacyDefinition,spec:SqlSpec):PrivacyResource{
   return {...definition,scan:async(range,until)=>{
     if(range!=='all'&&!definition.supportsRange)return privacyUnavailable('range-unsupported')
-    const filename=definition.paths[0];let database:Database|undefined
+    const filename=definition.paths[0]
     try{
       await privacyPathSnapshot(filename)
-      database=openDatabase(filename);requireSchema(database,spec);database.exec('BEGIN')
-      const query=filter(spec,range,until),total=Number(database.prepare(`SELECT COUNT(*) AS count FROM ${quote(spec.table)} WHERE ${query.sql}`).get(...query.values)!.count)
-      const statement=database.prepare(`SELECT rowid AS id FROM ${quote(spec.table)} WHERE ${query.sql} ORDER BY ${spec.time?`${spec.time.column} DESC,`:''}rowid DESC LIMIT ${MAX_ROWS}`);statement.setReadBigInts(true)
-      const ids=(statement.all(...query.values) as Array<{id:bigint}>).map((row)=>String(row.id))
-      const fingerprint=rowsFingerprint(database,spec,ids.join(','))
-      database.close();database=undefined
+      const {ids,total,fingerprint}=await readBrowserDatabase(filename,(reader)=>{
+        requireSchema(reader,spec);reader.exec('BEGIN')
+        const query=filter(spec,range,until),total=Number(reader.prepare(`SELECT COUNT(*) AS count FROM ${quote(spec.table)} WHERE ${query.sql}`).get(...query.values)!.count)
+        const statement=reader.prepare(`SELECT rowid AS id FROM ${quote(spec.table)} WHERE ${query.sql} ORDER BY ${spec.time?`${spec.time.column} DESC,`:''}rowid DESC LIMIT ${MAX_ROWS}`);statement.setReadBigInts(true)
+        const ids=(statement.all(...query.values) as Array<{id:bigint}>).map((row)=>String(row.id))
+        return {ids,total,fingerprint:rowsFingerprint(reader,spec,ids.join(','))}
+      })
       const observed=await observedDatabase(filename),size=databaseSourceSize(observed)
       let validated=false
       return {count:ids.length,size,capability:ids.length?'ready':'empty',limited:total>ids.length,
@@ -134,16 +179,15 @@ function sqlResource(definition:PrivacyDefinition,spec:SqlSpec):PrivacyResource{
         preview:async(offset,limit)=>{
           await validateDatabase(observed,true)
           if(!ids.length)return []
-          let reader:Database|undefined
-          try{
-            reader=openDatabase(filename)
-            const page=spec.grouped?ids:ids.slice(offset,offset+limit)
-            if(!page.length)return []
+          const page=spec.grouped?ids:ids.slice(offset,offset+limit)
+          if(!page.length)return []
+          return readBrowserDatabase(filename,(reader)=>{
+            requireSchema(reader,spec)
             // Only engine-created integer row identities enter this fixed query; no renderer SQL or paths.
             const list=page.join(','),sql=spec.records.replaceAll('$IDS',list)+(spec.grouped?' LIMIT ? OFFSET ?':'')
             const rows=reader.prepare(sql).all(...(spec.grouped?[limit,offset]:[])) as Array<Record<string,unknown>>
             return rows.map((row,index)=>{const entry=record(row,index);if(definition.kind==='passwords'){entry.id=String(offset+index);entry.title=accountSite(entry.title);entry.url=accountLink(entry.title)}return entry})
-          }finally{reader?.close()}
+          })
         },
         clean:async(progress)=>{
           if(!validated)await validateDatabase(observed)
@@ -163,7 +207,7 @@ function sqlResource(definition:PrivacyDefinition,spec:SqlSpec):PrivacyResource{
           }catch(error){if(writer?.isTransaction)writer.exec('ROLLBACK');throw error}finally{writer?.close()}
         }
       }
-    }catch(error){return isMissing(error)?privacyUnavailable('empty'):unavailable(error)}finally{database?.close()}
+    }catch(error){return isMissing(error)?privacyUnavailable('empty'):unavailable(error)}
   }}
 }
 
@@ -216,15 +260,16 @@ async function fileExists(filename:string):Promise<boolean>{try{return !(await p
 function installed(browser:Browser,context:PrivacyContext):boolean{return context.applications.some((application)=>application.bundleId?.toLowerCase()===browser.bundle.toLowerCase()||application.name===browser.name)}
 async function profileDirectories(browser:Browser,context:PrivacyContext):Promise<BrowserProfile[]>{
   const paths=context.platform==='win32'?path.win32:path.posix
+  if(isScanPathExcluded(browser.root,context.excludedPaths))return []
   if(browser.family==='safari'){const state=await directoryState(browser.root);return state!=='missing'||installed(browser,context)?[{id:'Default',name:'Default',root:browser.root,denied:state==='denied'}]:[]}
   let names:string[]=[],denied=false
   try{names=(await readdir(browser.root,{withFileTypes:true})).filter((entry)=>entry.isDirectory()&&(browser.family==='firefox'||/^(Default|Profile \d+|Guest Profile)$/.test(entry.name))).map((entry)=>entry.name).sort()}catch(error){denied=privacyAccessFailure(error);if(denied||installed(browser,context))names=['Default'];else return []}
   const result:BrowserProfile[]=[]
   let labels:Record<string,any>={}
-  if(browser.family==='chromium')try{labels=(await readJson(paths.join(browser.root,'Local State'))).profile?.info_cache||{}}catch{/* Friendly profile names are optional. */}
-  for(const name of names)result.push({id:name,name:cleanText(labels[name]?.name)||name,root:paths.join(browser.root,name),denied})
-  if(!denied&&browser.family==='chromium'&&await fileExists(paths.join(browser.root,'History')))result.unshift({id:'Root',name:'Default',root:browser.root})
-  if(!result.length&&installed(browser,context))result.push({id:'Default',name:'Default',root:paths.join(browser.root,'Default')})
+  if(browser.family==='chromium'&&!isScanPathExcluded(paths.join(browser.root,'Local State'),context.excludedPaths))try{labels=(await readJson(paths.join(browser.root,'Local State'))).profile?.info_cache||{}}catch{/* Friendly profile names are optional. */}
+  for(const name of names)if(!isScanPathExcluded(paths.join(browser.root,name),context.excludedPaths))result.push({id:name,name:cleanText(labels[name]?.name)||name,root:paths.join(browser.root,name),denied})
+  if(!denied&&browser.family==='chromium'&&!isScanPathExcluded(paths.join(browser.root,'History'),context.excludedPaths)&&await fileExists(paths.join(browser.root,'History')))result.unshift({id:'Root',name:'Default',root:browser.root})
+  if(!result.length&&installed(browser,context)&&!isScanPathExcluded(paths.join(browser.root,'Default'),context.excludedPaths))result.push({id:'Default',name:'Default',root:paths.join(browser.root,'Default')})
   return result
 }
 
@@ -255,8 +300,8 @@ export async function browserPrivacyResources(context:PrivacyContext):Promise<Pr
   for(const browser of browserDefinitions(context)){
     const source=browserSource(browser,context)
     for(const profile of await profileDirectories(browser,context)){
-      const add=(resource:PrivacyResource):void=>{resources.push(profile.denied?{...resource,scan:async(range,until)=>{const snapshot=await resource.scan(range,until);return snapshot.capability==='empty'?privacyUnavailable('permission-required'):snapshot}}:resource)}
-      const definition=(kind:PrivacyKind,locations:string[],supportsRange:boolean):PrivacyDefinition=>({key:`${browser.key}:${profile.id}:${kind}`,kind,category:['cookies','site-data','site-permissions','passwords','autofill'].includes(kind)?'browser-accounts':'browser-activity',source,profile:profile.name,browser:browser.process,paths:locations,risk:['passwords','autofill'].includes(kind)?'sensitive':['cookies','site-data','site-permissions'].includes(kind)?'account':['sessions','top-sites'].includes(kind)?'recent':'low',supportsRange,recommended:['history','search','downloads','cache','favicons','shortcuts'].includes(kind)})
+      const add=(resource:PrivacyResource):void=>{if(!resource.paths.length)return;resources.push(profile.denied?{...resource,scan:async(range,until)=>{const snapshot=await resource.scan(range,until);return snapshot.capability==='empty'?privacyUnavailable('permission-required'):snapshot}}:resource)}
+      const definition=(kind:PrivacyKind,locations:string[],supportsRange:boolean):PrivacyDefinition=>({key:`${browser.key}:${profile.id}:${kind}`,kind,category:['cookies','site-data','site-permissions','passwords','autofill'].includes(kind)?'browser-accounts':'browser-activity',source,profile:profile.name,browser:browser.process,paths:locations.filter((target)=>!isScanPathExcluded(target,context.excludedPaths)),excludedPaths:context.excludedPaths,risk:['passwords','autofill'].includes(kind)?'sensitive':['cookies','site-data','site-permissions'].includes(kind)?'account':['sessions','top-sites'].includes(kind)?'recent':'low',supportsRange,recommended:['history','search','downloads','cache','favicons','shortcuts'].includes(kind)})
       const database=(kind:PrivacyKind,filename:string,spec:SqlSpec,supportsRange=Boolean(spec.time)):void=>{add(sqlResource(definition(kind,[paths.join(profile.root,filename)],supportsRange),spec))}
       const files=(kind:PrivacyKind,locations:string[]):void=>{add(privacyFileResource(definition(kind,locations,false)))}
       if(browser.family==='chromium'){
@@ -264,7 +309,7 @@ export async function browserPrivacyResources(context:PrivacyContext):Promise<Pr
         database('history','History',{table:'visits',required:{visits:['id','url','visit_time'],urls:['id','url','title']},time,records:`SELECT visits.id AS id,COALESCE(NULLIF(urls.title,''),urls.url) AS title,urls.url AS url,${timestamp('visits.visit_time','chromium')} AS timestamp FROM visits JOIN urls ON urls.id=visits.url WHERE visits.rowid IN ($IDS) ORDER BY visits.visit_time DESC,visits.id DESC`,related:[{table:'urls',fields:['id','url','title'],where:'id IN (SELECT url FROM visits WHERE rowid IN ($IDS))'},...[['visit_source','id'],['content_annotations','visit_id'],['context_annotations','visit_id'],['clusters_and_visits','visit_id']].map(([table,column])=>({table,requires:[column],where:`${quote(column)} IN ($IDS)`}))],mutate:chromiumVisits})
         database('search','History',{table:'keyword_search_terms',required:{keyword_search_terms:['url_id','term'],urls:['id','url','last_visit_time'],visits:['url']},time:{column:'(SELECT last_visit_time FROM urls WHERE id=keyword_search_terms.url_id)',family:'chromium'},records:`SELECT terms.rowid AS id,terms.term AS title,${timestamp('urls.last_visit_time','chromium')} AS timestamp FROM keyword_search_terms AS terms JOIN urls ON urls.id=terms.url_id WHERE terms.rowid IN ($IDS) ORDER BY urls.last_visit_time DESC,terms.rowid DESC`,related:[{table:'urls',fields:['id','url'],where:'id IN (SELECT url_id FROM keyword_search_terms WHERE rowid IN ($IDS))'}],mutate:chromiumSearch})
         database('downloads','History',{table:'downloads',required:{downloads:['id','target_path','start_time'],downloads_url_chains:['id','url']},time:{column:'start_time',family:'chromium'},records:`SELECT rowid AS id,target_path AS title,target_path AS path,${timestamp('start_time','chromium')} AS timestamp FROM downloads WHERE rowid IN ($IDS) ORDER BY start_time DESC,rowid DESC`,related:[{table:'downloads_url_chains',where:'id IN ($IDS)'}],mutate:(database)=>{optionalDelete(database,'downloads_url_chains','id');database.exec(`DELETE FROM downloads WHERE rowid IN (${keys})`)}})
-        const cookie=await fileExists(paths.join(profile.root,'Network/Cookies'))?'Network/Cookies':'Cookies'
+        const cookie=!isScanPathExcluded(paths.join(profile.root,'Network/Cookies'),context.excludedPaths)&&await fileExists(paths.join(profile.root,'Network/Cookies'))?'Network/Cookies':'Cookies'
         database('cookies',cookie,{table:'cookies',required:{cookies:['host_key','last_access_utc']},time:{column:'last_access_utc',family:'chromium'},grouped:true,records:'SELECT host_key AS id,host_key AS title,COUNT(*) AS count FROM cookies WHERE rowid IN ($IDS) GROUP BY host_key ORDER BY COUNT(*) DESC,host_key'})
         database('passwords','Login Data',{table:'logins',required:{logins:['origin_url']},grouped:true,records:'SELECT origin_url AS id,origin_url AS title,origin_url AS url,COUNT(*) AS count FROM logins WHERE rowid IN ($IDS) GROUP BY origin_url ORDER BY origin_url',related:['password_notes','insecure_credentials'].map((table)=>({table,requires:['parent_id'],where:'parent_id IN ($IDS)'})),mutate:(database)=>{for(const table of ['password_notes','insecure_credentials'])optionalDelete(database,table,'parent_id');database.exec(`DELETE FROM logins WHERE rowid IN (${keys})`)}})
         database('autofill','Web Data',{table:'autofill',required:{autofill:['name']},grouped:true,records:'SELECT name AS id,name AS title,COUNT(*) AS count FROM autofill WHERE rowid IN ($IDS) GROUP BY name ORDER BY name'})

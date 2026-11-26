@@ -25,7 +25,7 @@ export class DeepCleanService {
       for(const target of definition.paths){
         assertDeepNotCancelled(context.signal)
         let snapshot:DeepCleanSnapshot
-        try{snapshot=await (definition.snapshot?definition.snapshot(target,until):deepFileSnapshot(target,until,{...definition.options,signal:context.signal}))}catch(error){
+        try{snapshot=await (definition.snapshot?definition.snapshot(target,until):deepFileSnapshot(target,until,{...definition.options,excludedPaths:context.excludedPaths,signal:context.signal}))}catch(error){
           assertDeepNotCancelled(context.signal)
           snapshot={count:0,size:0,modified:null,status:privacyAccessFailure(error)?'permission-required':(error as NodeJS.ErrnoException).code==='ENOENT'?'empty':'unavailable',files:[],validate:async()=>{throw new Error('deep.sourceUnavailable')},clean:async()=>{throw new Error('deep.sourceUnavailable')}}
         }

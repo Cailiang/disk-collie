@@ -13,6 +13,11 @@ function resource(key:string,value=snapshot(),browser?:string):PrivacyResource{
 }
 
 describe('registered privacy plans',()=>{
+  it('does not scan or register excluded resources',async()=>{
+    const blocked=resource('private'),allowed=resource('public'),service=new PrivacyService(async()=>[blocked,allowed])
+    const items=await service.scan({...context,excludedPaths:blocked.paths},'all')
+    expect(items.map((item)=>item.path)).toEqual(allowed.paths);expect(blocked.scan).not.toHaveBeenCalled();expect(allowed.scan).toHaveBeenCalledOnce()
+  })
   it('exposes opaque registered IDs, preserves IDs across refreshed keys, and expires missing selections',async()=>{
     const first=resource('first'),removed=resource('removed'),added=resource('added')
     const discover=vi.fn(async()=>[first,removed]),service=new PrivacyService(discover)

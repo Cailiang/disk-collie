@@ -1,10 +1,11 @@
+import {isScanPathExcluded} from '../shared/scan-exclusions'
 import {lstat,readdir,rm} from 'node:fs/promises'
 import path from 'node:path'
 import type {PrivacyCapability,PrivacyKind,PrivacyRecord,PrivacyRisk,PrivacyTimeRange} from '../shared/privacy-types'
 import type {PrivacyCategory,StorageApplication} from '../shared/storage-types'
-export interface PrivacyContext {platform:NodeJS.Platform;home:string;env:NodeJS.ProcessEnv;applications:StorageApplication[]}
+export interface PrivacyContext {platform:NodeJS.Platform;home:string;env:NodeJS.ProcessEnv;applications:StorageApplication[];excludedPaths?:string[]}
 export interface PrivacySource {key:string;name:string;bundleIds:string[];iconPaths:string[]}
-export interface PrivacyDefinition {key:string;kind:PrivacyKind;category:PrivacyCategory;source:PrivacySource;profile?:string;browser?:string;paths:string[];risk:PrivacyRisk;supportsRange:boolean;recommended?:boolean}
+export interface PrivacyDefinition {key:string;kind:PrivacyKind;category:PrivacyCategory;source:PrivacySource;profile?:string;browser?:string;paths:string[];risk:PrivacyRisk;supportsRange:boolean;excludedPaths?:string[];recommended?:boolean}
 export interface PrivacyOutcome {count:number;size:number;changed:boolean;removedPaths?:string[]}
 /** Preserve confirmed removals when a later file in the same resource fails. */
 export class PrivacyCleanupError extends Error {
@@ -46,11 +47,11 @@ export function privacyFileResource(definition:PrivacyDefinition):PrivacyResourc
     if(range!=='all'&&!definition.supportsRange)return privacyUnavailable('range-unsupported')
     const files:PrivacyPathSnapshot[]=[],pending:string[]=[],seen=new Set<string>(),since=privacySince(range,until)
     let limited=false,denied=false,visited=0
-    for(const target of definition.paths)try{await privacyPathSnapshot(target);pending.push(target)}catch(error){if(privacyAccessFailure(error))denied=true;else if((error as NodeJS.ErrnoException).code!=='ENOENT'&&(error as Error).message!=='privacy.sourceChanged')throw error}
+    for(const target of definition.paths.filter((target)=>!isScanPathExcluded(target,definition.excludedPaths)))try{await privacyPathSnapshot(target);pending.push(target)}catch(error){if(privacyAccessFailure(error))denied=true;else if((error as NodeJS.ErrnoException).code!=='ENOENT'&&(error as Error).message!=='privacy.sourceChanged')throw error}
     while(pending.length&&visited<100000){
       const batch=pending.splice(Math.max(0,pending.length-32),Math.min(32,100000-visited));visited+=batch.length
       await Promise.all(batch.map(async(target)=>{
-        if(seen.has(target))return
+        if(seen.has(target)||isScanPathExcluded(target,definition.excludedPaths))return
         seen.add(target)
         try{
           const value=await lstat(target)

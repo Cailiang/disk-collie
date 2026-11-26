@@ -50,7 +50,14 @@ describe('deep cleanup file snapshots',()=>{
     const readonly=await deepFileSnapshot(path.join(home,'cache'),NOW,{readOnly:true})
     expect(readonly.status).toBe('review-only');expect(readonly.count).toBe(5);await expect(readonly.clean()).rejects.toThrow('deep.sourceUnavailable')
   })
-  it('supports cancellation during traversal',async()=>{
+  it('skips excluded nested directories and preserves them during cleanup',async()=>{
+    const keep=await file('cache/private/secret','keep'),remove=await file('cache/public/cache','remove'),root=path.join(home,'cache')
+    const snapshot=await deepFileSnapshot(root,NOW,{excludedPaths:[path.dirname(keep)]})
+    expect(snapshot.count).toBe(1);expect(snapshot.files.map((entry)=>entry.path)).toEqual([remove])
+    expect((await snapshot.clean()).removedPaths).toEqual([remove]);expect(await readFile(keep,'utf8')).toBe('keep')
+    expect((await deepFileSnapshot(root,NOW,{excludedPaths:[root]})).count).toBe(0)
+  })
+  it('supports cancellation during traversal' ,async()=>{
     await file('cache/entry');const abort=new AbortController();abort.abort()
     await expect(deepFileSnapshot(path.join(home,'cache'),NOW,{signal:abort.signal})).rejects.toThrow('deep.cancelled')
   })

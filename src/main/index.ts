@@ -1,3 +1,4 @@
+import {normalizeScanExcludedDirectories} from '../shared/scan-exclusions'
 import {readApplicationIcon,clearApplicationIconCache} from './application-icon'
 import { applicationProcessBundle, terminateUserProcess } from './process-control'
 import { translate as processText } from '../shared/localization'
@@ -20,7 +21,7 @@ import { autoUpdater, type ProgressInfo, type UpdateInfo } from 'electron-update
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync, lstatSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rename, rmdir } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rmdir, realpath, lstat } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -1573,7 +1574,7 @@ app.whenReady().then(async () => {
   updateState = emptyUpdateState()
   configureAppUpdater()
 
-  storageService = new StorageService(() => appSettings.language)
+  storageService = new StorageService(() => appSettings.language, () => appSettings.scanExcludedDirectories)
   await storageService.init()
   storageService.register()
   storageService.startApplicationInventory()
@@ -1711,11 +1712,45 @@ app.whenReady().then(async () => {
     }
   })
   ipcMain.handle('memento:open-activity-monitor-network', () => openActivityMonitorNetwork())
+  const invalidateScanScope=():void=>{
+    storageService!.invalidateScanScope()
+    currentScanResult=null
+    registeredActions=new Map()
+    registeredRevealTargets=new Map()
+    registeredTerminalFixes=new Map()
+    registeredApplicationIconTargets=new Map()
+    registeredDiskUsageTargets=new Map()
+    registeredDiskUsageNodes=new Map()
+    diskUsageScanner?.cancel()
+  }
+  const saveScanDirectories=(directories:string[]):AppSettings=>{
+    const previous=JSON.stringify(appSettings.scanExcludedDirectories)
+    appSettings=agentStore!.updateAppSettings({scanExcludedDirectories:directories})
+    if(previous!==JSON.stringify(appSettings.scanExcludedDirectories))invalidateScanScope()
+    return appSettings
+  }
+  ipcMain.handle('memento:settings:exclude-directory-add',async()=>{
+    const selected=await dialog.showOpenDialog({properties:['openDirectory','multiSelections']})
+    if(selected.canceled)return appSettings
+    const directories:string[]=[]
+    for(const selectedPath of selected.filePaths){
+      const directory=await realpath(selectedPath)
+      if(!(await lstat(directory)).isDirectory())throw new Error(mainText('请选择目录','Choose a folder.'))
+      directories.push(directory)
+    }
+    return saveScanDirectories(normalizeScanExcludedDirectories([...appSettings.scanExcludedDirectories,...directories]))
+  })
+  ipcMain.handle('memento:settings:exclude-directory-remove',(_event,directory:unknown)=>{
+    if(typeof directory!=='string'||!appSettings.scanExcludedDirectories.includes(directory))return appSettings
+    return saveScanDirectories(appSettings.scanExcludedDirectories.filter((entry)=>entry!==directory))
+  })
   ipcMain.handle('memento:settings:get', () => appSettings)
   ipcMain.handle('memento:settings:update', (_event, input: UpdateAppSettingsInput) => {
     const previousLanguage = appSettings.language
+    const previousDirectories=JSON.stringify(appSettings.scanExcludedDirectories)
     appSettings = agentStore!.updateAppSettings(input)
     applyWindowSettings()
+    if(previousDirectories!==JSON.stringify(appSettings.scanExcludedDirectories))invalidateScanScope()
     if (appSettings.language !== previousLanguage) {
       currentScanResult = null
       registeredActions = new Map()

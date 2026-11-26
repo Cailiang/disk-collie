@@ -15,6 +15,12 @@ async function fixture(relative:string,content:string,time=RECENT):Promise<strin
 function definition(paths:string[],supportsRange=true):PrivacyDefinition{return {key:'fixture-cache',kind:'app-cache',category:'app-activity',source:{key:'fixture',name:'Fixture',bundleIds:[],iconPaths:[]},paths,risk:'low',supportsRange}}
 
 describe('privacy file cleanup boundary',()=>{
+  it('skips excluded nested folders before capturing privacy files',async()=>{
+    const keep=await fixture('cache/private/secret','keep'),remove=await fixture('cache/public/cache','remove'),root=path.join(home,'cache')
+    const snapshot=await privacyFileResource({...definition([root]),excludedPaths:[path.dirname(keep)]}).scan('all',NOW)
+    expect(snapshot.count).toBe(1);expect((await snapshot.preview(0,100)).map((record)=>record.path)).toEqual([remove])
+    expect((await snapshot.clean()).removedPaths).toEqual([remove]);expect(await readFile(keep,'utf8')).toBe('keep')
+  })
   it('derives stable hour/week boundaries and local calendar midnight',()=>{
     expect(privacySince('all',NOW)).toBeNull();expect(privacySince('hour',NOW)).toBe(NOW-3600000);expect(privacySince('week',NOW)).toBe(NOW-7*86400000)
     const midnight=new Date(NOW);midnight.setHours(0,0,0,0)

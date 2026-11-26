@@ -1,3 +1,4 @@
+import {isScanPathExcluded} from '../shared/scan-exclusions'
 import {randomUUID} from 'node:crypto'
 import type {PrivacyItem,PrivacyPreview,PrivacyTimeRange} from '../shared/privacy-types'
 import {browserPrivacyResources} from './privacy-browser'
@@ -15,7 +16,7 @@ export class PrivacyService {
   paths(id:string):string[]{return this.registered.get(id)?.resource.paths||[]}
   get(id:string):RegisteredPrivacy{const entry=this.registered.get(id);if(!entry)throw new Error('privacy.selectionExpired');return entry}
   async scan(context:PrivacyContext,range:PrivacyTimeRange,running:(browser:string)=>boolean=()=>false):Promise<PrivacyItem[]>{
-    const until=Date.now(),resources=await this.discover(context),next=new Map<string,RegisteredPrivacy>()
+    const until=Date.now(),resources=(await this.discover(context)).filter((resource)=>!resource.paths.some((target)=>isScanPathExcluded(target,context.excludedPaths))),next=new Map<string,RegisteredPrivacy>()
     const previous=new Map([...this.registered].map(([id,value])=>[value.resource.key,id]))
     for(let start=0;start<resources.length;start+=4){
       const batch=await Promise.all(resources.slice(start,start+4).map(async(resource)=>{

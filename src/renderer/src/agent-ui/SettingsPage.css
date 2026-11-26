@@ -1,0 +1,37 @@
+.settings-page .settings-layout { max-width:1080px; }
+.settings-page .settings-section { grid-template-columns:140px minmax(0,1fr); gap:22px; padding:21px 0; }
+.settings-page .settings-section-title { display:flex; align-items:center; gap:7px; }
+.settings-page .settings-section-title>.workspace-help { flex-shrink:0; }
+.settings-page .settings-section-title .workspace-help-content { width:min(350px,calc(100vw - 60px)); top:27px; left:0; }
+.settings-page .settings-section-title .workspace-help-content>p { margin:0 0 9px; font-size:11px; line-height:1.7; }
+.settings-page .provider-import-actions { margin-top:12px; }
+.settings-page .provider-manager { grid-template-columns:185px minmax(0,1fr); align-items:stretch; }
+.settings-page .provider-editor-header { min-height:46px; }
+.settings-page .provider-form { display:flex; flex-direction:column; gap:12px; padding:16px; }
+.settings-page .provider-fields { border:0; padding:0; margin:0; display:grid; gap:13px; min-width:0; }
+.settings-page .provider-fields .field input,.settings-page .provider-fields .field select { width:100%; }
+.settings-page .provider-fields input[readonly] { background:var(--surface-subtle); color:var(--text-secondary); }
+.settings-page .provider-fields input:disabled,.settings-page .provider-fields select:disabled { opacity:.6; }
+.settings-page .provider-model-fetch { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding-top:1px; }
+.settings-page .provider-model-fetch>button { font-size:11px; min-height:32px; height:32px; }
+.settings-page .provider-model-fetch>span { font-size:10px; color:var(--text-tertiary); }
+.settings-page .provider-form-actions { flex-wrap:wrap; gap:10px; border-top:1px solid var(--line); padding-top:12px; }
+.settings-page .provider-form-actions>div { flex-wrap:wrap; gap:7px; }
+.settings-page .provider-form-actions .danger-button { min-width:0; }
+.settings-page .provider-form-actions button { font-size:10px; min-height:31px; padding:0 9px; }
+.settings-page .provider-form-actions>div:last-child { margin-left:auto; }
+.settings-page .provider-error-panel { margin:0; }
+.settings-page .scan-directory-manager { min-width:0; }
+.settings-page .scan-directory-toolbar { display:flex; gap:12px; align-items:center; justify-content:space-between; min-height:35px; }
+.settings-page .scan-directory-toolbar>span { color:var(--text-tertiary); font-size:11px; }
+.settings-page .scan-directory-toolbar>button { height:31px; min-height:31px; font-size:11px; padding:0 10px; }
+.settings-page .scan-directory-list { padding:0; margin:11px 0 0; list-style:none; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+.settings-page .scan-directory-list>li { display:flex; align-items:center; gap:10px; padding:10px 11px; min-width:0; border-bottom:1px solid var(--line); }
+.settings-page .scan-directory-list>li:last-child { border-bottom:0; }
+.settings-page .scan-directory-list>li>svg { flex-shrink:0; color:var(--text-secondary); }
+.settings-page .scan-directory-list code { min-width:0; flex:1; font-family:inherit; font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-secondary); }
+.settings-page .scan-directory-list .icon-button { flex-shrink:0; min-height:27px; width:27px; height:27px; }
+.settings-page .scan-directory-empty { margin:10px 0 0; font-size:11px; color:var(--text-tertiary); line-height:1.7; }
+.settings-page .theme-options { grid-template-columns:repeat(4,minmax(0,1fr)); }
+@media(max-width:1150px) { .settings-page .settings-section { grid-template-columns:1fr; gap:12px; }.settings-page .settings-label { display:flex; align-items:center; justify-content:space-between; }.settings-page .provider-manager { grid-template-columns:180px minmax(0,1fr); } }
+@media(max-width:700px) { .settings-page .settings-section { padding:18px 0; }.settings-page .provider-manager { grid-template-columns:1fr; }.settings-page .provider-list-pane { border-right:0; border-bottom:1px solid var(--line); }.settings-page .provider-list { grid-template-columns:repeat(2,minmax(0,1fr)); max-height:180px; overflow:auto; }.settings-page .provider-item { grid-template-columns:24px minmax(0,1fr); padding:6px; gap:6px; }.settings-page .provider-item .default-chip { grid-column:2; width:fit-content; }.settings-page .provider-mark { width:24px; height:24px; }.settings-page .provider-item strong { font-size:11px; }.settings-page .provider-item small { font-size:10px; }.settings-page .provider-form { padding:13px; }.settings-page .provider-form-actions>div { width:100%; justify-content:space-between; }.settings-page .provider-form-actions>div:last-child { margin:0; }.settings-page .provider-form-actions>div:last-child>.primary-button { margin-left:auto; }.settings-page .theme-options { grid-template-columns:repeat(2,minmax(0,1fr)); }.settings-page .scan-directory-list code { font-size:10px; }.settings-page .setting-row { gap:12px; }.settings-page .settings-section-title .workspace-help-content { left:auto; right:-7px; } }

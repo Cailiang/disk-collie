@@ -46,7 +46,7 @@ The Agent schema version is 4; `StorageLedger` owns its additive cleanup tables 
 | --- | --- |
 | `ai_providers` | Provider type, URL, model, encrypted API key, default and connection state |
 | `cleanup_activity` / `local_migrations` | Incremental successful/failed cleanup records and one-time legacy JSON import marker, managed by `StorageLedger` |
-| `app_settings` | Language, theme, login behavior, menu-bar behavior, and ignored items |
+| `app_settings` | Language, theme, login behavior, menu-bar behavior, scan-excluded directories, and legacy ignored items |
 | `agent_runs` | Conversation ID, language, prompt, provider snapshot, status, response, focused entities, structured presentation, plan, results, and error |
 | `tool_calls` | Structured input and output for each Agent tool call |
 | `maintenance_runs` | Source, scan/Agent correlation, aggregate status, and timestamps for every maintenance session |
@@ -268,3 +268,9 @@ Fixture tests cover SQLite table/record preservation, shared-source selection, c
 ## 1.0.16 deep cleanup and update scopes
 
 `deep-clean-types.ts` and the `storageDeepScan/Preview/Clean/Reveal/Icon` APIs use registered source IDs; Renderer paths are accepted for reveal only when present in that registered source's captured file list. `deep-clean-rules.ts` owns platform/source discovery, `deep-clean-resource.ts` owns selective file snapshots and `deep-clean-projects.ts` owns complete-tree Trash validation. Main journals actual successes/skips/failures and reconciles only confirmed removed paths. Core checks, fixture-only real Electron cleanup and four-viewport UI cover the visible contract. `StorageTaskQueue` still coordinates storage writes; long updates use per-application `ApplicationOperations`, including same-app uninstall exclusion and stale-check protection. Package-manager locks remain outside Memento's scheduler.
+
+## Scan exclusions and provider setup
+
+`AppSettings.scanExcludedDirectories` is normalized and persisted in the embedded settings row. Main owns native folder selection/canonicalization and publishes `memento:storage:scope-changed` after add/remove or a changed settings update. Storage workspaces invalidate retained results and guard asynchronous completion with a scope epoch. Discovery and mutation use component-aware exclusions; whole-folder deletion also rejects excluded descendants. Legacy whitelist fields are kept for migration compatibility but are no longer the Settings UI.
+
+Settings defaults to a custom OpenAI-compatible endpoint. Users enter name/address/key, explicitly fetch model IDs, select and save. Official presets have fixed URLs. Help uses a question-mark disclosure. Model responses are guarded by draft sequence; credential changes invalidate previous results, and changing destinations requires a new key instead of borrowing a saved secret.

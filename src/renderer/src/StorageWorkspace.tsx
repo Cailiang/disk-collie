@@ -1,5 +1,6 @@
 import {DeepCleanWorkspace} from './DeepCleanWorkspace'
 import {demoDeepCleanScan,demoDeepCleanPreview} from './deep-clean-demo'
+import type {StorageDirectoryPlan} from '../../shared/storage-directory-types'
 import type {DeepCleanScan} from '../../shared/deep-clean-types'
 import {SpaceFileDetails} from './SpaceFileDetails'
 import {demoPrivacyItems,demoPrivacyPreview} from './privacy-demo'
@@ -46,6 +47,13 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const [large,setLarge]=useState<StorageEntry[]>([])
   const [largeCount,setLargeCount]=useState(0)
   const [removedPaths,setRemovedPaths]=useState<string[]>([])
+  const demoRemovedSizes=useRef(new Map<string,number>()),demoOriginalSizes=useRef(new Map<string,{size:number;allocated:number}>())
+  const adjustDemoEntry=(entry:StorageEntry):StorageEntry=>{
+    if(!entry.directory)return entry
+    const original=demoOriginalSizes.current.get(entry.path)||{size:entry.size,allocated:entry.allocated};demoOriginalSizes.current.set(entry.path,original)
+    const removed=[...demoRemovedSizes.current].filter(([location])=>location.startsWith(entry.path==='/'?'/':entry.path+'/')).reduce((sum,[,size])=>sum+size,0)
+    return {...entry,size:Math.max(0,original.size-removed),allocated:Math.max(0,original.allocated-removed)}
+  }
   const [category,setCategory]=useState<FileCategory|'all'>('all')
   const [categoryCounts,setCategoryCounts]=useState<Record<string,number>>({})
   const [duplicateMinimum,setDuplicateMinimum]=useState(10*MB)
@@ -83,6 +91,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const [executing,setExecuting]=useState(false)
   const [ledgerOpen,setLedgerOpen]=useState(false)
   const duplicateAfterScan=useRef<number|null>(null)
+  const scopeEpoch=useRef(0)
   const cancelled=useRef(false)
   const mounted=useRef(true)
   const querySequence=useRef(0)
@@ -91,16 +100,24 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const mainRef=useRef<HTMLDivElement>(null)
   const demo=!window.memento
   const runTask=useCallback(async<T,>(kind:typeof task,work:()=>Promise<T>):Promise<T|null>=>{
+    const epoch=scopeEpoch.current
     cancelled.current=false;setBusy(true);setTask(kind);setError('');setNotice('')
-    try {return await work()} catch(e){if(!cancelled.current)setError(readableTaskError(e));return null}
-    finally {if(mounted.current){setBusy(false);setTask(null);setProgress(null)}}
+    try {const result=await work();return epoch===scopeEpoch.current&&!cancelled.current?result:null} catch(e){if(epoch===scopeEpoch.current&&!cancelled.current)setError(readableTaskError(e));return null}
+    finally {if(mounted.current&&epoch===scopeEpoch.current){setBusy(false);setTask(null);setProgress(null)}}
   },[])
   useEffect(()=>{
     mounted.current=true
-    if(window.memento) void window.memento.storageState().then((s)=>{const retained=s.indexes[view==='disk'?'analysis':view==='large'||view==='duplicates'?view:'analysis'];setIndex(retained||null);setIncludeHidden(retained?.includeHidden??false);setHistory(s.history)}).catch((e)=>setError(readableTaskError(e)))
+    const epoch=scopeEpoch.current
+    if(window.memento) void window.memento.storageState().then((s)=>{if(epoch!==scopeEpoch.current)return;const retained=s.indexes[view==='disk'?'analysis':view==='large'||view==='duplicates'?view:'analysis'];setIndex(retained||null);setIncludeHidden(retained?.includeHidden??false);setHistory(s.history)}).catch((e)=>setError(readableTaskError(e)))
     else {setIndex(demoIndex);setHistory(demoHistory)}
     const unsubscribe=window.memento?.onStorageProgress((p)=>{if(!p.scope||p.scope===(view==='health'?'cleanup':view==='disk'?'analysis':view))setProgress(p)})
-    return ()=>{mounted.current=false;unsubscribe?.()}
+    const stopScope=window.memento?.onStorageScopeChanged(()=>{
+      ++scopeEpoch.current;++querySequence.current;++detailsSequence.current;cancelled.current=true
+      setIndex(null);setLarge([]);setLargeCount(0);setCategoryCounts({});setGroups(null);setFolder(null);setChildren([]);setBreadcrumbs([]);setMapFile(null);setMapOffset(0)
+      setSelected(new Set());setCleanup(null);setDeepScan(null);setDeepSelected(new Set());setPrivacy(null);setRuleSelected(new Set());setRelated([]);setRelatedSelected(new Set());setConfirmation(null)
+      setBusy(false);setTask(null);setProgress(null);attempted.current.clear();duplicateAfterScan.current=null
+    })
+    return ()=>{mounted.current=false;++scopeEpoch.current;unsubscribe?.();stopScope?.()}
   },[])
   useEffect(()=>{
     if(view!=='apps')return
@@ -114,6 +131,12 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     if(!activity)return
     setHistory((prev)=>[activity,...prev.filter((r)=>r.id!==activity.id)])
     const removed=(p:string):boolean=>(activity.removedPaths||activity.locations).some((location)=>p===location||p.startsWith(location+'/')||p.startsWith(location+'\\'))
+    if(demo){
+      const known=[...breadcrumbs,...children,...large,...(groups||[]).flatMap((group)=>group.files),...(mapFile?[mapFile]:[])]
+      for(const location of activity.removedPaths||activity.locations){const entry=known.find((entry)=>entry.path===location),size=entry?.allocated??(activity.locations.length===1?activity.bytes:0);demoRemovedSizes.current.set(location,size)}
+      setIndex((previous)=>previous?.root?{...previous,root:adjustDemoEntry(previous.root)}:previous)
+      setFolder((previous)=>previous?adjustDemoEntry(previous):previous);setBreadcrumbs((previous)=>previous.map(adjustDemoEntry));setChildren((previous)=>previous.map(adjustDemoEntry))
+    }
     setRemovedPaths((prev)=>[...prev,...(activity.removedPaths||activity.locations)])
     setRuleSelected((prev)=>new Set([...prev].filter((id)=>!(cleanup||privacy||[]).some((r)=>r.id===id&&removed(r.path)))))
     setRelatedSelected((prev)=>new Set([...prev].filter((id)=>!related.some((r)=>r.id===id&&removed(r.path)))))
@@ -129,14 +152,20 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     setApplications((prev)=>prev?.filter((a)=>!removed(a.location))||prev)
     setRelated((prev)=>prev.filter((r)=>!removed(r.path)))
     if(application&&removed(application.location))setApplication(null)
-    if(view==='disk'&&activity.locations.length){setChildren((previous)=>previous.filter((file)=>!removed(file.path)));setMapOffset(0)}
+    if(view==='disk'&&activity.locations.length){
+      setChildren((previous)=>previous.filter((file)=>!removed(file.path)));setMapOffset(0)
+      if(demo&&folder&&removed(folder.path)){
+        const trail=breadcrumbs.filter((entry)=>!removed(entry.path)),parent=trail.at(-1)||index?.root
+        if(parent){const adjusted=adjustDemoEntry(parent);setFolder(adjusted);setBreadcrumbs((trail.length?trail:[parent]).map(adjustDemoEntry));setChildren(demoChildren(parent).map(adjustDemoEntry).filter((entry)=>!removed(entry.path)&&!removedPaths.some((location)=>entry.path===location||entry.path.startsWith(location+'/'))));setMapFile(parent.id===0?null:adjusted)}
+      }
+    }
     if(view==='disk'&&index&&activity.locations.length&&window.memento)void (async()=>{
       try {
         const state=await window.memento!.storageState(),next=state.indexes.analysis
         if(!next)return
         setIndex(next)
-        const current=folder&&!removed(folder.path)?folder:next.root
-        if(current){const result=await window.memento!.storageChildren({generation:next.generation,id:current.id});setFolder(result.parent);setChildren(result.items);if(current.id===0)setBreadcrumbs([result.parent])}
+        const survivingTrail=breadcrumbs.filter((entry)=>!removed(entry.path)),current=folder&&!removed(folder.path)?folder:survivingTrail.at(-1)||next.root
+        if(current){const result=await window.memento!.storageChildren({generation:next.generation,id:current.id});setFolder(result.parent);setChildren(result.items);if(folder&&removed(folder.path)){setBreadcrumbs(survivingTrail.length?survivingTrail:[result.parent]);setMapFile(result.parent.id===0?null:result.parent)}else if(current.id===0)setBreadcrumbs([result.parent])}
       }catch(e){setError(readableTaskError(e))}
     })()
   },[activity])
@@ -175,9 +204,9 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     if(!index)return
     const sequence=++querySequence.current
     try {
-      const result=window.memento?await window.memento.storageChildren({generation:index.generation,id:entry.id}):{parent:entry,items:demoChildren(entry)}
+      const result=window.memento?await window.memento.storageChildren({generation:index.generation,id:entry.id}):{parent:adjustDemoEntry(entry),items:demoChildren(entry).map(adjustDemoEntry)}
       if(sequence!==querySequence.current)return
-      setMapFile(null);setFolder(result.parent);setChildren(result.items.filter((file)=>!demo||!removedPaths.some((location)=>file.path===location||file.path.startsWith(location+'/')||file.path.startsWith(location+'\\'))));setBreadcrumbs(trail);setMapOffset(0)
+      setMapFile(result.parent.id===0?null:result.parent);setFolder(result.parent);setChildren(result.items.filter((file)=>!demo||!removedPaths.some((location)=>file.path===location||file.path.startsWith(location+'/')||file.path.startsWith(location+'\\'))));setBreadcrumbs(trail);setMapOffset(0)
     }catch(e){setError(readableTaskError(e))}
   },[index,removedPaths])
   useEffect(()=>{if(view==='disk'&&index?.root&&!folder)void openFolder(index.root,[index.root])},[view,index,folder,openFolder])
@@ -201,10 +230,24 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     setProgress({phase:'cleaning',entries:count,total:count,elapsedMs:count*180,path:locations.at(-1)})
     return {id:crypto.randomUUID(),date:new Date().toISOString(),kind,items:count,bytes:size,failures:0,locations}
   }
-  const confirmTrash=(entries:StorageEntry[],group?:DuplicateGroup):void=>{
-    if(!index||!entries.length)return
+  const confirmTrash=async(entries:StorageEntry[],group?:DuplicateGroup):Promise<void>=>{
+    if(!index||!entries.length||executing)return
     const kind=group||view==='duplicates'?'duplicates':view==='disk'?'analysis':'large'
-    setConfirmation({kind,count:entries.length,size:entries.reduce((s,e)=>s+e.allocated,0),names:entries.map((e)=>e.path),run:()=>window.memento?window.memento.storageTrash({generation:index.generation,ids:entries.map((e)=>e.id),kind,groupId:group?.id}):fakeActivity(kind,entries.length,entries.reduce((s,e)=>s+e.size,0),entries.map((e)=>e.path))})
+    const directory=entries.find((entry)=>entry.directory)
+    let plan:StorageDirectoryPlan|undefined
+    if(directory){
+      if(directory.id===0||directory.trashable===false||kind!=='analysis')return
+      const result=await runTask('related',async()=>{
+        if(window.memento)return window.memento.storageDirectoryPlan({generation:index.generation,id:directory.id})
+        const all:StorageEntry[]=[],pending=[directory],visited=new Set<number>()
+        while(pending.length&&visited.size<1000){const current=pending.pop()!;if(visited.has(current.id))continue;visited.add(current.id);if(current.id!==directory.id)all.push(current);if(current.directory)pending.push(...demoChildren(current))}
+        return {id:crypto.randomUUID(),generation:index.generation,entryId:directory.id,path:directory.path,name:directory.name,size:directory.size,allocated:directory.allocated,files:all.filter((entry)=>!entry.directory).length,directories:all.filter((entry)=>entry.directory).length,links:0,hiddenFiles:all.filter((entry)=>entry.name.startsWith('.')).length}
+      })
+      if(!result)return
+      plan=result
+    }
+    const size=plan?.allocated??entries.reduce((sum,entry)=>sum+entry.allocated,0)
+    setConfirmation({kind,count:entries.length,size,names:entries.map((entry)=>entry.path),effects:plan?[t('disk.directoryContents',{files:plan.files,directories:plan.directories,hidden:plan.hiddenFiles})]:undefined,run:()=>window.memento?window.memento.storageTrash({generation:index.generation,ids:entries.map((entry)=>entry.id),kind,groupId:group?.id,directoryPlanId:plan?.id}):fakeActivity(kind,entries.length,size,entries.map((entry)=>entry.path))})
   }
   const confirmDeep=():void=>{
     if(!deepScan)return
@@ -308,7 +351,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
         </>}
         {view==='disk'&&folder&&<>
           <div className="space-disk-toolbar"><div className="space-disk-navigation"><button className="space-button space-disk-back" disabled={breadcrumbs.length<2} onClick={()=>void openFolder(breadcrumbs[breadcrumbs.length-2],breadcrumbs.slice(0,-1))}><ArrowLeft size={16}/>{t('disk.back')}</button><nav className="space-breadcrumbs" aria-label={t('disk.root')}>{breadcrumbs.map((crumb,i)=><button key={crumb.id} disabled={i===breadcrumbs.length-1} onClick={()=>void openFolder(crumb,breadcrumbs.slice(0,i+1))}>{i===0&&<HardDrive size={14}/>}<span>{crumb.name}</span>{i<breadcrumbs.length-1&&<ChevronRight size={14}/>}</button>)}</nav></div><div><strong>{bytes(folder.size)}</strong><small>{t('disk.total')}</small></div></div>
-          <div className="space-explorer"><DirectoryTree key={`${index.generation}:${activity?.id||''}`} index={index} selected={folder.id} activeTrail={breadcrumbs} bytes={bytes} onOpen={openFolder} onReveal={reveal} onSelectFile={setMapFile} selectedFile={mapFile?.id} onError={setError} removedPaths={demo?removedPaths:[]} actions={(file)=>fileActions(file,{type:'entry',generation:index.generation,id:file.id},file.directory?undefined:()=>confirmTrash([file]))}/><div className="space-map-column"><div className="space-map-caption"><span title={t('disk.areaHint')}>{t('disk.top10')}{mapOffset>0&&` / ${t('disk.other')}`}</span>{mapOffset>0&&<button className="space-text-button" onClick={()=>setMapOffset((offset)=>Math.max(0,offset-10))}><ArrowLeft size={13}/>{t('disk.backTop')}</button>}</div><div className="space-treemap" ref={mapRef} role="group" aria-label={t('disk.map')}>{map.map((rect,i)=>{const file=mapEntries.find((entry)=>entry.id===rect.id)!;return <button className={`space-treemap-cell ${mapFile?.id===rect.id?'is-current':''}`} key={rect.id} style={{left:`${rect.x}%`,top:`${rect.y}%`,width:`${rect.width}%`,height:`${rect.height}%`,background:colors[i%colors.length],color:i%colors.length===3||i%colors.length===4?'#27382c':'#fff'}} title={`${file.name} · ${bytes(file.size)}`} aria-label={`${file.name} ${bytes(file.size)}`} onClick={()=>file.id===-1?void openMapOther():file.directory?void openFolder(file,[...breadcrumbs,file]):setMapFile(file)}>{rect.height*mapSize.height/100>=90&&rect.width*mapSize.width/100>=75&&<span>{file.directory?<Folder size={16}/>:<File size={16}/>}</span>}<strong>{file.name}</strong><small>{bytes(file.size)}</small></button>})}{!map.length&&<div className="space-empty">{t('common.empty')}</div>}</div>{mapFile?<SpaceFileDetails file={mapFile} bytes={bytes} onReveal={()=>void reveal(mapFile)} onTrash={()=>confirmTrash([mapFile])} onClose={()=>setMapFile(null)}/>:<p className="space-map-file-hint">{t('disk.fileActionsHint')}</p>}</div></div>
+          <div className="space-explorer"><DirectoryTree key={`${index.generation}:${activity?.id||''}`} index={index} selected={folder.id} activeTrail={breadcrumbs} bytes={bytes} onOpen={openFolder} onReveal={reveal} onSelectFile={setMapFile} selectedFile={mapFile?.id} onError={setError} adjustDemo={demo?adjustDemoEntry:undefined} removedPaths={demo?removedPaths:[]} actions={(file)=>fileActions(file,{type:'entry',generation:index.generation,id:file.id},file.id===0?undefined:()=>void confirmTrash([file]))}/><div className="space-map-column"><div className="space-map-caption"><span title={t('disk.areaHint')}>{t('disk.top10')}{mapOffset>0&&` / ${t('disk.other')}`}</span>{mapOffset>0&&<button className="space-text-button" onClick={()=>setMapOffset((offset)=>Math.max(0,offset-10))}><ArrowLeft size={13}/>{t('disk.backTop')}</button>}</div><div className="space-treemap" ref={mapRef} role="group" aria-label={t('disk.map')}>{map.map((rect,i)=>{const file=mapEntries.find((entry)=>entry.id===rect.id)!;return <button className={`space-treemap-cell ${mapFile?.id===rect.id?'is-current':''}`} key={rect.id} style={{left:`${rect.x}%`,top:`${rect.y}%`,width:`${rect.width}%`,height:`${rect.height}%`,background:colors[i%colors.length],color:i%colors.length===3||i%colors.length===4?'#27382c':'#fff'}} title={`${file.name} · ${bytes(file.size)}`} aria-label={`${file.name} ${bytes(file.size)}`} onClick={()=>file.id===-1?void openMapOther():file.directory?void openFolder(file,[...breadcrumbs,file]):setMapFile(file)}>{rect.height*mapSize.height/100>=90&&rect.width*mapSize.width/100>=75&&<span>{file.directory?<Folder size={16}/>:<File size={16}/>}</span>}<strong>{file.name}</strong><small>{bytes(file.size)}</small></button>})}{!map.length&&<div className="space-empty">{t('common.empty')}</div>}</div>{mapFile?<SpaceFileDetails file={mapFile} bytes={bytes} onReveal={()=>void reveal(mapFile)} onTrash={()=>confirmTrash([mapFile])} onClose={()=>setMapFile(null)}/>:<p className="space-map-file-hint">{t('disk.fileActionsHint')}</p>}</div></div>
         </>}
         {view==='duplicates'&&<>
           {groups===null&&!busy&&<div className="space-start compact"><Copy size={28}/><button className="space-button primary" onClick={()=>void findDuplicates()}><Search size={16}/>{t('duplicates.find')}</button></div>}
@@ -355,7 +398,7 @@ function SelectionBar({count,size,detail,disabled,onClear,onReview,label}:{count
 }
 
 
-function DirectoryTree({index,selected,activeTrail,bytes,onOpen,onReveal,actions,removedPaths,onError,onSelectFile,selectedFile}:{index:StorageIndex;selected:number;activeTrail:StorageEntry[];bytes:(n:number)=>string;onOpen:(e:StorageEntry,trail:StorageEntry[])=>Promise<void>;onReveal:(e:StorageEntry)=>Promise<void>;actions:(e:StorageEntry)=>React.ReactNode;removedPaths:string[];onError:(message:string)=>void;onSelectFile:(file:StorageEntry)=>void;selectedFile?:number}):React.JSX.Element {
+function DirectoryTree({index,selected,activeTrail,bytes,onOpen,onReveal,actions,removedPaths,onError,onSelectFile,selectedFile,adjustDemo}:{index:StorageIndex;adjustDemo?:(entry:StorageEntry)=>StorageEntry;selected:number;activeTrail:StorageEntry[];bytes:(n:number)=>string;onOpen:(e:StorageEntry,trail:StorageEntry[])=>Promise<void>;onReveal:(e:StorageEntry)=>Promise<void>;actions:(e:StorageEntry)=>React.ReactNode;removedPaths:string[];onError:(message:string)=>void;onSelectFile:(file:StorageEntry)=>void;selectedFile?:number}):React.JSX.Element {
   const {t}=useI18n()
   const [nodes,setNodes]=useState<Map<number,StorageEntry[]>>(new Map())
   const [more,setMore]=useState<Map<number,boolean>>(new Map())
@@ -373,6 +416,7 @@ function DirectoryTree({index,selected,activeTrail,bytes,onOpen,onReveal,actions
   useEffect(()=>{current.current=index.generation;setNodes(new Map());setMore(new Map());setExpanded(new Set([0]));if(index.root)void load(index.root);return()=>{current.current=-1}},[index.generation,load])
   useEffect(()=>{setExpanded((s)=>new Set([...s,...activeTrail.map((e)=>e.id)]));for(const entry of activeTrail){if(entry.id!==0&&!nodes.has(entry.id))void load(entry)}},[selected,index.generation,load])
   const branch=(entry:StorageEntry,trail:StorageEntry[],depth:number):React.ReactNode=>{
+    entry=adjustDemo?.(entry)||entry
     const open=expanded.has(entry.id),children=(nodes.get(entry.id)||[]).filter((file)=>!removedPaths.some((location)=>file.path===location||file.path.startsWith(location+'/')||file.path.startsWith(location+'\\')))
     return <div key={entry.id} role="none"><div className={`space-folder-row ${(selectedFile??selected)===entry.id?'is-active':''}`} role="treeitem" aria-selected={(selectedFile??selected)===entry.id} aria-expanded={entry.directory?open:undefined} aria-level={depth+1} style={{paddingLeft:8+depth*14}}>
       {entry.directory?<button className="icon-button tree-toggle" aria-label={`${t(open?'compact.collapse':'compact.expand')} ${entry.name}`} onClick={()=>{setExpanded((s)=>{const next=new Set(s);if(open)next.delete(entry.id);else next.add(entry.id);return next});if(!open&&!nodes.has(entry.id))void load(entry)}}><ChevronRight size={14} className={open?'is-open':''}/></button>:<span className="tree-spacer"/>}

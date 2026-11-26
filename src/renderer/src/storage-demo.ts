@@ -20,8 +20,8 @@ export const demoHistory:StorageActivity[]=[{id:'activity-1',date:new Date(Date.
 export const demoRootEntries=[{...entry(100,'Users',84.2*GB,true),path:'/Users'}, {...entry(110,'Applications',26*GB,true),path:'/Applications'}, {...entry(111,'System',19*GB,true),path:'/System'}, {...entry(112,'Library',12*GB,true),path:'/Library'}]
 const demoUser={...entry(101,'alex',84.2*GB,true,100),path:'/Users/alex'}
 export function demoChildren(parent:StorageEntry):StorageEntry[]{
-  if(parent.path==='/')return demoRootEntries
-  if(parent.id===100)return [demoUser]
+  if(parent.path==='/')return demoRootEntries.map((entry)=>({...entry,trashable:false}))
+  if(parent.id===100)return [{...demoUser,trashable:false}]
   if(parent.id===101)return demoEntries.map((e)=>({...e,parent:101}))
   if(parent.name==='Music')return [{...entry(301,'Studio recordings',3.2*GB-18*500*1024-220*1024,true,parent.id),path:parent.path+'/Studio recordings'},{...entry(302,'Playlists',200*1024,true,parent.id),path:parent.path+'/Playlists'},{...entry(303,'Notes.txt',20*1024,false,parent.id),path:parent.path+'/Notes.txt'},...Array.from({length:18},(_,index)=>({...entry(310+index,'Session '+String(index+1)+'.m4a',500*1024,false,parent.id),path:parent.path+'/Session '+String(index+1)+'.m4a'}))]
   return demoLarge.slice(0,4).map((e)=>({...e,parent:parent.id,path:`${parent.path}/${e.name}`,trashable:!['/System','/Library','/Applications'].some((root)=>parent.path===root||parent.path.startsWith(root+'/'))}))

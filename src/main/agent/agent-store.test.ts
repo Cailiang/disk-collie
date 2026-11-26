@@ -266,6 +266,17 @@ describe('AgentStore', () => {
     reopened.close()
   })
 
+  it('persists scan exclusions independently from legacy ignored candidates',()=>{
+    const directory=temporaryDirectory(),store=new AgentStore(directory)
+    expect(store.getAppSettings().scanExcludedDirectories).toEqual([])
+    store.updateAppSettings({scanExcludedDirectories:['/Users/alex/Private/','/Users/alex/Private','relative'],storageWhitelist:['/old/cache']})
+    store.close()
+    const reopened=new AgentStore(directory)
+    expect(reopened.getAppSettings()).toMatchObject({scanExcludedDirectories:['/Users/alex/Private'],storageWhitelist:['/old/cache']})
+    reopened.updateAppSettings({scanExcludedDirectories:[]});reopened.close()
+    const final=new AgentStore(directory);expect(final.getAppSettings().scanExcludedDirectories).toEqual([]);final.close()
+  })
+
   it('migrates legacy settings and persists runs in SQLite', () => {
     const directory = temporaryDirectory()
     writeFileSync(path.join(directory, 'app-settings.json'), JSON.stringify({

@@ -1,5 +1,5 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
-import {mkdtemp,mkdir,readFile,realpath,rm,symlink,utimes,writeFile} from 'node:fs/promises'
+import {mkdtemp,mkdir,readFile,readdir,realpath,rm,symlink,utimes,writeFile} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import {browserPrivacyResources} from './privacy-browser'
@@ -61,6 +61,20 @@ function query(filename:string,sql:string):Array<Record<string,unknown>>{
 }
 
 describe('browser privacy SQLite adapters',()=>{
+  it('skips excluded browser profiles and individual stores without reading their metadata',async()=>{
+    chromeHistory()
+    const history=path.join(chrome,'History'),original=privacyPaths.privacyPathSnapshot
+    context.excludedPaths=[history,path.join(chrome,'Network')]
+    const inspect=vi.spyOn(privacyPaths,'privacyPathSnapshot').mockImplementation(async(target)=>{
+      if(target===history||target.startsWith(path.join(chrome,'Network')+path.sep))throw new Error('Excluded metadata must not be read')
+      return original(target)
+    })
+    const resources=await browserPrivacyResources(context)
+    expect(resources.some((entry)=>entry.key==='chrome:Default:history'||entry.key==='chrome:Default:search'||entry.key==='chrome:Default:downloads')).toBe(false)
+    expect(inspect.mock.calls.some(([target])=>target===history||target.startsWith(path.join(chrome,'Network')+path.sep))).toBe(false)
+    context.excludedPaths=[chrome]
+    expect((await browserPrivacyResources(context)).some((entry)=>entry.source.key==='chrome')).toBe(false)
+  })
   it('keeps Safari discoverable when its root is denied even without an application inventory entry',async()=>{
     const safari=path.join(home,'Library/Safari'),original=privacyPaths.privacyPathSnapshot
     const cache=path.join(home,'Library/Caches/com.apple.Safari');await mkdir(cache,{recursive:true})
@@ -138,6 +152,44 @@ describe('browser privacy SQLite adapters',()=>{
       await snapshot.validate()
       expect(query(filename,'SELECT id FROM visits')).toHaveLength(4)
     }finally{writer.close()}
+  })
+
+  it('handles real Chromium WITHOUT ROWID relations when scanning, previewing and clearing history',async()=>{
+    chromeHistory()
+    const filename=path.join(chrome,'History'),writer=new DatabaseSync(filename)
+    writer.exec(`CREATE TABLE clusters_and_visits(cluster_id INTEGER NOT NULL,visit_id INTEGER NOT NULL,score NUMERIC NOT NULL,PRIMARY KEY(cluster_id,visit_id)) WITHOUT ROWID;
+      INSERT INTO clusters_and_visits VALUES(10,1,0.1),(20,2,0.2),(20,3,0.3);`)
+    writer.close()
+    const snapshot=await (await resource('chrome:Default:history')).scan('week',NOW)
+    expect(snapshot.capability).toBe('ready');expect(snapshot.count).toBe(1)
+    expect(await snapshot.preview(0,100)).toEqual([expect.objectContaining({title:'Visit 2'})])
+    await snapshot.validate();expect((await snapshot.clean()).count).toBe(1)
+    expect(query(filename,'SELECT cluster_id,visit_id FROM clusters_and_visits ORDER BY cluster_id,visit_id')).toEqual([{cluster_id:10,visit_id:1},{cluster_id:20,visit_id:3}])
+  })
+
+  it('reads committed history, searches and downloads through an isolated rollback-journal copy while Chrome holds an exclusive lock',async()=>{
+    chromeHistory()
+    const filename=path.join(chrome,'History'),writer=new DatabaseSync(filename)
+    const privateDirectories=async()=>new Set((await readdir(os.tmpdir())).filter((name)=>name.startsWith('memento-private-browser-')))
+    const beforeDirectories=await privateDirectories()
+    try{
+      writer.exec("PRAGMA locking_mode=EXCLUSIVE; PRAGMA cache_size=1; BEGIN EXCLUSIVE; UPDATE urls SET title='uncommitted private title' WHERE id=2;")
+      // Force dirty pages into the rollback journal, so copying only the main file would expose uncommitted data.
+      const insert=writer.prepare('INSERT INTO meta VALUES(?,?)')
+      for(let index=0;index<30;index++)insert.run(`uncommitted-${index}`,'x'.repeat(4096))
+      const original=await readFile(filename),journal=await readFile(filename+'-journal')
+      for(const [kind,title] of [['history','Visit 2'],['search','search 2'],['downloads',path.join(home,'download-2.zip')]] as const){
+        const snapshot=await (await resource(`chrome:Default:${kind}`)).scan('all',NOW)
+        expect(snapshot.capability).toBe('ready');expect(snapshot.count).toBe(2)
+        expect((await snapshot.preview(0,100)).map((entry)=>entry.title)).toContain(title)
+        if(kind==='history')await expect(snapshot.clean()).rejects.toThrow(/locked/i)
+      }
+      expect(await readFile(filename)).toEqual(original);expect(await readFile(filename+'-journal')).toEqual(journal)
+      expect(writer.prepare('SELECT title FROM urls WHERE id=2').get()!.title).toBe('uncommitted private title')
+      expect(await privateDirectories()).toEqual(beforeDirectories)
+    }finally{writer.exec('ROLLBACK');writer.close()}
+    expect(query(filename,'SELECT title FROM urls WHERE id=2')).toEqual([{title:'Visit 2'}])
+    expect(query(filename,"SELECT COUNT(*) AS count FROM meta WHERE key LIKE 'uncommitted-%'")).toEqual([{count:0}])
   })
 
   it('rejects sources changed after scanning and rejects symbolic links',async()=>{

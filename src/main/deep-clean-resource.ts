@@ -1,3 +1,4 @@
+import {isScanPathExcluded} from '../shared/scan-exclusions'
 import {lstat,readdir,rm} from 'node:fs/promises'
 import {randomUUID} from 'node:crypto'
 import path from 'node:path'
@@ -14,7 +15,7 @@ export interface DeepCleanSnapshot {
   validate:()=>Promise<void>
   clean:(progress?:(done:number,total:number)=>void)=>Promise<PrivacyOutcome>
 }
-export interface DeepFileOptions {olderThanDays?:number;pattern?:RegExp;readOnly?:boolean;maximumFiles?:number;signal?:AbortSignal}
+export interface DeepFileOptions {excludedPaths?:string[];olderThanDays?:number;pattern?:RegExp;readOnly?:boolean;maximumFiles?:number;signal?:AbortSignal}
 const protectedNames=new Set(['.git','.svn','.hg','.ssh','.aws','.azure','.kube','.gnupg','keychains','.env','.env.local','.env.production','auth.json','credentials.json','credentials','config.json','settings.json','history.jsonl'])
 export function deepProtectedName(name:string):boolean{return protectedNames.has(name.toLowerCase())||/^id_(rsa|ed25519|ecdsa)(\.pub)?$/i.test(name)||/\.(pem|p12|pfx|mobileprovision|key)$/i.test(name)}
 export async function deepFileSnapshot(root:string,until:number,options:DeepFileOptions={}):Promise<DeepCleanSnapshot>{
@@ -30,7 +31,7 @@ export async function deepFileSnapshot(root:string,until:number,options:DeepFile
     assertDeepNotCancelled(options.signal)
     const batch=pending.splice(Math.max(0,pending.length-32),Math.min(32,max-visited));visited+=batch.length
     await Promise.all(batch.map(async(target)=>{
-      if(seen.has(target))return;seen.add(target)
+      if(seen.has(target)||isScanPathExcluded(target,options.excludedPaths))return;seen.add(target)
       if(target!==root&&deepProtectedName(path.basename(target)))return
       try{
         const value=await lstat(target)

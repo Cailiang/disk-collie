@@ -27,6 +27,11 @@ describe('registered project artifact Trash',()=>{
     const snapshot=await projectArtifactSnapshot(definition,home,async()=>{throw new Error('must not run')})
     expect(snapshot.status).toBe('review-only');await expect(snapshot.clean()).rejects.toThrow('deep.sourceUnavailable');expect(await readFile(key,'utf8')).toBe('private key');expect(await readFile(path.join(output,'package/index.js'),'utf8')).toBe('downloaded dependency')
   })
+  it('does not discover excluded projects or whole artifacts containing an excluded descendant',async()=>{
+    expect((await discoverProjectArtifacts(home,Date.now(),undefined,[project])).some((entry)=>entry.target===output)).toBe(false)
+    expect((await discoverProjectArtifacts(home,Date.now(),undefined,[path.join(output,'package')])).some((entry)=>entry.target===output)).toBe(false)
+    expect((await discoverProjectArtifacts(home,Date.now(),undefined,[path.join(home,'unrelated')])).some((entry)=>entry.target===output)).toBe(true)
+  })
   it('honors cancellation while discovering and capturing project output',async()=>{
     const definition=await artifact(),controller=new AbortController();controller.abort()
     await expect(discoverProjectArtifacts(home,Date.now(),controller.signal)).rejects.toThrow('deep.cancelled')

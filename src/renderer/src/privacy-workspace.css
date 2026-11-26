@@ -21,11 +21,16 @@
 .privacy-page .privacy-categories small { display:flex; flex-wrap:wrap; align-items:center; gap:5px; margin-top:5px; font-size:10px; line-height:1.6; font-variant-numeric:tabular-nums; }
 .privacy-page .privacy-categories>button>b { flex-shrink:0; align-self:flex-start; font-size:10px; font-weight:550; margin:3px 0 0; max-width:48px; overflow:hidden; text-overflow:ellipsis; }
 .privacy-page .privacy-content { min-width:0; padding:0; overflow:auto; overscroll-behavior:contain; }
-.privacy-page .privacy-content>header { position:sticky; top:0; z-index:2; background:var(--surface); display:flex; align-items:center; justify-content:space-between; gap:15px; min-height:54px; padding:13px 18px; border-bottom:1px solid var(--line); }
+.privacy-page .privacy-content>header { position:sticky; top:0; z-index:2; background:var(--surface); display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:9px 15px; min-height:54px; padding:13px 18px; border-bottom:1px solid var(--line); }
 .privacy-page .privacy-content>header>div { display:flex; align-items:baseline; gap:11px; min-width:0; }
 .privacy-page .privacy-content>header h2 { font-size:12px; font-weight:550; line-height:1.5; margin:0; }
 .privacy-page .privacy-content>header>div>span { font-size:10px; color:var(--text-secondary); white-space:nowrap; font-variant-numeric:tabular-nums; }
-.privacy-page .privacy-content>header>label { display:flex; align-items:center; gap:7px; flex-shrink:0; color:var(--text-secondary); font-size:10px; }
+.privacy-page .privacy-content>header>.privacy-content-tools { align-items:center; flex-wrap:wrap; gap:10px 16px; }
+.privacy-page .privacy-content-tools>label { display:flex; align-items:center; gap:7px; flex-shrink:0; color:var(--text-secondary); font-size:10px; }
+.privacy-page .privacy-app-sort { display:flex; align-items:center; gap:4px; }
+.privacy-page .privacy-app-sort>button { display:flex; align-items:center; gap:5px; min-height:27px; padding:4px 7px; border:0; border-radius:5px; background:transparent; color:var(--text-tertiary); font-size:10px; line-height:1.4; white-space:nowrap; }
+.privacy-page .privacy-app-sort>button:hover { background:var(--surface-subtle); color:var(--text); }
+.privacy-page .privacy-app-sort>button[aria-pressed="true"] { background:var(--accent-soft); color:var(--accent); }
 .privacy-page input[type="checkbox"] { width:14px; height:14px; flex:0 0 14px; margin:0; accent-color:var(--accent); cursor:pointer; }
 .privacy-page input[type="checkbox"]:disabled { cursor:default; opacity:.5; }
 .privacy-page .privacy-account-note,.privacy-page .privacy-access-note { display:flex; align-items:flex-start; gap:8px; padding:11px 18px; margin:0; color:var(--text-secondary); background:var(--surface-subtle); font-size:11px; line-height:1.7; border-bottom:1px solid var(--line); }
@@ -170,6 +175,8 @@
   .privacy-page .privacy-categories>button { padding:10px 8px; min-height:62px; }
   .privacy-page .privacy-categories strong { font-size:11px; }
   .privacy-page .privacy-categories small { font-size:9px; gap:4px; margin-top:4px; }
+  .privacy-page .privacy-content>header>.privacy-content-tools { justify-content:space-between; }
+  .privacy-page .privacy-content>header>.privacy-content-tools:has(.privacy-app-sort) { width:100%; }
   .privacy-page .privacy-content { max-height:62dvh; }
   .privacy-page .privacy-content>header { padding:12px; min-height:49px; }
   .privacy-page .privacy-content>header h2 { font-size:12px; }

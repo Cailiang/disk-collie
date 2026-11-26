@@ -1,3 +1,13 @@
+# Memento 1.0.17 — 隐私读取与扫描配置 / Privacy reads and scan settings
+
+- 修复 Chrome 浏览历史、搜索、下载读取失败；兼容数据库锁定和真实关联表结构。
+- 应用活动隐藏零痕迹项，支持名称／数量排序；系统活动增加网络连接历史。
+- 空间分析支持目录移到废纸篓，确认展示完整内容（含隐藏项），变化或受保护内容会阻止处理。
+- 设置页增加持久化扫描排除目录，可添加／移除；修改后旧扫描结果失效。
+- 精简模型配置：默认自定义 OpenAI 兼容接口，填写名称、地址和密钥，获取模型列表后选择保存；官方地址固定，说明收进问号。
+
+English: verified private SQLite snapshots handle locked Chrome reads, while WITHOUT ROWID tables no longer break history fingerprints. Actual zero-trace apps are hidden with name/count sorting; macOS network recents are previewable. Space explorer supports complete, reviewed folder Trash with change/protection checks. Persisted excluded scan folders replace the old ignore-list UI. Concise model setup explicitly fetches and selects models before saving. Privacy previews remain local; no real user records are cleaned during verification.
+
 # Memento 1.0.16 — 深度清理与并行更新 / Deep cleanup and concurrent updates
 
 - 更新应用时仅当前行显示更新中，其他应用可以继续更新、打开和询问 AI；同一应用的更新和卸载互斥。

@@ -1,3 +1,4 @@
+import type {StorageDirectoryPlan} from './storage-directory-types'
 import type {DeepCleanScan,DeepCleanPreview} from './deep-clean-types'
 import type { ApplicationUpdateMode, ApplicationUpdateResult, ApplicationUpdateSource } from './types'
 import type { FileCategory } from './file-categories'
@@ -116,7 +117,9 @@ export interface StorageApi {
   storageChildren: (input: { generation: number; id: number; offset?: number }) => Promise<{ parent: StorageEntry; items: StorageEntry[] }>
   storageLarge: (input: { generation: number; minimum: number; search: string; offset: number; category?: FileCategory | 'all' }) => Promise<{ count: number; items: StorageEntry[]; categories?: Record<string,number> }>
   storageDuplicates: (generation: number, minimum?:number) => Promise<{ groups: DuplicateGroup[]; elapsedMs: number }>
-  storageTrash: (input: { generation: number; ids: number[]; kind: StorageMode; groupId?: string }) => Promise<StorageActivity>
+  storageTrash: (input: { generation: number; ids: number[]; kind: StorageMode; groupId?: string;directoryPlanId?:string }) => Promise<StorageActivity>
+  storageDirectoryPlan:(input:{generation:number;id:number})=>Promise<StorageDirectoryPlan>
+  onStorageScopeChanged:(callback:()=>void)=>()=>void
   storageReveal: (input: { generation: number; id: number }) => Promise<void>
   storageRevealTarget: (target:StorageTarget) => Promise<void>
   storageCleanup: (privacy: boolean) => Promise<CleanupItem[]>

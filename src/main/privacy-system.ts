@@ -5,7 +5,8 @@ import {homedir} from 'node:os'
 import path from 'node:path'
 import {promisify} from 'node:util'
 import type {PrivacyRecord,PrivacyTimeRange} from '../shared/privacy-types'
-import {privacyAccessFailure,privacyFileResource,privacyPathSnapshot,privacySince,privacyUnavailable,validatePrivacyPath,type PrivacyContext,type PrivacyDefinition,type PrivacyPathSnapshot,type PrivacyResource,type PrivacySnapshot,type PrivacySource} from './privacy-resource'
+import {isScanPathExcluded} from '../shared/scan-exclusions'
+import {PrivacyCleanupError,privacyAccessFailure,privacyFileResource,privacyPathSnapshot,privacySince,privacyUnavailable,validatePrivacyPath,type PrivacyContext,type PrivacyDefinition,type PrivacyPathSnapshot,type PrivacyResource,type PrivacySnapshot,type PrivacySource} from './privacy-resource'
 
 const execute=promisify(execFile)
 const maxBytes=32*1024*1024
@@ -148,6 +149,45 @@ function recentResource(definition:PrivacyDefinition):PrivacyResource{return {..
       }}
   }catch(error){return failed(error)}
 }}}
+/** Recent hosts and servers are connection history, never active networking or saved Wi-Fi configuration. */
+function networkHistoryResource(definition:PrivacyDefinition):PrivacyResource{return {...definition,scan:async(range,until)=>{
+  if(range!=='all')return privacyUnavailable('range-unsupported')
+  const snapshots:PrivacySnapshot[]=[],missing:string[]=[]
+  try{
+    for(const [index,target] of definition.paths.entries()){
+      try{await privacyPathSnapshot(target)}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT'){missing.push(target);continue}throw error}
+      const snapshot=await recentResource({...definition,key:`${definition.key}:${index}`,paths:[target]}).scan(range,until)
+      snapshots.push(snapshot)
+    }
+    const count=snapshots.reduce((sum,snapshot)=>sum+(snapshot.count||0),0),size=snapshots.reduce((sum,snapshot)=>sum+snapshot.size,0)
+    const blocked=snapshots.find((snapshot)=>snapshot.capability!=='ready'&&snapshot.capability!=='empty')
+    if(blocked)return {...privacyUnavailable(blocked.capability),count:count||null,size}
+    const validate=async():Promise<void>=>{
+      for(const target of missing){
+        try{await privacyPathSnapshot(target)}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')continue;throw error}
+        throw new Error('privacy.sourceChanged')
+      }
+      for(const snapshot of snapshots)await snapshot.validate()
+    }
+    return {count,size,capability:count?'ready':'empty',validate,
+      preview:async(offset,limit)=>{
+        await validate();let skip=Math.max(0,offset),left=Math.min(Math.max(0,limit),100);const records:PrivacyRecord[]=[]
+        for(const snapshot of snapshots){
+          const total=snapshot.count||0
+          if(skip>=total){skip-=total;continue}
+          const page=await snapshot.preview(skip,left);records.push(...page);left-=page.length;skip=0
+          if(left<=0)break
+        }
+        return records
+      },clean:async(progress)=>{
+        // All sources must still match before the first archive is changed.
+        await validate();let removed=0,bytes=0
+        try{for(const snapshot of snapshots){const outcome=await snapshot.clean();removed+=outcome.count;bytes+=outcome.size;progress?.(removed,count)}}
+        catch(error){if(removed)throw new PrivacyCleanupError({count:removed,size:bytes,changed:true,removedPaths:[]},error);throw error}
+        return {count:removed,size:bytes,changed:removed>0,removedPaths:[]}
+      }}
+  }catch(error){return failed(error)}
+}}}
 function finderResource(definition:PrivacyDefinition,key:string):PrivacyResource{return {...definition,scan:async(range)=>{
   if(range!=='all')return privacyUnavailable('range-unsupported')
   try{
@@ -233,17 +273,21 @@ async function present(target:string):Promise<boolean>{try{await lstat(target);r
 /** Deterministic, narrowly scoped record adapters. No document contents are read or removed. */
 export async function systemPrivacyResources(context:PrivacyContext):Promise<PrivacyResource[]>{
   const result:PrivacyResource[]=[],{platform,home,applications,env}=context,p=platform==='win32'?path.win32:path.posix
+  const includedPresent=(target:string):Promise<boolean>=>isScanPathExcluded(target,context.excludedPaths)?Promise.resolve(false):present(target)
   const owner=(key:string,name:string,bundleId:string,iconPaths:string[]=[]):PrivacySource=>{const app=applications.find((app)=>app.bundleId?.toLowerCase()===bundleId.toLowerCase());return {key,name:app?.name||name,bundleIds:[bundleId],iconPaths:app?[app.location]:iconPaths}}
   const finder=owner('finder','Finder','com.apple.finder',['/System/Library/CoreServices/Finder.app'])
-  const definition=(key:string,kind:PrivacyDefinition['kind'],category:PrivacyDefinition['category'],source:PrivacySource,paths:string[],risk:PrivacyDefinition['risk']='recent',supportsRange=false):PrivacyDefinition=>({key,kind,category,source,paths,risk,supportsRange})
-  const addFiles=async(key:string,kind:PrivacyDefinition['kind'],source:PrivacySource,roots:string[],category:PrivacyDefinition['category']='app-activity'):Promise<void>=>{for(const target of roots)if(await present(target))result.push(privacyFileResource(definition(`${key}:${target}`,kind,category,source,[target],kind==='app-edit-history'||kind==='app-sessions'&&['Backups','workspaceStorage'].includes(p.basename(target))?'sensitive':kind==='app-cache'||kind==='app-logs'?'low':'recent',false)))}
+  const definition=(key:string,kind:PrivacyDefinition['kind'],category:PrivacyDefinition['category'],source:PrivacySource,paths:string[],risk:PrivacyDefinition['risk']='recent',supportsRange=false):PrivacyDefinition=>({key,kind,category,source,paths:paths.filter((target)=>!isScanPathExcluded(target,context.excludedPaths)),excludedPaths:context.excludedPaths,risk,supportsRange})
+  const addFiles=async(key:string,kind:PrivacyDefinition['kind'],source:PrivacySource,roots:string[],category:PrivacyDefinition['category']='app-activity'):Promise<void>=>{for(const target of roots)if(await includedPresent(target))result.push(privacyFileResource(definition(`${key}:${target}`,kind,category,source,[target],kind==='app-edit-history'||kind==='app-sessions'&&['Backups','workspaceStorage'].includes(p.basename(target))?'sensitive':kind==='app-cache'||kind==='app-logs'?'low':'recent',false)))}
   if(platform==='darwin'){
     result.push(clipboardResource(finder))
     const recent=p.join(home,'Library/Application Support/com.apple.sharedfilelist')
-    for(const [name,kind] of [['RecentApplications','recent-apps'],['RecentDocuments','recent-documents'],['RecentServers','recent-servers']] as const)for(const ext of ['sfl4','sfl3','sfl2']){
+    for(const [name,kind] of [['RecentApplications','recent-apps'],['RecentDocuments','recent-documents']] as const)for(const ext of ['sfl4','sfl3','sfl2']){
       const target=p.join(recent,`com.apple.LSSharedFileList.${name}.${ext}`)
-      if(await present(target))result.push(recentResource(definition(`system-${name}-${ext}`,kind,'system-activity',finder,[target])))
+      if(await includedPresent(target))result.push(recentResource(definition(`system-${name}-${ext}`,kind,'system-activity',finder,[target])))
     }
+    const network=definition('system-network-history','network-history','system-activity',finder,
+      ['RecentHosts','RecentServers'].flatMap((name)=>['sfl4','sfl3','sfl2'].map((ext)=>p.join(recent,`com.apple.LSSharedFileList.${name}.${ext}`))))
+    if(network.paths.length)result.push(networkHistoryResource(network))
     const recentApps=p.join(recent,'com.apple.LSSharedFileList.ApplicationRecentDocuments')
     const builtInRecent:Record<string,{name:string;location:string}>={
       'com.apple.preview':{name:'Preview',location:'/System/Applications/Preview.app'},
@@ -254,16 +298,17 @@ export async function systemPrivacyResources(context:PrivacyContext):Promise<Pri
       'com.microsoft.powerpoint':{name:'Microsoft PowerPoint',location:'/Applications/Microsoft PowerPoint.app'},
       'com.microsoft.onenote.mac':{name:'Microsoft OneNote',location:'/Applications/Microsoft OneNote.app'}
     }
-    try{for(const entry of await readdir(recentApps,{withFileTypes:true})){
+    try{for(const entry of isScanPathExcluded(recentApps,context.excludedPaths)?[]:await readdir(recentApps,{withFileTypes:true})){
       const match=/^([a-zA-Z0-9.-]+)\.sfl[234]$/.exec(entry.name);if(!entry.isFile()||!match)continue
+      if(isScanPathExcluded(p.join(recentApps,entry.name),context.excludedPaths))continue
       // Match installed bundle identity: unknown archives are not attributed to invented applications.
       const app=applications.find((app)=>app.bundleId?.toLowerCase()===match[1].toLowerCase()),known=builtInRecent[match[1].toLowerCase()]
-      if(!app?.bundleId&&(!known||!await present(known.location)))continue
+      if(!app?.bundleId&&(!known||!await includedPresent(known.location)))continue
       const bundleId=app?.bundleId||match[1],source=owner(bundleId,app?.name||known.name,bundleId,known?[known.location]:[])
       result.push(recentResource(definition(`app-recent:${entry.name}`,'app-recent','app-activity',source,[p.join(recentApps,entry.name)])))
     }}catch(error){if(privacyAccessFailure(error))result.push({...definition('app-recent-permission','app-recent','app-activity',finder,[recentApps]),scan:async()=>privacyUnavailable('permission-required')})}
     const preferences=p.join(home,'Library/Preferences/com.apple.finder.plist')
-    if(await present(preferences))for(const [key,kind] of [['SGTRecentFileSearches','search'],['GoToFieldHistory','recent-documents'],['RecentMoveAndCopyDestinations','recent-documents'],['FXRecentFolders','recent-documents']] as const)result.push(finderResource(definition(`finder-${key}`,kind,'system-activity',finder,[preferences]),key))
+    if(await includedPresent(preferences))for(const [key,kind] of [['SGTRecentFileSearches','search'],['GoToFieldHistory','recent-documents'],['RecentMoveAndCopyDestinations','recent-documents'],['FXRecentFolders','recent-documents']] as const)result.push(finderResource(definition(`finder-${key}`,kind,'system-activity',finder,[preferences]),key))
     for(const app of applications){
       if(!app.bundleId||!/^[a-zA-Z0-9.-]+$/.test(app.bundleId))continue
       const source=owner(app.bundleId,app.name,app.bundleId)
@@ -275,10 +320,10 @@ export async function systemPrivacyResources(context:PrivacyContext):Promise<Pri
     if(home===homedir())try{const {stdout}=await execute('/usr/bin/getconf',['DARWIN_USER_CACHE_DIR'],{timeout:5000,maxBuffer:4096}),reported=stdout.trim();if(reported.startsWith('/var/folders/')||reported.startsWith('/private/var/folders/')){const cache=await realpath(reported);if(cache.startsWith('/private/var/folders/'))await addFiles('system-thumbnails','app-cache',finder,[p.join(cache,'com.apple.quicklook.ThumbnailsAgent/com.apple.QuickLook.thumbnailcache'),p.join(cache,'com.apple.QuickLook.thumbnailcache')],'system-activity')}}catch{/* No supported QuickLook cache on this system. */}
   }else if(platform==='win32'){
     const source=owner('explorer','Windows Explorer','windows.explorer',[p.join(env.SystemRoot||'C:\\Windows','explorer.exe')]),recent=p.join(env.APPDATA||p.join(home,'AppData/Roaming'),'Microsoft/Windows/Recent')
-    try{const files=(await readdir(recent,{withFileTypes:true})).filter((entry)=>entry.isFile()&&entry.name.toLowerCase().endsWith('.lnk')).map((entry)=>p.join(recent,entry.name));if(files.length)result.push(privacyFileResource(definition('windows-recent-shortcuts','recent-documents','system-activity',source,files)))}catch(error){if(privacyAccessFailure(error))result.push({...definition('windows-recent-permission','recent-documents','system-activity',source,[recent]),scan:async()=>privacyUnavailable('permission-required')})}
+    try{const files=(isScanPathExcluded(recent,context.excludedPaths)?[]:await readdir(recent,{withFileTypes:true})).filter((entry)=>entry.isFile()&&entry.name.toLowerCase().endsWith('.lnk')&&!isScanPathExcluded(p.join(recent,entry.name),context.excludedPaths)).map((entry)=>p.join(recent,entry.name));if(files.length)result.push(privacyFileResource(definition('windows-recent-shortcuts','recent-documents','system-activity',source,files)))}catch(error){if(privacyAccessFailure(error))result.push({...definition('windows-recent-permission','recent-documents','system-activity',source,[recent]),scan:async()=>privacyUnavailable('permission-required')})}
   }else{
     const source=owner('files','Files','org.gnome.Nautilus'),data=env.XDG_DATA_HOME||p.join(home,'.local/share')
-    for(const [name,kind] of [['recently-used.xbel','recent-documents'],['recent-applications.xbel','recent-apps']] as const){const target=p.join(data,name);if(await present(target))result.push(textResource(definition(`linux-${name}`,kind,'system-activity',source,[target],'recent',true),xbelEntries))}
+    for(const [name,kind] of [['recently-used.xbel','recent-documents'],['recent-applications.xbel','recent-apps']] as const){const target=p.join(data,name);if(await includedPresent(target))result.push(textResource(definition(`linux-${name}`,kind,'system-activity',source,[target],'recent',true),xbelEntries))}
   }
   const appRoot=platform==='darwin'?p.join(home,'Library/Application Support'):platform==='win32'?env.APPDATA||p.join(home,'AppData/Roaming'):env.XDG_CONFIG_HOME||p.join(home,'.config')
   for(const [directory,bundleId,name] of [['Code','com.microsoft.VSCode','Visual Studio Code'],['Code - Insiders','com.microsoft.VSCodeInsiders','Visual Studio Code - Insiders'],['VSCodium','com.vscodium','VSCodium']] as const){
@@ -293,7 +338,7 @@ export async function systemPrivacyResources(context:PrivacyContext):Promise<Pri
     const terminal=owner('terminal','Terminal',platform==='darwin'?'com.apple.Terminal':'org.gnome.Terminal',platform==='darwin'?['/System/Applications/Utilities/Terminal.app']:[])
     const histories:[string,'zsh'|'bash'|'fish'][]=[[p.join(home,'.zsh_history'),'zsh'],[p.join(home,'.bash_history'),'bash'],[p.join(env.XDG_DATA_HOME||p.join(home,'.local/share'),'fish/fish_history'),'fish']]
     if(env.ZDOTDIR&&(env.ZDOTDIR===home||env.ZDOTDIR.startsWith(home+p.sep)))histories.push([p.join(env.ZDOTDIR,'.zsh_history'),'zsh'])
-    for(const [target,kind] of histories.filter(([target],index,all)=>all.findIndex(([candidate])=>candidate===target)===index))if(await present(target))result.push(textResource(definition(`shell-${kind}:${target}`,'shell-history','system-activity',terminal,[target],'sensitive',true),(content)=>shellEntries(content,kind)))
+    for(const [target,kind] of histories.filter(([target],index,all)=>all.findIndex(([candidate])=>candidate===target)===index))if(await includedPresent(target))result.push(textResource(definition(`shell-${kind}:${target}`,'shell-history','system-activity',terminal,[target],'sensitive',true),(content)=>shellEntries(content,kind)))
   }
   return result
 }

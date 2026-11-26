@@ -4,6 +4,26 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.17 - 2026-11-26
+
+### English
+
+- Fix Chrome history, search and download reads under SQLite lock contention with verified private temporary snapshots, and support WITHOUT ROWID related tables. Keep cleanup on the original database with closed-browser and content guards.
+- Hide application-activity groups with zero actual traces, keep unknown/permission states, and add bidirectional name/count sorting. Combine macOS RecentHosts and RecentServers SFL2/3/4 into network connection history with local previews.
+- Add reviewed whole-folder Trash in Space explorer, including hidden contents, complete-tree change validation, protected/excluded-path checks and reconciliation of retained results/statistics.
+- Replace the ignored-item settings UI with persisted scan-excluded folders, native folder picking and removal. Apply exclusions to file, duplicate, space, deep and privacy discovery, and invalidate old results/plans when scope changes.
+- Simplify model setup: custom OpenAI-compatible by default, name/address/key, explicit model fetching and selection, then save. Official service addresses are read-only; help sits behind a small question mark. Keep encrypted saved-key editing and stale-request protection.
+- Extend native/Electron fixtures and four-viewport UI coverage for exclusions, folder review, privacy sorting/network records and model setup.
+
+### 简体中文
+
+- 修复 Chrome 数据库锁定与关联表 WITHOUT ROWID 导致的浏览历史、搜索、下载读取失败；锁定时使用经过校验的私有临时副本读取。清理仍操作原数据库，并检查浏览器退出与记录变化。
+- 应用活动隐藏实际零痕迹的应用，保留数量未知／权限不足状态，增加名称和痕迹数量双向排序；合并 macOS RecentHosts／RecentServers 的 SFL2／3／4 网络连接历史，支持本地详情。
+- 空间分析支持完整目录核对后移到废纸篓，包含隐藏内容；执行前重新校验目录树、保护路径和排除目录，成功后同步结果与清理统计。
+- 设置页用可添加／移除的扫描排除目录替换旧忽略列表，持久化并作用于文件、重复、空间、深度及隐私扫描；范围变化时使旧结果与删除计划失效。
+- 模型设置默认自定义 OpenAI 兼容接口，填写名称／地址／密钥后手动获取模型、选择并保存。官方地址只读，帮助收进问号；保留加密密钥编辑与过期请求防护。
+- 扩展原生／真实 Electron 夹具及四尺寸 UI 覆盖，验证排除目录、整目录核对、隐私排序／网络记录和模型配置流程。
+
 ## 1.0.16 - 2026-11-26
 
 ### English

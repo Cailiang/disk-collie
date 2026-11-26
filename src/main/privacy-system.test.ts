@@ -1,4 +1,5 @@
 import {chmod,mkdtemp,mkdir,readFile,realpath,rm,writeFile} from 'node:fs/promises'
+import {writeFileSync} from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
@@ -24,6 +25,7 @@ vi.mock('node:child_process',async(importOriginal)=>{
 })
 import {systemPrivacyResources} from './privacy-system'
 import type {PrivacyContext} from './privacy-resource'
+import {PrivacyCleanupError} from './privacy-resource'
 
 let home:string
 const context=(platform:NodeJS.Platform='linux'):PrivacyContext=>({home,platform,applications:[],env:{}})
@@ -89,6 +91,65 @@ const plistHeader='<?xml version="1.0"?><plist version="1.0">'
 const recentArchive=():string=>plistHeader+`<dict><key>$version</key><integer>100000</integer><key>$archiver</key><string>NSKeyedArchiver</string><key>$top</key><dict><key>root</key><dict><key>CF$UID</key><integer>1</integer></dict></dict><key>$objects</key><array><string>$null</string><dict><key>NS.keys</key><array><dict><key>CF$UID</key><integer>2</integer></dict><dict><key>CF$UID</key><integer>3</integer></dict></array><key>NS.objects</key><array><dict><key>CF$UID</key><integer>4</integer></dict><dict><key>CF$UID</key><integer>5</integer></dict></array><key>$class</key><dict><key>CF$UID</key><integer>7</integer></dict></dict><string>items</string><string>properties</string><dict><key>NS.objects</key><array><dict><key>CF$UID</key><integer>6</integer></dict></array><key>$class</key><dict><key>CF$UID</key><integer>8</integer></dict></dict><dict><key>retained</key><string>root property</string></dict><dict><key>Name</key><string>Fixture.txt</string><key>Bookmark</key><data>Ym9vaw==</data></dict><dict><key>$classes</key><array><string>NSDictionary</string><string>NSObject</string></array><key>$classname</key><string>NSDictionary</string></dict><dict><key>$classes</key><array><string>NSArray</string><string>NSObject</string></array><key>$classname</key><string>NSArray</string></dict></array></dict></plist>`
 
 describe.skipIf(process.platform!=='darwin')('macOS property list records',()=>{
+  it('groups recent network hosts and servers without registering the same source twice',async()=>{
+    const relative='Library/Application Support/com.apple.sharedfilelist/'
+    const host=await fixture(relative+'com.apple.LSSharedFileList.RecentHosts.sfl4',recentArchive().replace('Fixture.txt','Host fixture'))
+    const server=await fixture(relative+'com.apple.LSSharedFileList.RecentServers.sfl3',recentArchive().replace('Fixture.txt','Server fixture'))
+    const document=await fixture('Documents/Fixture.txt','original user document')
+    const resources=await systemPrivacyResources(context('darwin')),network=resources.filter((entry)=>entry.kind==='network-history')
+    expect(network).toHaveLength(1);expect(resources.filter((entry)=>entry.paths.includes(server))).toHaveLength(1)
+    expect((await network[0].scan('week',Date.now())).capability).toBe('range-unsupported')
+    const snapshot=await network[0].scan('all',Date.now())
+    expect(snapshot.capability).toBe('ready');expect(snapshot.count).toBe(2)
+    expect((await snapshot.preview(0,100)).map((entry)=>entry.title)).toEqual(['Host fixture','Server fixture'])
+    expect((await snapshot.preview(1,1)).map((entry)=>entry.title)).toEqual(['Server fixture'])
+    expect(await snapshot.preview(2,100)).toEqual([])
+    expect(await snapshot.clean()).toMatchObject({count:2,changed:true,removedPaths:[]})
+    expect((await network[0].scan('all',Date.now())).count).toBe(0)
+    const {execFile}=await import('node:child_process'),{promisify}=await import('node:util'),run=promisify(execFile)
+    for(const target of [host,server]){
+      const {stdout}=await run('/usr/bin/plutil',['-convert','xml1','-o','-',target])
+      expect(stdout).toContain('root property');expect(stdout).toContain('NSDictionary');expect(stdout).toContain('NSArray');expect(stdout).not.toContain('fixture');expect(stdout).not.toContain('Ym9vaw==')
+    }
+    expect(await readFile(document,'utf8')).toBe('original user document')
+    expect(network[0].paths.every((target)=>target.includes('LSSharedFileList.Recent'))).toBe(true)
+  })
+  it('keeps missing network history visible as empty and distinguishes denied sources',async()=>{
+    const resource=(await systemPrivacyResources(context('darwin'))).find((entry)=>entry.kind==='network-history')!
+    const missing=await resource.scan('all',Date.now())
+    expect(missing.capability).toBe('empty');expect(missing.count).toBe(0);expect(await missing.preview(0,100)).toEqual([])
+    const target=await fixture('Library/Application Support/com.apple.sharedfilelist/com.apple.LSSharedFileList.RecentHosts.sfl4',recentArchive())
+    await expect(missing.validate()).rejects.toThrow('privacy.sourceChanged')
+    await chmod(target,0)
+    try{const denied=await resource.scan('all',Date.now());expect(denied.capability).toBe('permission-required');expect(denied.count).toBeNull();await expect(denied.clean()).rejects.toThrow('privacy.sourceUnavailable')}finally{await chmod(target,0o600)}
+  })
+  it('prevalidates every network source before clearing the first archive',async()=>{
+    const relative='Library/Application Support/com.apple.sharedfilelist/'
+    const host=await fixture(relative+'com.apple.LSSharedFileList.RecentHosts.sfl4',recentArchive())
+    const server=await fixture(relative+'com.apple.LSSharedFileList.RecentServers.sfl4',recentArchive())
+    const resource=(await systemPrivacyResources(context('darwin'))).find((entry)=>entry.kind==='network-history')!,snapshot=await resource.scan('all',Date.now()),before=await readFile(host)
+    await writeFile(server,recentArchive().replace('Fixture.txt','Changed.txt'))
+    await expect(snapshot.clean()).rejects.toThrow('privacy.sourceChanged');expect(await readFile(host)).toEqual(before)
+  })
+  it('reports confirmed network record removals when a later archive changes during cleanup',async()=>{
+    const relative='Library/Application Support/com.apple.sharedfilelist/'
+    await fixture(relative+'com.apple.LSSharedFileList.RecentHosts.sfl4',recentArchive())
+    const server=await fixture(relative+'com.apple.LSSharedFileList.RecentServers.sfl4',recentArchive())
+    const resource=(await systemPrivacyResources(context('darwin'))).find((entry)=>entry.kind==='network-history')!,snapshot=await resource.scan('all',Date.now())
+    try{await snapshot.clean((done)=>{if(done===1)writeFileSync(server,recentArchive().replace('Fixture.txt','New record'))});throw new Error('Expected partial cleanup failure')}
+    catch(error){expect(error).toBeInstanceOf(PrivacyCleanupError);expect((error as PrivacyCleanupError).outcome).toMatchObject({count:1,changed:true,removedPaths:[]});expect((error as Error).message).toBe('privacy.sourceChanged')}
+    expect((await resource.scan('all',Date.now())).count).toBe(1)
+  })
+  it('skips excluded system and application activity directories during discovery',async()=>{
+    const relative='Library/Application Support/com.apple.sharedfilelist/'
+    const recent=path.join(home,relative)
+    await fixture(relative+'com.apple.LSSharedFileList.RecentHosts.sfl4',recentArchive())
+    await fixture(relative+'com.apple.LSSharedFileList.ApplicationRecentDocuments/com.example.fixture.sfl4',recentArchive())
+    const ctx=context('darwin');ctx.excludedPaths=[recent];ctx.applications=[{id:'fixture',bundleId:'com.example.fixture',name:'Fixture',version:'1',location:'/Applications/Fixture.app',size:0,protected:false,method:'trash'}]
+    const resources=await systemPrivacyResources(ctx)
+    expect(resources.some((entry)=>entry.kind==='network-history'||entry.kind==='app-recent')).toBe(false)
+    expect(resources.every((entry)=>entry.paths.every((target)=>!target.startsWith(recent)))).toBe(true)
+  })
   it('round-trips an actual Foundation SFL4 archive and native bookmark, retaining non-target properties',async()=>{
     clipboard.nativeBookmarks=true
     const document=await fixture('Documents/Native Fixture.txt','owned fixture'),target=path.join(home,'Library/Application Support/com.apple.sharedfilelist/com.apple.LSSharedFileList.RecentDocuments.sfl4')

@@ -1,3 +1,4 @@
+import {isScanPathExcluded,scanPathsOverlap} from '../shared/scan-exclusions'
 import { promises as fs } from 'node:fs'
 import type { Dirent } from 'node:fs'
 import os from 'node:os'
@@ -107,9 +108,10 @@ async function discoverFromRoot(
   seenRoots: Set<string>,
   depth: number,
   now: number,
-  signal?:AbortSignal
+  signal?:AbortSignal,excludedPaths:readonly string[]=[]
 ): Promise<void> {
   if(signal?.aborted)throw new Error('deep.cancelled')
+  if(isScanPathExcluded(root,excludedPaths))return
   if (depth > MAX_SCAN_DEPTH || seenRoots.size >= MAX_VISITED_DIRECTORIES) return
   let realRoot: string
   try {
@@ -119,7 +121,7 @@ async function discoverFromRoot(
   } catch {
     return
   }
-  if (seenRoots.has(realRoot)) return
+  if (seenRoots.has(realRoot)||isScanPathExcluded(realRoot,excludedPaths)) return
   seenRoots.add(realRoot)
 
   const entries = await readEntries(realRoot)
@@ -128,7 +130,7 @@ async function discoverFromRoot(
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.isSymbolicLink() || !ARTIFACT_LABELS.has(entry.name)) continue
       const target = path.join(realRoot, entry.name)
-      if (await hasProtectedArtifactEntries(target)) continue
+      if (scanPathsOverlap(target,excludedPaths)||await hasProtectedArtifactEntries(target)) continue
       try {
         const stats = await fs.lstat(target)
         if (stats.isSymbolicLink() || !stats.isDirectory()) continue
@@ -153,7 +155,7 @@ async function discoverFromRoot(
 
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.isSymbolicLink() || entry.name === '.git' || ARTIFACT_LABELS.has(entry.name)) continue
-    await discoverFromRoot(path.join(realRoot, entry.name), results, seenRoots, depth + 1, now,signal)
+    await discoverFromRoot(path.join(realRoot, entry.name), results, seenRoots, depth + 1, now,signal,excludedPaths)
     if (seenRoots.size >= MAX_VISITED_DIRECTORIES) return
   }
 }
@@ -161,12 +163,12 @@ async function discoverFromRoot(
 export async function discoverProjectArtifacts(
   home = os.homedir(),
   now = Date.now(),
-  signal?:AbortSignal
+  signal?:AbortSignal,excludedPaths:readonly string[]=[]
 ): Promise<ProjectArtifact[]> {
   const results: ProjectArtifact[] = []
   const seenRoots = new Set<string>()
   for (const root of projectRoots(home)) {
-    await discoverFromRoot(root, results, seenRoots, 0, now,signal)
+    await discoverFromRoot(root, results, seenRoots, 0, now,signal,excludedPaths)
     if (seenRoots.size >= MAX_VISITED_DIRECTORIES) break
   }
   return results

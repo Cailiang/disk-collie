@@ -1,3 +1,4 @@
+import {isScanPathExcluded} from '../shared/scan-exclusions'
 import {open,readdir} from 'node:fs/promises'
 import path from 'node:path'
 import type {DeepCleanContext} from './deep-clean-context'
@@ -10,14 +11,15 @@ export async function applicationArchitectureDefinitions(context:DeepCleanContex
   const result:DeepCleanDefinition[]=[]
   for(const app of context.applications){
     assertDeepNotCancelled(context.signal)
-    if(app.system||app.protected||!app.location.endsWith('.app'))continue
+    if(app.system||app.protected||isScanPathExcluded(app.location,context.excludedPaths)||!app.location.endsWith('.app'))continue
     try{
       const directory=path.join(app.location,'Contents/MacOS')
+      if(isScanPathExcluded(directory,context.excludedPaths))continue
       await privacyPathSnapshot(directory)
       const binaries:string[]=[]
       for(const entry of await readdir(directory,{withFileTypes:true})){
         if(!entry.isFile()||entry.isSymbolicLink())continue
-        const target=path.join(directory,entry.name);await privacyPathSnapshot(target)
+        const target=path.join(directory,entry.name);if(isScanPathExcluded(target,context.excludedPaths))continue;await privacyPathSnapshot(target)
         const reader=await open(target,'r')
         try{const bytes=Buffer.alloc(8);const {bytesRead}=await reader.read(bytes,0,8,0),magic=bytes.readUInt32BE(),count=[0xbebafeca,0xbfbafeca].includes(magic)?bytes.readUInt32LE(4):bytes.readUInt32BE(4);if(bytesRead===8&&[0xcafebabe,0xcafebabf,0xbebafeca,0xbfbafeca].includes(magic)&&count>=2&&count<=16)binaries.push(target)}finally{await reader.close()}
       }
