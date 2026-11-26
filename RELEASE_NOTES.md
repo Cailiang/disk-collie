@@ -1,3 +1,14 @@
+# Memento 1.0.10 — 后台 AI 任务与设备概览 / Background AI and device overview
+
+- 扫描跨页面自动排队，显示等待进度，不再因已有扫描而报错；取消按页面类别隔离。
+- 询问 AI 后留在原页面，右下角浮窗展示排队、分析中和完成状态，并提示未读结果；支持取消、重试、配置供应商后继续以及一键返回来源。
+- 文件和进程操作增加悬停提示。进程默认用户进程、CPU 降序；CPU／内存超过 40% 橙色、超过 65% 红色。
+- macOS 退出应用辅助进程时处理所属应用，并验证实际退出；应用仍运行或被重启会明确提示。
+- 首页新增健康评分、CPU／内存实时小图表和存储卡片，直达对应工具；保留累计与每日整理图表，区分永久清理和废纸篓。
+- 健康评分只使用可用测量，是当前负载与容量的参考，不代表硬件诊断。
+
+English: storage jobs queue across pages; background AI tasks retain source context and resume after provider setup, with unread results, cancellation and retry. Processes default to user-only/CPU descending, highlight >40%/>65% usage and verify actual app/process exit. Overview combines an explainable score, real CPU/memory samples, storage navigation and cleanup-value charts. Unavailable readings are excluded.
+
 # Memento 1.0.9 — 应用管理与清晰的空间导航 / Applications and clearer navigation
 
 - “应用卸载”改为实用工具中的“应用管理”，默认隐藏系统应用。

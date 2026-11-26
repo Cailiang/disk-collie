@@ -4,6 +4,24 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.10 - 2026-11-26
+
+### English
+
+- Queue storage discovery and confirmed mutations across workspaces instead of rejecting navigation during another scan. Show waiting progress and cancel only the selected scan scope.
+- Add a background AI task panel with queued/running/success states, unread result badges, cancellation/retry, provider setup continuation and a direct return to the source page with filters, selection and scroll preserved. Action buttons expose hover and keyboard-focus tooltips.
+- Default Processes to user processes sorted by CPU descending. CPU/memory usage above 40% is orange and above 65% is red. Freeze rows during interaction; macOS app-helper actions target the owning app and verify actual exit, with process identity and system/self protection.
+- Rebuild Overview around an explainable health score, CPU/memory live sample charts and storage capacity, direct process-sort/large-file navigation, and cumulative/daily cleanup value. Missing GPU/battery data is excluded from scoring.
+- Extend queue/process unit tests and real Electron/UI regression coverage for concurrent discovery, owned-process termination, AI background work and provider onboarding.
+
+### 简体中文
+
+- 不同页面的扫描与确认清理按顺序排队，切页不再报另一个存储任务正在运行；显示等待状态，取消仅影响当前类别。
+- 新增后台 AI 任务浮窗，支持排队／分析中／完成状态、新结果提示、取消重试；未配置供应商时保留任务，保存后自动继续；查看结果和配置后可返回原页面并保留筛选、勾选与滚动位置。操作按钮提供悬停和键盘聚焦提示。
+- 进程默认只显示用户进程，按 CPU 降序；CPU／内存占用超过 40% 橙色、超过 65% 红色。交互时固定行位置；macOS 对应用辅助进程的退出操作作用于所属应用并验证实际退出，校验进程身份且保护系统和自身进程。
+- 首页重做为可解释的健康度评分、CPU／内存实时采样图、存储容量及累计／每日整理价值图表；设备卡片直达对应排序的进程或大文件；缺失 GPU／电池数据不参与评分。
+- 增补任务队列、进程身份与退出测试，以及真实 Electron 并发扫描、受控进程退出、AI 后台任务与供应商配置回归验证。
+
 ## 1.0.9 - 2026-11-26
 
 ### English

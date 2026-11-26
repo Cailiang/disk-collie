@@ -637,11 +637,18 @@ fn terminate(pid: u32, force: bool) -> Result<Value, String> {
     }
     let signal = if force { Signal::Kill } else { Signal::Term };
     let success = target.kill_with(signal).unwrap_or(false);
-    if success {
-        Ok(json!({"ok":true}))
-    } else {
-        Err("The platform could not send this signal. Use force quit if appropriate.".into())
+    if !success {
+        return Err("The platform could not send this signal. Use force quit if appropriate.".into());
     }
+    let started = target.start_time();
+    for _ in 0..30 {
+        std::thread::sleep(std::time::Duration::from_millis(120));
+        let fresh = System::new_all();
+        if fresh.process(Pid::from_u32(pid)).is_none_or(|p| p.start_time() != started) {
+            return Ok(json!({"ok":true}));
+        }
+    }
+    Err("The process is still running; exit could not be confirmed.".into())
 }
 
 fn handle(index: &mut Index, req: &Request) -> Result<Value, String> {

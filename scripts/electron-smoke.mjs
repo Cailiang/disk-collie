@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir, homedir } from 'node:os'
 import path from 'node:path'
+import { spawn } from 'node:child_process'
 import assert from 'node:assert/strict'
 import { _electron as electronLauncher } from 'playwright-core'
 import { verifyProviderKeyEditing } from './provider-key-smoke.mjs'
@@ -8,7 +9,7 @@ const profile=mkdtempSync(path.join(tmpdir(),'memento-electron-smoke-'))
 const fixture=mkdtempSync(path.join(homedir(),'memento-smoke-'))
 const first=path.join(fixture,'memento-smoke-copy-a.bin'), second=path.join(fixture,'memento-smoke-copy-b.bin'), unique=path.join(fixture,'memento-smoke-unique.bin')
 writeFileSync(first,Buffer.alloc(12*1024*1024,23));writeFileSync(second,Buffer.alloc(12*1024*1024,23));writeFileSync(unique,Buffer.alloc(12*1024*1024,47))
-let electronApp
+let electronApp, ownedWorker
 try{
   electronApp=await electronLauncher.launch({...(process.env.MEMENTO_SMOKE_EXECUTABLE?{executablePath:process.env.MEMENTO_SMOKE_EXECUTABLE}:{}),args:[...(process.env.MEMENTO_SMOKE_EXECUTABLE?[]:['.']),`--user-data-dir=${profile}`],env:{...process.env,MEMENTO_TEST_RUN:'1',MEMENTO_TEST_STORAGE_ROOT:fixture}})
   const p=await electronApp.firstWindow();const errors=[];p.on('pageerror',e=>errors.push(e.message))
@@ -18,7 +19,10 @@ try{
   const version=await p.evaluate(()=>window.memento.getVersion());assert.match(await p.locator('.brand-version').innerText(),new RegExp(version.replaceAll('.','\\.')))
   const providers=await p.evaluate(()=>window.memento.listAgentProviders());assert(!providers.some(p=>'apiKey'in p))
   await p.locator('.nav-button[title="进程管理"]').click();await p.locator('.space-process-row').first().waitFor({timeout:20000});const metrics=await p.evaluate(()=>window.memento.getOverviewMetrics());assert(metrics.processes.length>0);assert(metrics.memory.totalBytes>0);assert(Number.isFinite(metrics.cpu.usagePercent))
-  await p.getByRole('columnheader',{name:/CPU/}).getByRole('button').click();assert.equal(await p.getByRole('columnheader',{name:/CPU/}).getAttribute('aria-sort'),'descending');assert.equal(await p.locator('.space-process-detail').count(),0);const iconCommand=metrics.processes.find(p=>/^\/(Applications|System\/Applications|System\/Library\/CoreServices)\//.test(p.command)&&p.command.includes('.app/'))?.command;if(iconCommand){const icon=await p.evaluate(command=>window.memento.getProcessIcon(command),iconCommand);assert(icon?.startsWith('data:image/'),'Installed application processes must have a real icon')}await p.screenshot({path:'/tmp/memento-electron-processes.png'})
+  assert.equal(await p.locator('.space-processes .space-segmented .is-active').innerText(),'用户');assert.equal(await p.getByRole('columnheader',{name:/CPU/}).getAttribute('aria-sort'),'descending');assert.equal(await p.locator('.space-process-detail').count(),0);const iconCommand=metrics.processes.find(p=>/^\/(Applications|System\/Applications|System\/Library\/CoreServices)\//.test(p.command)&&p.command.includes('.app/'))?.command;if(iconCommand){const icon=await p.evaluate(command=>window.memento.getProcessIcon(command),iconCommand);assert(icon?.startsWith('data:image/'),'Installed application processes must have a real icon')}await p.screenshot({path:'/tmp/memento-electron-processes.png'})
+  // Overlapping production IPC must queue instead of surfacing a global busy error.
+  const simultaneous=await p.evaluate(async()=>{const progress=[];const stop=window.memento.onStorageProgress(value=>progress.push(value));try{const results=await Promise.all([window.memento.storageScan({mode:'large',includeHidden:true}),window.memento.storageCleanup(true)]);return {ok:Boolean(results[0]),queued:progress.some(value=>value.scope==='privacy'&&value.phase==='queued')}}finally{stop()}});assert(simultaneous.ok&&simultaneous.queued,'Privacy discovery must wait behind a running file scan');
+  ownedWorker=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});await new Promise((resolve,reject)=>{ownedWorker.once('spawn',resolve);ownedWorker.once('error',reject)});const workerExit=new Promise(resolve=>ownedWorker.once('exit',resolve));await p.evaluate(pid=>window.memento.terminateOverviewProcess({pid,force:true}),ownedWorker.pid);await workerExit;assert(ownedWorker.signalCode||ownedWorker.exitCode!==null,'Force quit must verify a real owned process exits');
   await p.locator('.nav-button[title="空间分析"]').click();await p.getByRole('button',{name:'开始扫描',exact:true}).click();await p.locator('.space-treemap-cell').first().waitFor({timeout:30000});await p.waitForFunction(()=>document.querySelectorAll('.space-folder-row').length===4);assert.equal(await p.locator('.space-folder-row').count(),4)
   const state=await p.evaluate(()=>window.memento.storageState());assert.equal(state.index.entries,4);assert.equal(state.index.errors,0)
   const large=await p.evaluate(generation=>window.memento.storageLarge({generation,minimum:1,search:'',offset:0}),state.index.generation);assert.equal(large.count,3)
@@ -50,6 +54,7 @@ try{
   assert.deepEqual(errors,[])
   console.log(`Electron smoke passed: production IPC, native scan (${state.index.elapsedMs}ms), duplicate guard and real Trash operation on owned fixtures, persisted activity, ${metrics.processes.length} processes, ${applicationCount} applications, registered application update checks/actions, privacy opt-in, encrypted provider editing. Version ${version}.`)
 }finally{
+  if(ownedWorker?.exitCode===null&&!ownedWorker.signalCode)ownedWorker.kill('SIGKILL')
   await electronApp?.close().catch(()=>undefined)
   rmSync(profile,{recursive:true,force:true});rmSync(fixture,{recursive:true,force:true})
 }

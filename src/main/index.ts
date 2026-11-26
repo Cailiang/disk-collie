@@ -1,3 +1,5 @@
+import { applicationProcessBundle, terminateUserProcess } from './process-control'
+import { translate as processText } from '../shared/localization'
 import { collectPortableOverview, terminatePortableProcess, stopPortableOverview } from './portable-overview'
 import { StorageService } from './storage-service'
 import { runPortableScan } from './portable-scan'
@@ -295,26 +297,11 @@ async function terminateOverviewProcess(pidInput: unknown, forceInput: unknown):
     throw new Error(mainText('不能退出 Memento 自身', 'Memento cannot terminate itself.'))
   }
   if (process.platform !== 'darwin') return terminatePortableProcess(pid, forceInput === true)
-  const processInfo = await inspectOverviewProcess(pid)
-  const currentUser = (() => {
-    try {
-      return os.userInfo().username
-    } catch {
-      return ''
-    }
-  })()
-  if (
-    !currentUser ||
-    processInfo.user !== currentUser ||
-    isSystemProcess(processInfo.user, processInfo.command)
-  ) {
-    throw new Error(mainText('系统进程或其他用户的进程不能从这里退出', 'System and other users\' processes cannot be terminated here.'))
-  }
-  const signal = forceInput === true ? 'SIGKILL' : 'SIGTERM'
   try {
-    process.kill(pid, signal)
-  } catch {
-    throw new Error(mainText('进程未能退出，请刷新后重试', 'The process could not be terminated. Refresh and try again.'))
+    await terminateUserProcess(pid,forceInput===true,{uid:process.getuid!(),ownPid:process.pid,ownBundle:applicationProcessBundle(app.getPath('exe'))})
+  } catch(error) {
+    const message=error instanceof Error?error.message:String(error)
+    throw new Error(message.startsWith('process.control.')?processText(appSettings.language,message):message)
   }
 }
 

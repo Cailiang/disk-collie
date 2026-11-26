@@ -8,14 +8,15 @@ import { demoApps, demoCleanup, demoDuplicates, demoHistory, demoIndex, demoLarg
 import { fileCategories, fileCategory, type FileCategory } from '../../shared/file-categories'
 import { WorkspaceHelp } from './WorkspaceHelp'
 import { treemap } from './treemap'
-import { activityTimeline } from './storage-activity'
+import {HomeOverview} from './HomeOverview'
+import { AiActionButton } from './AiTasks'
 import { ApplicationManager } from './ApplicationManager'
 import { selectedApplicationFiles } from '../../shared/application-files'
 
 export type StorageView = 'overview'|'health'|'large'|'duplicates'|'disk'|'privacy'|'apps'|'history'
 interface Confirmation { kind:StorageActivity['kind']; count:number; size:number; names:string[]; run:()=>Promise<StorageActivity|null> }
 const MB=1024**2
-export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren,activity,onActivity,onAsk}:{view:StorageView;active:boolean;metrics:OverviewMetrics|null;onNavigate:(view:AgentViewKey)=>void;historyChildren?:React.ReactNode;activity:StorageActivity|null;onActivity:(activity:StorageActivity)=>void;onAsk:(prompt:string)=>void}):React.JSX.Element {
+export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren,activity,onActivity,onProcess}:{view:StorageView;active:boolean;metrics:OverviewMetrics|null;onNavigate:(view:AgentViewKey)=>void;historyChildren?:React.ReactNode;activity:StorageActivity|null;onActivity:(activity:StorageActivity)=>void;onProcess:(sort:'cpuPercent'|'memoryBytes')=>void}):React.JSX.Element {
   const {t,locale}=useI18n()
   const bytes=useCallback((n:number):string=>{
     if (!Number.isFinite(n) || n<=0) return '0 B'
@@ -76,7 +77,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     mounted.current=true
     if(window.memento) void window.memento.storageState().then((s)=>{setIndex(s.indexes[view==='disk'?'analysis':view==='large'||view==='duplicates'?view:'analysis']||null);setHistory(s.history)}).catch((e)=>setError(String(e)))
     else {setIndex(demoIndex);setHistory(demoHistory)}
-    const unsubscribe=window.memento?.onStorageProgress(setProgress)
+    const unsubscribe=window.memento?.onStorageProgress((p)=>{if(!p.scope||p.scope===(view==='health'?'cleanup':view==='disk'?'analysis':view))setProgress(p)})
     return ()=>{mounted.current=false;unsubscribe?.()}
   },[])
   useEffect(()=>{
@@ -114,7 +115,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     })
     if(result){if(view==='duplicates')duplicateAfterScan.current=result.generation;setIndex(result);setGroups(null);setSelected(new Set());setBreadcrumbs([]);setFolder(null)}
   }
-  const cancel=async():Promise<void>=>{cancelled.current=true;await window.memento?.storageCancel();if(task==='duplicates')setIndex(null)}
+  const cancel=async():Promise<void>=>{cancelled.current=true;const active=await window.memento?.storageCancel(view==='health'?'cleanup':view==='disk'?'analysis':view==='privacy'?'privacy':view==='duplicates'?'duplicates':'large');if(active&&task==='duplicates')setIndex(null)}
   const loadCleanup=useCallback(async(isPrivacy:boolean):Promise<void>=>{
     const result=await runTask('cleanup',async()=>window.memento?window.memento.storageCleanup(isPrivacy):(isPrivacy?demoPrivacy:demoCleanup))
     if(result){if(isPrivacy)setPrivacy(result);else setCleanup(result);setRuleSelected(new Set())}
@@ -195,13 +196,13 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   }
   const toggle=<T,>(setter:React.Dispatch<React.SetStateAction<Set<T>>>,id:T):void=>setter((prev)=>{const next=new Set(prev);if(next.has(id))next.delete(id);else next.add(id);return next})
   const reveal=async(entry:StorageEntry):Promise<void>=>{if(!index)return;try{if(window.memento)await window.memento.storageReveal({generation:index.generation,id:entry.id});else setNotice(t('common.reveal'))}catch(e){setError(String(e))}}
-  const fileActions=(file:{path:string;size:number;name?:string;modified?:number},target:StorageTarget):React.JSX.Element=><FileActions file={file} target={target} onReveal={async(target)=>{try{if(window.memento)await window.memento.storageRevealTarget(target);else setNotice(t('common.reveal'))}catch(e){setError(String(e))}}} onAsk={onAsk}/>
+  const fileActions=(file:{path:string;size:number;name?:string;modified?:number},target:StorageTarget):React.JSX.Element=><FileActions file={file} target={target} onReveal={async(target)=>{try{if(window.memento)await window.memento.storageRevealTarget(target);else setNotice(t('common.reveal'))}catch(e){setError(String(e))}}}/>
   const formatDate=(date:string|number):string=>new Intl.DateTimeFormat(locale,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(date))
   const heading=(title:string,subtitle:string,action?:React.ReactNode):React.JSX.Element=><header className="space-heading"><div><h1>{t(title)}</h1>{['large','duplicates','privacy'].includes(view)&&<WorkspaceHelp>{t(subtitle)}{view==='duplicates'&&<p>{t('compact.duplicateHelp')}</p>}{view==='large'&&<p>{t('compact.largeHelp')}</p>}{view==='privacy'&&<p>{t('privacy.warning')}</p>}</WorkspaceHelp>}</div>{action}</header>
   const scanButtons=<div className="space-actions"><button className="space-button primary" disabled={busy} onClick={()=>void scan()}><Search size={16}/>{t(index?'common.rescan':'common.scan')}</button></div>
   const scanPrompt=<div className="space-start"><HardDrive size={32}/><h2>{t('scan.fullDisk')}</h2>{scanButtons}</div>
   const scanStatus=index&&<div className="space-scan-status"><CheckCircle2 size={14}/><span>{t('scan.ready',{count:index.entries.toLocaleString(locale),seconds:(index.elapsedMs/1000).toFixed(2)})}</span><code title={index.root?.path}>{index.root?.path}</code>{view!=='disk'&&(index.errors>0||index.skipped>0)&&<WorkspaceHelp>{t('scan.coverage',{errors:index.errors,skipped:index.skipped})}</WorkspaceHelp>}</div>
-  const taskProgress=busy&&task!=='related'&&task!=='apps'&&<div className="space-progress" role="status" aria-live="polite"><div className="space-scan-orbit"><LoaderCircle className="spinner" size={24}/></div><div className="space-progress-copy"><strong>{t(task==='scan'?'scan.title':task==='duplicates'?`scan.${progress?.phase||'sampling'}`:'common.working')}</strong><span>{progress?`${progress.entries.toLocaleString(locale)}${progress.total!==undefined?` / ${progress.total.toLocaleString(locale)}`:''} · ${(progress.elapsedMs/1000).toFixed(1)} s`:'—'}</span><small title={progress?.path}>{progress?.path}</small><div className={`space-progress-track ${progress?.total?'is-measured':''}`} role="progressbar" aria-label={t('scan.title')} aria-valuenow={progress?.total?Math.round(progress.entries/progress.total*100):undefined} aria-valuemin={0} aria-valuemax={100}><i style={progress?.total?{width:`${progress.entries/progress.total*100}%`}:undefined}/></div></div>{(task==='scan'||task==='duplicates')&&<button className="space-button" onClick={()=>void cancel()}>{t('common.cancel')}</button>}</div>
+  const taskProgress=busy&&task!=='related'&&task!=='apps'&&<div className="space-progress" role="status" aria-live="polite"><div className="space-scan-orbit"><LoaderCircle className="spinner" size={24}/></div><div className="space-progress-copy"><strong>{t(progress?.phase==='queued'?'scan.queued':task==='scan'?'scan.title':task==='duplicates'?`scan.${progress?.phase||'sampling'}`:'common.working')}</strong><span>{progress?.phase==='queued'?t('scan.waiting'):progress?`${progress.entries.toLocaleString(locale)}${progress.total!==undefined?` / ${progress.total.toLocaleString(locale)}`:''} · ${(progress.elapsedMs/1000).toFixed(1)} s`:'—'}</span><small title={progress?.path}>{progress?.path}</small><div className={`space-progress-track ${progress?.total?'is-measured':''}`} role="progressbar" aria-label={t('scan.title')} aria-valuenow={progress?.total?Math.round(progress.entries/progress.total*100):undefined} aria-valuemin={0} aria-valuemax={100}><i style={progress?.total?{width:`${progress.entries/progress.total*100}%`}:undefined}/></div></div>{(task==='scan'||task==='duplicates'||progress?.phase==='queued')&&<button className="space-button" onClick={()=>void cancel()}>{t('common.cancel')}</button>}</div>
   const categories=(counts:Record<string,number>):React.JSX.Element=><div className="space-category-tabs" role="group" aria-label={t('compact.categories')}>{(['all',...Object.keys(fileCategories),'other'] as const).map((key)=><button key={key} className={category===key?'is-active':''} onClick={()=>{setCategory(key as typeof category);setOffset(0);setSelected(new Set());setGroupLimit(40)}}>{t(`category.${key}`)}<small>{key==='all'?Object.values(counts).reduce((a,b)=>a+b,0):counts[key]||0}</small></button>)}</div>
   const activityRows=(records:StorageActivity[]):React.JSX.Element=><div className="space-activity">{records.map((r)=><div className="space-activity-row" key={r.id}><span className={`space-activity-icon ${r.failures?'has-error':''}`}>{r.kind==='privacy'?<ShieldCheck size={19}/>:r.kind==='cleanup'?<Sparkles size={19}/>:<Trash2 size={19}/>}</span><div><strong>{t(`history.${r.kind}`)}</strong><small>{formatDate(r.date)} · {t('history.items',{count:r.items})}{r.failures>0&&` · ${t('history.failures',{count:r.failures})}`}</small></div><b>{bytes(r.bytes)}</b><Check size={15}/></div>)}</div>
   const cleaned=history.filter((r)=>r.kind==='cleanup'||r.kind==='privacy').reduce((s,r)=>s+r.bytes,0)
@@ -223,17 +224,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   return <div className={`space-workspace space-${view}`} ref={mainRef}>
     {error&&<div className="space-alert" role="alert"><CircleHelp size={18}/><span>{error}</span><button className="icon-button" aria-label={t('common.close')} onClick={()=>setError('')}><X size={16}/></button></div>}
     {notice&&<div className="space-alert" role="status">{notice}</div>}
-    {view==='overview'&&<>
-      {heading('home.title','home.subtitle')}
-      <section className="space-home-hero">
-        <div className="space-home-primary"><span className="space-eyebrow">{t('home.storage')}</span><div className="space-home-amount"><strong>{metrics||demo?bytes(free):'—'}</strong><span>{t('home.available')}</span><span className="space-home-drive"><HardDrive size={20}/></span></div><div className="space-capacity"><span style={{width:`${usedPercent}%`}}/></div><div className="space-capacity-legend"><span><i/>{t('home.used')} <b>{metrics||demo?bytes(total-free):'—'}</b></span><span><i/>{t('home.free')} <b>{metrics||demo?bytes(free):'—'}</b></span><span>{bytes(total)}</span></div><div className="space-hero-divider"/><div className="space-actions"><button className="space-button primary" onClick={()=>onNavigate('disk')}>{t('home.scanCta')}<ArrowRight size={17}/></button></div></div>
-        <div className="space-home-achievement"><span className="space-achievement-symbol"><Layers3 size={29}/></span><span className="space-eyebrow">{t('home.achievement')}</span><strong data-testid="organized-total">{bytes(cleaned+trashed)}</strong><p>{t('home.organized')}</p><div className="space-achievement-bottom"><div><b>{history.filter((r)=>r.items>0).length}</b><small>{t('home.sessions')}</small></div><div><b>{bytes(cleaned)}</b><small>{t('home.cleaned')}</small></div><div><b>{bytes(trashed)}</b><small>{t('home.trashed')}</small></div></div></div>
-      </section>
-      <CleanupCharts history={history} bytes={bytes}/>
-      <div className="space-section-title"><div><h2>{t('home.tools')}</h2></div><span className="space-local-tag"><ShieldCheck size={15}/>{t('home.privacyLocal')}</span></div>
-      <div className="space-tools-grid">{([{id:'large',icon:File,color:'terra',description:'home.largeDesc'},{id:'duplicates',icon:Copy,color:'lavender',description:'home.duplicateDesc'},{id:'health',icon:Sparkles,color:'sage',description:'home.cleanupDesc'},{id:'privacy',icon:ShieldCheck,color:'sand',description:'home.privacyDesc'},{id:'apps',icon:Layers3,color:'blue',description:'home.appsDesc'},{id:'processes',icon:HardDrive,color:'rose',description:'home.processDesc'}] as const).map((tool)=><button className="space-tool" key={tool.id} onClick={()=>onNavigate(tool.id)}><span className={`space-tool-icon ${tool.color}`}><tool.icon size={23}/></span><ArrowUpRight className="space-tool-arrow" size={17}/><strong>{t(`nav.${tool.id==='health'?'cleanup':tool.id}`)}</strong></button>)}</div>
-      <div className="space-section-title"><h2>{t('home.recent')}</h2><button className="space-text-button" onClick={()=>onNavigate('history')}>{t('home.viewHistory')}<ArrowRight size={14}/></button></div>{history.length?activityRows(history.slice(0,3)):<div className="space-empty-history"><span><CheckCircle2 size={26}/></span><div><strong>{t('home.noHistory')}</strong></div></div>}
-    </>}
+    {view==='overview'&&<HomeOverview metrics={metrics} history={history} bytes={bytes} onProcess={onProcess} onNavigate={onNavigate} recent={history.length?activityRows(history.slice(0,3)):<div className="space-empty-history"><CheckCircle2 size={23}/><strong>{t('home.noHistory')}</strong></div>}/>}
     {(view==='large'||view==='disk'||view==='duplicates')&&<>
       {heading(`${view}.title`,`${view}.subtitle`,index?scanButtons:undefined)}
       {(view==='duplicates'||view==='large')&&<div className="space-toolbar duplicate-options">{view==='duplicates'&&<label>{t('large.minimum')} <select aria-label={t('large.minimum')} disabled={busy} value={duplicateMinimum} onChange={(e)=>{setDuplicateMinimum(Number(e.target.value));setIndex(null);setGroups(null)}}>{[10*MB,50*MB,100*MB,1024*MB].map((n)=><option value={n} key={n}>{bytes(n)} +</option>)}</select></label>}<label className="space-inline-check"><input type="checkbox" disabled={busy} checked={includeHidden} onChange={(e)=>{setIncludeHidden(e.target.checked);setIndex(null);setGroups(null)}}/>{t('compact.includeHidden')}</label></div>}
@@ -270,7 +261,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
       {!busy&&rules!==null&&<><div className="space-cleanup-summary"><strong>{bytes(rules.reduce((s,r)=>s+r.size,0))}</strong><span>{t('common.items',{count:rules.length})}</span></div><CleanupTree rules={rules} selected={ruleSelected} onToggle={(id)=>toggle(setRuleSelected,id)} bytes={bytes} actions={fileActions}/>{!rules.length&&<div className="space-empty">{t('cleanup.empty')}</div>}{ruleSelected.size>0&&<div className="space-selection-bar"><div><strong>{t('common.selected',{count:ruleSelected.size})}</strong><span>{bytes(rules.filter((r)=>ruleSelected.has(r.id)).reduce((s,r)=>s+r.size,0))}</span></div><button className="space-button primary" onClick={confirmClean}>{t('common.review')}<ArrowRight size={16}/></button></div>}</>}
     </>}
 
-    {view==='apps'&&<ApplicationManager applications={applications} onApplications={setApplications} busy={busy} loadingFiles={task==='related'} application={application} files={related} selected={relatedSelected} onSelect={setRelatedSelected} onFiles={(next)=>setRelated((prev)=>[...new Map([...prev,...next].map((f)=>[f.id,f])).values()])} onInspect={(app)=>app?void inspect(app):setApplication(null)} onRefresh={()=>void loadApps()} onConfirm={confirmUninstall} onAsk={onAsk} actions={fileActions} bytes={bytes} onNotice={setNotice} onError={setError}/>}
+    {view==='apps'&&<ApplicationManager applications={applications} onApplications={setApplications} busy={busy} loadingFiles={task==='related'} application={application} files={related} selected={relatedSelected} onSelect={setRelatedSelected} onFiles={(next)=>setRelated((prev)=>[...new Map([...prev,...next].map((f)=>[f.id,f])).values()])} onInspect={(app)=>app?void inspect(app):setApplication(null)} onRefresh={()=>void loadApps()} onConfirm={confirmUninstall} actions={fileActions} bytes={bytes} onNotice={setNotice} onError={setError}/>}
 
     {view==='history'&&<>
       {heading('history.title','history.subtitle')}
@@ -342,12 +333,12 @@ function CleanupTree({rules,selected,onToggle,bytes,actions}:{rules:CleanupItem[
   })}</div>
 }
 
-function FileActions({file,target,onReveal,onAsk}:{file:{path:string;size:number;name?:string;modified?:number};target:StorageTarget;onReveal:(target:StorageTarget)=>Promise<void>;onAsk:(prompt:string)=>void}):React.JSX.Element {
+function FileActions({file,target,onReveal}:{file:{path:string;size:number;name?:string;modified?:number};target:StorageTarget;onReveal:(target:StorageTarget)=>Promise<void>}):React.JSX.Element {
   const {t}=useI18n()
   const name=file.name||file.path.split(/[/\\]/).pop()||file.path
   return <span className="space-file-actions" onClick={(e)=>e.stopPropagation()}>
     <button className="icon-button" title={t('common.reveal')} aria-label={`${t('common.reveal')} ${name}`} onClick={()=>void onReveal(target)}><FolderOpen size={15}/></button>
-    <button className="icon-button" title={t('file.ask')} aria-label={`${t('file.ask')} ${name}`} onClick={()=>onAsk(t('file.prompt',{path:JSON.stringify(file.path),size:file.size,modified:file.modified?new Date(file.modified/1e6).toISOString():t('file.unknown')}))}><Sparkles size={15}/></button>
+    <AiActionButton request={{key:`file:${file.path}:${file.modified||file.size}`,title:name,prompt:t('file.prompt',{path:JSON.stringify(file.path),size:file.size,modified:file.modified?new Date(file.modified/1e6).toISOString():t('file.unknown')})}}/>
   </span>
 }
 
@@ -358,35 +349,9 @@ function CleanupAnimation({confirmation,progress,bytes}:{confirmation:Confirmati
   const percent=Math.min(100,Math.round(done/total*100))
   return <div className="space-cleaning-animation" role="status" aria-live="polite">
     <div className="space-cleaning-scene" aria-hidden="true"><i/><i/><i/><span><Trash2 size={35}/></span><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="54"/><circle cx="60" cy="60" r="54" pathLength="100" strokeDasharray={`${percent} 100`}/></svg></div>
-    <p>{t(confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'cleaning.permanent':'cleaning.trash')}</p>
+    <p>{t(progress?.phase==='queued'?'scan.queued':confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'cleaning.permanent':'cleaning.trash')}</p>{progress?.phase==='queued'&&<p>{t('scan.waiting')}</p>}
     <div className="space-cleaning-count"><strong>{t('cleaning.progress',{done,total})}</strong><span>{bytes(confirmation.size)}</span></div>
     <div className="space-progress-track is-measured" role="progressbar" aria-label={t('cleaning.title')} aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}><i style={{width:`${percent}%`}}/></div>
     <code title={progress?.path}>{progress?.path||confirmation.names[0]}</code>
   </div>
-}
-
-function CleanupCharts({history,bytes}:{history:StorageActivity[];bytes:(n:number)=>string}):React.JSX.Element {
-  const {t,locale}=useI18n()
-  const days=activityTimeline(history)
-  const [highlight,setHighlight]=useState<number|null>(null)
-  const selected=days[highlight??days.length-1]
-  const cumulativeMax=Math.max(1,...days.map((d)=>d.cumulative)),dailyMax=Math.max(1,...days.map((d)=>d.bytes))
-  const x=(i:number):number=>12+i/(days.length-1)*576
-  const y=(n:number):number=>142-n/cumulativeMax*124
-  const points=days.map((d,i)=>`${x(i)},${y(d.cumulative)}`).join(' ')
-  const date=(d:Date):string=>new Intl.DateTimeFormat(locale,{month:'short',day:'numeric'}).format(d)
-  return <section className="space-cleanup-charts" aria-label={t('charts.title')}>
-    <div className="space-chart"><header><div><h2>{t('charts.cumulative')}</h2><span>{t('charts.period')}</span></div><strong>{bytes(selected.cumulative)}</strong></header>
-      <svg className="space-line-chart" viewBox="0 0 600 160" role="img" aria-label={t('charts.lineLabel',{size:bytes(days.at(-1)!.cumulative)})}>
-        {[18,80,142].map((line)=><line key={line} x1="12" y1={line} x2="588" y2={line} className="space-chart-grid"/>)}
-        <polygon points={`12,142 ${points} 588,142`} className="space-chart-area"/>
-        <polyline points={points} className="space-chart-line"/>
-        <circle cx={x(highlight??days.length-1)} cy={y(selected.cumulative)} r="5" className="space-chart-point"/>
-      </svg><div className="space-chart-axis"><span>{date(days[0].date)}</span><span>{date(days[Math.floor(days.length/2)].date)}</span><span>{date(days.at(-1)!.date)}</span></div>
-    </div>
-    <div className="space-chart"><header><div><h2>{t('charts.daily')}</h2><span>{date(selected.date)} · {t('charts.tasks',{count:selected.tasks})}</span></div><strong>{bytes(selected.bytes)}</strong></header>
-      <div className="space-bar-chart" role="group" aria-label={t('charts.daily')} onMouseLeave={()=>setHighlight(null)}>{days.map((day,i)=><button key={day.key} className={i===(highlight??days.length-1)?'is-active':''} aria-label={t('charts.dayLabel',{date:date(day.date),size:bytes(day.bytes),count:day.tasks})} title={t('charts.dayLabel',{date:date(day.date),size:bytes(day.bytes),count:day.tasks})} onMouseEnter={()=>setHighlight(i)} onFocus={()=>setHighlight(i)} onClick={()=>setHighlight(i)}><i style={{height:`${day.bytes?Math.max(3,day.bytes/dailyMax*100):0}%`}}/></button>)}</div>
-      <div className="space-chart-axis"><span>{date(days[0].date)}</span><span>{t('charts.today')}</span></div>
-    </div><p className="space-chart-note">{t(history.some((r)=>r.items>0)?'charts.note':'charts.empty')}</p>
-  </section>
 }

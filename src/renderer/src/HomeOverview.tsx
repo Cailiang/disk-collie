@@ -1,0 +1,39 @@
+import {ArrowRight,ArrowUpRight,Battery,CheckCircle2,ChevronDown,Cpu,Gauge,HardDrive,MemoryStick,Monitor,RefreshCw,Sparkles} from 'lucide-react'
+import {useEffect,useState} from 'react'
+import type {OverviewMetrics} from '../../shared/types'
+import type {StorageActivity} from '../../shared/storage-types'
+import {deviceHealth,usageSeverity} from '../../shared/device-health'
+import {CleanupCharts} from './CleanupCharts'
+import {useI18n} from './i18n'
+import type {AgentViewKey} from './agent-ui/Shell'
+interface Sample {date:string;cpu:number;memory:number}
+function Sparkline({values,label}:{values:number[];label:string}):React.JSX.Element {
+  const x=(i:number):number=>values.length<2?392:8+i/(values.length-1)*384
+  const y=(n:number):number=>77-Math.max(0,Math.min(100,n))*.65
+  const points=values.map((n,i)=>`${x(i)},${y(n)}`).join(' ')
+  return <svg className="device-sparkline" viewBox="0 0 400 85" role="img" aria-label={label}><line x1="8" y1="77" x2="392" y2="77" className="device-chart-baseline"/>{values.length>1&&<><polygon points={`8,77 ${points} 392,77`}/><polyline points={points}/></>}{values.length>0&&<circle cx={x(values.length-1)} cy={y(values.at(-1)!)} r="3"/>}</svg>
+}
+export function HomeOverview({metrics,history,bytes,onProcess,onNavigate,recent}:{metrics:OverviewMetrics|null;history:StorageActivity[];bytes:(n:number)=>string;onProcess:(sort:'cpuPercent'|'memoryBytes')=>void;onNavigate:(view:AgentViewKey)=>void;recent:React.ReactNode}):React.JSX.Element {
+  const {t,locale}=useI18n(),[samples,setSamples]=useState<Sample[]>([])
+  useEffect(()=>{if(metrics)setSamples((previous)=>[...previous.filter((sample)=>sample.date!==metrics.collectedAt),{date:metrics.collectedAt,cpu:metrics.cpu.usagePercent,memory:metrics.memory.usedPercent}].slice(-48))},[metrics?.collectedAt])
+  const health=deviceHealth(metrics),score=health.score,grade=score===null?'unknown':score>=85?'good':score>=65?'fair':'attention'
+  const percent=(value:number|null|undefined):string=>value===null||value===undefined?'—':new Intl.NumberFormat(locale,{maximumFractionDigits:1}).format(value)+'%'
+  const cleaned=history.filter((record)=>record.kind==='cleanup'||record.kind==='privacy').reduce((sum,record)=>sum+record.bytes,0),trashed=history.filter((record)=>record.kind!=='cleanup'&&record.kind!=='privacy').reduce((sum,record)=>sum+record.bytes,0)
+  const diskPercent=metrics?.disk.totalBytes?Math.max(0,Math.min(100,(metrics.disk.totalBytes-metrics.disk.availableBytes)/metrics.disk.totalBytes*100)):0
+  return <>
+    <header className="space-heading home-heading"><div><h1>{t('home.title')}</h1></div><span className="home-live"><i/>{metrics?t('home.live'):t('home.connecting')}</span></header>
+    <section className={`device-health grade-${grade}`} aria-label={t('health.title')}>
+      <div className="device-health-score"><div className="health-score-ring"><svg viewBox="0 0 140 140" aria-hidden="true"><circle cx="70" cy="70" r="60"/><circle cx="70" cy="70" r="60" pathLength="100" strokeDasharray={`${score||0} 100`}/></svg><div><strong data-testid="health-score">{score??'—'}</strong><span>{t('health.points')}</span></div></div><div className="health-score-copy"><span className="space-eyebrow">{t('health.title')}</span><h2>{t(`health.grade.${grade}`)}</h2><p>{t('health.coverage',{count:health.measured})}</p><button className="space-text-button" onClick={()=>onNavigate('health')}>{t('health.cleanup')}<ArrowRight size={14}/></button></div></div>
+      <div className="health-dimensions">{health.dimensions.map((dimension)=><div key={dimension.key} className={dimension.value===null?'is-unavailable':`usage-${dimension.key==='battery'?dimension.value<80?'warning':'normal':dimension.key==='storage'?dimension.value>90?'danger':dimension.value>80?'warning':'normal':usageSeverity(dimension.value)}`}><span>{t(`health.dimension.${dimension.key}`)}</span><strong>{percent(dimension.value)}</strong><div className="health-dimension-track"><i style={{transform:`scaleX(${dimension.value===null?0:dimension.value/100})`}}/></div><small>{dimension.value===null?t('health.unavailable'):t(dimension.key==='battery'?'health.capacity':'health.utilization')}</small></div>)}<details className="health-method"><summary>{t('health.method')}<ChevronDown size={12}/></summary><p>{t('health.methodCopy')}</p></details></div>
+    </section>
+    <div className="home-section-heading"><h2>{t('home.deviceStatus')}</h2><span>{metrics?.hardware.model||t('nav.device')}</span></div>
+    <section className="device-status-grid" aria-label={t('home.deviceStatus')}>
+      <button className={`device-status-card usage-${usageSeverity(metrics?.cpu.usagePercent||0)}`} data-testid="home-cpu" onClick={()=>onProcess('cpuPercent')}><header><span><Cpu size={17}/>CPU</span><ArrowUpRight size={16}/></header><div className="device-card-value"><strong>{percent(metrics?.cpu.usagePercent)}</strong><span>{t('home.cpuUsage')}</span></div><Sparkline values={samples.map((sample)=>sample.cpu)} label={t('home.cpuChart')}/><footer><span>{samples.length<2?t('home.collecting'):t('home.recentSamples')}</span><b>{t('home.viewCpu')}<ArrowRight size={12}/></b></footer></button>
+      <button className={`device-status-card usage-${usageSeverity(metrics?.memory.usedPercent||0)}`} data-testid="home-memory" onClick={()=>onProcess('memoryBytes')}><header><span><MemoryStick size={17}/>{t('process.memory')}</span><ArrowUpRight size={16}/></header><div className="device-card-value"><strong>{percent(metrics?.memory.usedPercent)}</strong><span>{metrics?`${bytes(metrics.memory.usedBytes)} / ${bytes(metrics.memory.totalBytes)}`:'—'}</span></div><Sparkline values={samples.map((sample)=>sample.memory)} label={t('home.memoryChart')}/><footer><span>{t('home.availableMemory',{size:metrics?bytes(metrics.memory.availableBytes):'—'})}</span><b>{t('home.viewMemory')}<ArrowRight size={12}/></b></footer></button>
+      <button className={`device-status-card usage-${diskPercent>90?'danger':diskPercent>80?'warning':'normal'}`} data-testid="home-storage" onClick={()=>onNavigate('large')}><header><span><HardDrive size={17}/>{t('home.storage')}</span><ArrowUpRight size={16}/></header><div className="device-card-value"><strong>{metrics?bytes(metrics.disk.availableBytes):'—'}</strong><span>{t('home.available')}</span></div><div className="device-storage-chart"><div><i style={{transform:`scaleX(${diskPercent/100})`}}/></div><span>{t('home.used')} <b>{metrics?bytes(metrics.disk.totalBytes-metrics.disk.availableBytes):'—'}</b></span><span>{t('home.total')} <b>{metrics?bytes(metrics.disk.totalBytes):'—'}</b></span></div><footer><span>{t('home.findLarge')}</span><b>{t('nav.large')}<ArrowRight size={12}/></b></footer></button>
+    </section>
+    <div className="home-device-detail"><span><Monitor size={13}/>{metrics?.hardware.cpuModel||'—'}</span><span><Battery size={13}/>{metrics?.battery.available?t('home.batteryNow',{percent:percent(metrics.battery.percent)}):t('home.noBattery')}</span>{metrics?.gpu.name&&<span>GPU · {metrics.gpu.name}</span>}</div>
+    <section className="home-value-section" aria-label={t('home.value')}><div className="home-section-heading"><h2>{t('home.value')}</h2><button className="space-text-button" onClick={()=>onNavigate('history')}>{t('home.viewHistory')}<ArrowRight size={13}/></button></div><div className="home-value-summary"><div><span>{t('home.achievement')}</span><strong data-testid="organized-total">{bytes(cleaned+trashed)}</strong></div><div><span>{t('home.cleaned')}</span><b>{bytes(cleaned)}</b></div><div><span>{t('home.trashed')}</span><b>{bytes(trashed)}</b></div><div><span>{t('home.sessions')}</span><b>{history.filter((record)=>record.items>0).length}</b></div></div><CleanupCharts history={history} bytes={bytes}/></section>
+    <div className="home-section-heading"><h2>{t('home.recent')}</h2></div>{recent}
+  </>
+}

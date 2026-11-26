@@ -1,6 +1,8 @@
 import { ProcessWorkspace } from './ProcessWorkspace'
 import { StorageWorkspace, type StorageView } from './StorageWorkspace'
-import { CheckCircle2 } from 'lucide-react'
+import { AiTaskProvider, type AiTask, type AiTaskOrigin } from './AiTasks'
+import { GlobalTooltips } from './GlobalTooltips'
+import { ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   AgentPresentation,
@@ -356,6 +358,7 @@ function demoPlanItemFromPresentation(
 }
 
 type AgentOrigin =
+  | { view:'task'; source:AgentViewKey; scrollTop:number }
   | { view: 'storage'; source: StorageView }
   | { view: 'overview' }
   | { view: 'health'; tab: HealthTab; category?: CleanupCategoryFilter; itemId?: string; scrollTop: number }
@@ -411,7 +414,13 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   const [overviewPaused, setOverviewPaused] = useState(false)
   const [overviewError, setOverviewError] = useState<string | null>(null)
   const [result, setResult] = useState<ScanResult | null>(null)
-  const [view, setView] = useState<AgentViewKey>('overview')
+  const [view, setViewState] = useState<AgentViewKey>('overview')
+  const viewRef=useRef<AgentViewKey>(view),viewScroll=useRef(new Map<AgentViewKey,number>())
+  viewRef.current=view
+  const setView=useCallback((next:AgentViewKey):void=>{if(next===viewRef.current)return;viewScroll.current.set(viewRef.current,document.querySelector('.page-stack')?.scrollTop||0);viewRef.current=next;setViewState(next)},[])
+  useEffect(()=>{const frame=requestAnimationFrame(()=>{const page=document.querySelector('.page-stack');if(page)page.scrollTop=viewScroll.current.get(view)||0});return()=>cancelAnimationFrame(frame)},[view])
+  const [aiSetupOrigin,setAiSetupOrigin]=useState<AiTaskOrigin|null>(null)
+  const [processEntry,setProcessEntry]=useState<{sort:'cpuPercent'|'memoryBytes';token:number}|null>(null)
   const [applicationEntryFilter, setApplicationEntryFilter] = useState<ApplicationFilter>('all')
   const [scanBusy, setScanBusy] = useState(false)
   const [progress, setProgress] = useState<ScanProgress | null>(null)
@@ -457,6 +466,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   const overviewMetricsRef = useRef<OverviewMetrics | null>(null)
   const resultRef = useRef<ScanResult | null>(null)
   const automaticScanStarted = useRef(false)
+  const evidenceInFlight=useRef<Promise<ScanResult|null>|null>(null)
   const { text: appText } = useI18n()
 
   const defaultProvider = useMemo(
@@ -518,8 +528,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       : localizedDemoMaintenanceRuns(settings.language))
   }, [settings.language])
 
-  const scanNow = useCallback(async (languageOverride?: AppSettings['language']): Promise<ScanResult | null> => {
-    if (scanBusy) return null
+  const scanNow=useCallback((languageOverride?:AppSettings['language']):Promise<ScanResult|null>=>{
+    if(evidenceInFlight.current)return evidenceInFlight.current
+    const work=(async()=>{
     setScanBusy(true)
     setScanError(null)
     try {
@@ -539,7 +550,11 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     } finally {
       setScanBusy(false)
     }
-  }, [scanBusy, settings.language])
+    })()
+    evidenceInFlight.current=work
+    void work.finally(()=>{if(evidenceInFlight.current===work)evidenceInFlight.current=null})
+    return work
+  },[settings.language])
 
   useEffect(() => {
     const unsubscribeProgress = window.memento?.onScanProgress((scanProgress) => {
@@ -854,6 +869,23 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       : uiText('无法启动 Agent', 'Could not start the Agent.')))
   }
 
+  const startQueuedExplanation=async(task:AiTask,publish:(run:AgentRunRecord)=>void,signal:AbortSignal):Promise<AgentRunRecord>=>{
+    const evidence=resultRef.current||await scanNow()
+    signal.throwIfAborted()
+    if(!evidence)throw new Error(appText('tasks.evidenceFailed'))
+    if(window.memento)return window.memento.startAgentRun({prompt:task.prompt,process:task.process})
+    if(!defaultProvider)throw new Error(appText('tasks.needs-provider'))
+    const now=new Date().toISOString()
+    const run:AgentRunRecord={id:crypto.randomUUID(),conversationId:crypto.randomUUID(),language:settings.language,prompt:task.prompt,status:'analyzing',providerId:defaultProvider.id,providerName:defaultProvider.name,model:defaultProvider.model,response:null,presentation:null,focus:[],plan:[],results:[],error:null,createdAt:now,updatedAt:now}
+    const timeout=window.setTimeout(()=>{
+      if(signal.aborted)return
+      const presentation=demoPresentation(evidence,task.prompt,settings.language,task.process)
+      publish({...run,status:'awaiting-confirmation',presentation,response:presentation.summary,plan:task.process?demoPlan(evidence,settings.language,task.process):[],updatedAt:new Date().toISOString()})
+    },1100)
+    signal.addEventListener('abort',()=>{clearTimeout(timeout);publish({...run,status:'cancelled',updatedAt:new Date().toISOString()})},{once:true})
+    return run
+  }
+
   const askDiskUsageNode = async (node: DiskUsageNode): Promise<void> => {
     if (!resultRef.current && !await scanNow()) return
     startAgentRun(
@@ -902,7 +934,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     }
   }
 
-  const terminateOverviewProcess = async (process: OverviewProcess, force: boolean): Promise<void> => {
+  const terminateOverviewProcess = async (process: OverviewProcess, force: boolean): Promise<boolean> => {
     try {
       if (window.memento) await window.memento.terminateOverviewProcess({ pid: process.pid, force })
       setToast(appText(
@@ -910,8 +942,11 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         force ? `${process.name} was force quit` : `Quit requested for ${process.name}`
       ))
       await refreshOverview(true)
+      return true
     } catch (error) {
       setToast(error instanceof Error ? error.message : appText("legacy.process_action_failed.0c4ce8"))
+      await refreshOverview(true)
+      return false
     }
   }
 
@@ -1238,6 +1273,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const returnToAgentOrigin = (): void => {
     if (!agentOrigin) return
+    if(agentOrigin.view==='task'){viewScroll.current.set(agentOrigin.source,agentOrigin.scrollTop);setView(agentOrigin.source);setAgentOrigin(null);return}
     if(agentOrigin.view==='storage'){setView(agentOrigin.source);setAgentOrigin(null);return}
     if (agentOrigin.view === 'overview') {
       setAgentOrigin(null)
@@ -1782,7 +1818,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     setSelectedPlanIds(new Set())
     setRunStatusMessage('')
   }
-  const agentOriginLabel = agentOrigin?.view === 'storage'
+  const agentOriginLabel = agentOrigin?.view === 'task'
+    ? appText(`nav.${agentOrigin.source==='overview'?'home':agentOrigin.source==='health'?'cleanup':agentOrigin.source}`)
+    : agentOrigin?.view === 'storage'
     ? appText(`nav.${agentOrigin.source==='health'?'cleanup':agentOrigin.source}`)
     : agentOrigin?.view === 'overview'
     ? appText('nav.processes')
@@ -1812,6 +1850,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   }
 
   return (
+    <AiTaskProvider configured={Boolean(defaultProvider)} visibleRunId={view==='agent'?activeRun?.id||null:null} origin={()=>({source:viewRef.current,scrollTop:document.querySelector('.page-stack')?.scrollTop||0})} start={startQueuedExplanation} onRun={(run)=>{setRuns((current)=>[run,...current.filter((item)=>item.id!==run.id)]);setWorkspaceConversationIds((current)=>appendWorkspaceConversation(current,run.conversationId))}} onOpen={(run,origin)=>{const scrollTop=viewRef.current===origin.source?(document.querySelector('.page-stack')?.scrollTop||0):(viewScroll.current.get(origin.source)??origin.scrollTop);setAgentOrigin({view:'task',...origin,scrollTop});viewScroll.current.set('agent',0);selectWorkspaceRun(run)}} onConfigure={(origin)=>{setAiSetupOrigin({...origin,scrollTop:viewRef.current===origin.source?(document.querySelector('.page-stack')?.scrollTop||0):(viewScroll.current.get(origin.source)??origin.scrollTop)});setView('settings')}}>
+    <GlobalTooltips/>
     <Shell
       activeView={view}
       provider={defaultProvider}
@@ -1828,7 +1868,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       }}
       onInstallUpdate={installUpdate}
     >
-      {view === 'processes' && <ProcessWorkspace metrics={overviewMetrics} paused={overviewPaused} error={overviewError} onPause={setOverviewPaused} onAsk={(p) => void askOverviewProcess(p)} onCopyName={(name) => void copyOverviewProcessName(name)} onCopyPid={(pid) => void copyOverviewProcessPid(pid)} onTerminate={(p,force) => void terminateOverviewProcess(p,force)} />}
+      {<div hidden={view!=='processes'}><ProcessWorkspace entry={processEntry} metrics={overviewMetrics} paused={overviewPaused} error={overviewError} onPause={setOverviewPaused} onAsk={(p) => void askOverviewProcess(p)} onCopyName={(name) => void copyOverviewProcessName(name)} onCopyPid={(pid) => void copyOverviewProcessPid(pid)} onTerminate={terminateOverviewProcess} /></div>}
       {view === 'agent' && <AgentPage scan={result} run={activeRun} conversationRuns={conversationRuns} workspaceRuns={workspaceRuns} statusMessage={runStatusMessage} selectedPlanIds={selectedPlanIds} providerConfigured={Boolean(defaultProvider)} addingOperationId={addingOperationId} openingApplicationId={openingApplicationId} returnLabel={agentOriginLabel} onSubmit={startAgentRun} onSelectWorkspaceRun={selectWorkspaceRun} onCloseWorkspaceRun={closeWorkspaceRun} onNewTask={() => { setActiveRun(null); activeRunId.current = null; setSelectedPlanIds(new Set()); setRunStatusMessage(''); setAgentOrigin(null) }} onOpenHistory={() => setView('history')} onOpenSettings={() => setView('settings')} onReturn={returnToAgentOrigin} onOpenApplication={openAgentApplication} onAddPlanItem={(id) => void addAgentPlanItem(id)} onTogglePlanItem={(id) => setSelectedPlanIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })} onExecutePlan={() => void executePlan()} onDiscardPlan={discardPlan} />}
       {view === 'terminal' && <HealthPage
         standaloneTerminal
@@ -1853,8 +1893,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         onManageIgnored={openIgnoredManager}
       />}
       {(['overview','health','large','duplicates','disk','privacy','apps','history'] as StorageView[]).map((storageView)=><div key={storageView} hidden={view!==storageView}>
-        <StorageWorkspace view={storageView} active={view===storageView} metrics={overviewMetrics} onNavigate={setView} activity={storageActivity} onActivity={setStorageActivity} onAsk={(prompt)=>{void (async()=>{if(!resultRef.current&&!await scanNow())return;startAgentRun(prompt,{isolated:true,origin:{view:'storage',source:storageView}})})()}} historyChildren={storageView==='history'?<HistoryPage runs={runs} maintenanceRuns={maintenanceRuns} onOpenRun={(run) => { setActiveRun(run); activeRunId.current = run.id; setSelectedPlanIds(new Set()); setView('agent') }} onDeleteRuns={setPendingHistoryDelete} onDeleteMaintenanceRuns={setPendingMaintenanceDelete} onRevealRecovery={revealMaintenanceRecovery} />:undefined} />
+        <StorageWorkspace view={storageView} active={view===storageView} metrics={overviewMetrics} onProcess={(sort)=>{setProcessEntry({sort,token:Date.now()});setView('processes')}} onNavigate={setView} activity={storageActivity} onActivity={setStorageActivity} historyChildren={storageView==='history'?<HistoryPage runs={runs} maintenanceRuns={maintenanceRuns} onOpenRun={(run) => { setActiveRun(run); activeRunId.current = run.id; setSelectedPlanIds(new Set()); setView('agent') }} onDeleteRuns={setPendingHistoryDelete} onDeleteMaintenanceRuns={setPendingMaintenanceDelete} onRevealRecovery={revealMaintenanceRecovery} />:undefined} />
       </div>)}
+      {view==='settings'&&aiSetupOrigin&&<div className="ai-setup-return"><button className="space-button" onClick={()=>{viewScroll.current.set(aiSetupOrigin.source,aiSetupOrigin.scrollTop);setView(aiSetupOrigin.source);setAiSetupOrigin(null)}}><ArrowLeft size={15}/>{appText('tasks.return',{page:appText(`nav.${aiSetupOrigin.source==='overview'?'home':aiSetupOrigin.source==='health'?'cleanup':aiSetupOrigin.source}`)})}</button><span>{appText('tasks.resumeAfterSetup')}</span></div>}
       {view === 'settings' && <SettingsPage settings={settings} providers={providers} appVersion={appVersion} updateState={updateState} onUpdateSettings={updateSettings} onDiscoverModels={discoverProviderModels} onSaveProvider={saveProvider} onTestProvider={testProvider} onDeleteProvider={deleteProvider} onSetDefaultProvider={setDefaultProvider} onImportLocalAi={importLocalAiConfigurations} onImportCcSwitch={importCcSwitchProviders} onCheckUpdates={checkForUpdates} onManageIgnored={() => openIgnoredManager()} onToast={setToast} />}
 
       {pendingDirectAction && <DirectActionConfirmDialog action={pendingDirectAction} onClose={() => setPendingDirectAction(null)} onConfirm={() => void executeDirectAction()} />}
@@ -1868,6 +1909,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       {pendingMaintenanceDelete && <DeleteMaintenanceHistoryDialog runs={pendingMaintenanceDelete} busy={historyDeleteBusy} onClose={() => setPendingMaintenanceDelete(null)} onConfirm={() => void deleteMaintenanceHistory()} />}
       {toast && <div className="toast is-visible" role="status"><CheckCircle2 size={16} /><span>{toast}</span></div>}
     </Shell>
+    </AiTaskProvider>
   )
 }
 

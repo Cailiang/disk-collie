@@ -26,7 +26,7 @@ if (bootTheme && allowedBootThemes.has(bootTheme)) {
 const api: MementoApi = {
   storageState: () => ipcRenderer.invoke('memento:storage:state'),
   storageScan: (options) => ipcRenderer.invoke('memento:storage:scan', options),
-  storageCancel: () => ipcRenderer.invoke('memento:storage:cancel'),
+  storageCancel: (scope) => ipcRenderer.invoke('memento:storage:cancel',scope),
   storageChildren: (input) => ipcRenderer.invoke('memento:storage:children', input),
   storageLarge: (input) => ipcRenderer.invoke('memento:storage:large', input),
   storageDuplicates: (generation, minimum) => ipcRenderer.invoke('memento:storage:duplicates', {generation,minimum}),

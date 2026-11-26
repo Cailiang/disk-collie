@@ -25,8 +25,12 @@ export interface StorageIndex {
   limited: boolean
   elapsedMs: number
 }
+export type StorageTaskScope = StorageMode | 'cleanup' | 'privacy' | 'apps'
 export interface StorageProgress {
-  phase: 'indexing' | 'sampling' | 'hashing' | 'cleaning'
+  scope?: StorageTaskScope
+  blockedBy?: StorageTaskScope
+
+  phase: 'queued' | 'indexing' | 'sampling' | 'hashing' | 'cleaning'
   entries: number
   total?: number
   elapsedMs: number
@@ -89,7 +93,7 @@ export type StorageTarget =
 export interface StorageApi {
   storageState: () => Promise<{ index: StorageIndex | null; indexes: Partial<Record<StorageMode,StorageIndex>>; history: StorageActivity[]; home: string }>
   storageScan: (options?: StorageScanOptions) => Promise<StorageIndex | null>
-  storageCancel: () => Promise<void>
+  storageCancel: (scope?:StorageTaskScope) => Promise<boolean>
   storageChildren: (input: { generation: number; id: number; offset?: number }) => Promise<{ parent: StorageEntry; items: StorageEntry[] }>
   storageLarge: (input: { generation: number; minimum: number; search: string; offset: number; category?: FileCategory | 'all' }) => Promise<{ count: number; items: StorageEntry[]; categories?: Record<string,number> }>
   storageDuplicates: (generation: number, minimum?:number) => Promise<{ groups: DuplicateGroup[]; elapsedMs: number }>
