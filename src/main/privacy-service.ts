@@ -5,7 +5,7 @@ import {systemPrivacyResources} from './privacy-system'
 import {privacyAccessFailure,privacyUnavailable,type PrivacyContext,type PrivacyResource,type PrivacySnapshot} from './privacy-resource'
 
 interface RegisteredPrivacy {resource:PrivacyResource;snapshot:PrivacySnapshot;item:PrivacyItem}
-const effect=(kind:PrivacyItem['kind']):string=>['cookies','site-data','site-permissions'].includes(kind)?'accounts':kind==='passwords'?'passwords':kind==='autofill'?'autofill':kind==='clipboard'?'clipboard':kind==='shell-history'?'shell':kind.includes('session')?'sessions':kind.includes('cache')?'rebuild':kind.includes('logs')?'logs':kind.includes('recent')?'recent':'history'
+const effect=(kind:PrivacyItem['kind']):string=>kind==='app-edit-history'?'editHistory':kind==='app-sessions'?'appSessions':['cookies','site-data','site-permissions'].includes(kind)?'accounts':kind==='passwords'?'passwords':kind==='autofill'?'autofill':kind==='clipboard'?'clipboard':kind==='shell-history'?'shell':kind.includes('session')?'sessions':kind.includes('cache')?'rebuild':kind.includes('logs')?'logs':kind.includes('recent')?'recent':'history'
 /** The Renderer only receives registered IDs. Preview and mutation plans stay in Main. */
 export class PrivacyService {
   private registered=new Map<string,RegisteredPrivacy>()

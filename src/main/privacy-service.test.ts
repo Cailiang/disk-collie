@@ -90,4 +90,11 @@ describe('registered privacy plans',()=>{
     expect((await service.preview(items[1].id)).records).toEqual([])
     await expect(service.prepare([],()=>false)).rejects.toThrow('privacy.selectionExpired')
   })
+  it('explains app revisions and recovery records separately from browsing history',async()=>{
+    const edit={...resource('edit'),kind:'app-edit-history' as const,risk:'sensitive' as const},sessions={...resource('sessions'),kind:'app-sessions' as const,risk:'sensitive' as const}
+    const service=new PrivacyService(async()=>[edit,sessions]),items=await service.scan(context,'all')
+    expect(items.map((item)=>item.effectKey)).toEqual(['editHistory','appSessions'])
+    expect(items.every((item)=>item.risk==='sensitive'&&!item.recommended)).toBe(true)
+  })
+
 })

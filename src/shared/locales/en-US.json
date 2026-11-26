@@ -132,7 +132,7 @@
   "cleanup.privacy": "Browsing traces",
   "cleanup.rebuild": "Re-downloads or rebuilds when needed.",
   "cleanup.logsEffect": "Removes logs that may be needed for troubleshooting.",
-  "cleanup.historyEffect": "Permanently clears browsing history. Close the browser first.",
+  "cleanup.historyEffect": "Permanently removes the selected activity records. They cannot be recovered.",
   "cleanup.recentEffect": "Clears the recent-document list, without deleting the documents.",
   "cleanup.permanent": "The selected data will be permanently deleted and cannot be restored.",
   "cleanup.closed": "Close the affected applications before continuing.",
@@ -1021,5 +1021,7 @@
   "cleanup.autofillEffect": "Form autofill history will be deleted.",
   "cleanup.clipboardEffect": "The current clipboard will be cleared. Unpasted contents cannot be recovered.",
   "cleanup.shellEffect": "Command history in the selected time range will be deleted. No commands are executed.",
-  "disk.fileActionsHint": "Select a file to show it in its folder, ask AI or move it to Trash."
+  "disk.fileActionsHint": "Select a file to show it in its folder, ask AI or move it to Trash.",
+  "cleanup.editHistoryEffect": "Deletes local edit history saved by the application. Earlier versions cannot be recovered; original documents are kept.",
+  "cleanup.appSessionsEffect": "Deletes application workspace and recovery records, which may include unsaved drafts. Save your work and quit the related applications first."
 }

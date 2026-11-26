@@ -132,7 +132,7 @@
   "cleanup.privacy": "浏览痕迹",
   "cleanup.rebuild": "需要时会重新下载或生成。",
   "cleanup.logsEffect": "删除日志后，可能无法回溯排查旧问题。",
-  "cleanup.historyEffect": "永久清除浏览历史。请先退出浏览器。",
+  "cleanup.historyEffect": "永久清除所选活动记录，清理后无法恢复。",
   "cleanup.recentEffect": "清除最近文档列表，不会删除文档本身。",
   "cleanup.permanent": "所选数据将被永久删除，无法撤销。",
   "cleanup.closed": "继续前，请退出相关应用。",
@@ -1021,5 +1021,7 @@
   "cleanup.autofillEffect": "将删除表单自动填充历史。",
   "cleanup.clipboardEffect": "将清空当前剪贴板，未粘贴的内容将无法恢复。",
   "cleanup.shellEffect": "将删除所选时间范围内的命令历史，不会执行其中的命令。",
-  "disk.fileActionsHint": "选中文件可在此打开、询问 AI 或移到废纸篓。"
+  "disk.fileActionsHint": "选中文件可在此打开、询问 AI 或移到废纸篓。",
+  "cleanup.editHistoryEffect": "删除应用保存的本地编辑历史，无法恢复旧版本；不会删除原始文档。",
+  "cleanup.appSessionsEffect": "删除应用工作区与恢复记录，可能包含未保存的草稿。请先保存工作并退出相关应用。"
 }

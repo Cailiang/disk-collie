@@ -236,7 +236,7 @@ export async function systemPrivacyResources(context:PrivacyContext):Promise<Pri
   const owner=(key:string,name:string,bundleId:string,iconPaths:string[]=[]):PrivacySource=>{const app=applications.find((app)=>app.bundleId?.toLowerCase()===bundleId.toLowerCase());return {key,name:app?.name||name,bundleIds:[bundleId],iconPaths:app?[app.location]:iconPaths}}
   const finder=owner('finder','Finder','com.apple.finder',['/System/Library/CoreServices/Finder.app'])
   const definition=(key:string,kind:PrivacyDefinition['kind'],category:PrivacyDefinition['category'],source:PrivacySource,paths:string[],risk:PrivacyDefinition['risk']='recent',supportsRange=false):PrivacyDefinition=>({key,kind,category,source,paths,risk,supportsRange})
-  const addFiles=async(key:string,kind:PrivacyDefinition['kind'],source:PrivacySource,roots:string[],category:PrivacyDefinition['category']='app-activity'):Promise<void>=>{for(const target of roots)if(await present(target))result.push(privacyFileResource(definition(`${key}:${target}`,kind,category,source,[target],kind==='app-cache'||kind==='app-logs'?'low':'recent',false)))}
+  const addFiles=async(key:string,kind:PrivacyDefinition['kind'],source:PrivacySource,roots:string[],category:PrivacyDefinition['category']='app-activity'):Promise<void>=>{for(const target of roots)if(await present(target))result.push(privacyFileResource(definition(`${key}:${target}`,kind,category,source,[target],kind==='app-edit-history'||kind==='app-sessions'&&['Backups','workspaceStorage'].includes(p.basename(target))?'sensitive':kind==='app-cache'||kind==='app-logs'?'low':'recent',false)))}
   if(platform==='darwin'){
     result.push(clipboardResource(finder))
     const recent=p.join(home,'Library/Application Support/com.apple.sharedfilelist')
