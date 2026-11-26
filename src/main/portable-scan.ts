@@ -12,9 +12,9 @@ export async function runPortableScan(service:StorageService,language:AppLanguag
   const start=performance.now(),startedAt=new Date().toISOString()
   onProgress({section:'storage',progress:10,message:translate(language,'scan.indexing')})
   const metrics=await collectPortableOverview()
-  const rules=await service.cleanup(false)
+  const rules=await service.cleanup(false,false)
   onProgress({section:'applications',progress:75,message:translate(language,'apps.loading')})
-  const applications=await service.listApplications()
+  const applications=await service.listApplications(false)
   const actions:ScanBundle['actions']=new Map(),revealTargets=new Map<string,string>()
   const candidates=rules.map((rule)=>{
     const id=randomUUID();actions.set(id,{kind:'delete-storage',target:rule.path,storageRuleId:rule.id});revealTargets.set(id,rule.path)

@@ -4,6 +4,28 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.9 - 2026-11-26
+
+### English
+
+- Move Applications into Utilities and rebuild it as an application manager: OS logos, local size, real last-use metadata, search, sorting, unused/update filters, Open, Check updates, Update and Ask AI. Hide system apps by default and keep unknown activity dates explicit.
+- Reuse deterministic Homebrew Cask, App Store and Sparkle discovery/install adapters through registered application IDs. Keep local inventory independent of network checks; distinguish completed installation from opening an external updater.
+- Show uninstall file details inline with paths, sizes, rebuildable/personal-data labels and expandable directories. Related data stays unselected by default; directory/child selections are deduplicated and the complete app bundle remains required for uninstall.
+- Make Help glyphs transparent and remove redundant help from Overview, Applications, Processes, History and Space explorer.
+- Keep hidden/app-data inclusion checked for large files. Raise duplicate scanning's default and minimum to 10 MiB in the UI and IPC.
+- Add a prominent Back to parent control and a scrollable list for treemap items too small to label. Chart area remains proportional to actual bytes, including extreme size differences.
+- Extend UI and Electron smoke coverage, plus update-routing, descendant authorization and selection/usage regression tests.
+
+### 简体中文
+
+- 将应用入口移到实用工具，重做应用管理：真实 Logo、应用体积、最近使用时间、搜索排序、长期未用／可更新筛选、打开、检查更新、更新与询问 AI；默认隐藏系统应用，缺失使用记录明确显示未知。
+- 通过已注册应用 ID 接入既有 Homebrew Cask、App Store 和 Sparkle 更新逻辑；本地清单不等待网络，区分已安装更新与打开外部更新器。
+- 卸载明细直接展示路径、大小、可重建／个人数据标记，并可展开查看目录内容；关联数据默认不选，父子路径去重，卸载必须包含完整应用本体。
+- 问号改为无背景小图标；首页、应用管理、进程、记录和空间分析移除多余帮助。
+- 大文件默认勾选隐藏目录和应用数据；重复文件默认与最低阈值统一提高至 10 MiB，界面与 IPC 同步限制。
+- 空间分析新增明显的返回上一级按钮，过小图块提供可滚动列表；图形面积仍按真实体积绘制，覆盖目录体积极度悬殊的情况。
+- 补充界面、真实 Electron、更新方式、子路径授权与选择／使用时间回归测试。
+
 ## 1.0.8 - 2026-11-26
 
 ### English

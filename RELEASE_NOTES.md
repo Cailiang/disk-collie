@@ -1,3 +1,18 @@
+# Memento 1.0.9 — 应用管理与清晰的空间导航 / Applications and clearer navigation
+
+- “应用卸载”改为实用工具中的“应用管理”，默认隐藏系统应用。
+- 应用行显示真实 Logo、版本、体积和多久未使用，支持打开、检查更新、更新与询问 AI。
+- 卸载前可逐项核对应用本体、缓存、设置、支持文件和日志；目录可展开，关联数据默认不选，并标明哪些可重建、哪些可能包含个人数据。
+- 问号改为透明小图标，删除首页、应用管理、进程、记录及空间分析的多余帮助。
+- 大文件默认包含隐藏目录和应用数据；重复文件从 10 MiB 起扫描，可提高阈值。
+- 空间分析下钻后有明确的“返回上一级”；较小项目即使无法在图内显示，也能从列表打开。
+
+macOS 更新支持已发现的 Homebrew Cask、App Store 和 Sparkle 来源；需外部更新时会打开相应入口，不会冒充已完成安装。最近使用信息缺失时显示未知。
+
+English: a redesigned application manager under Utilities with real icons, usage, sorting, Open/Update/AI actions and expandable uninstall details. System apps are hidden by default. Duplicate scanning starts at 10 MiB; large files include hidden/app-data locations by default. Quiet Help glyphs, explicit disk navigation and accessible smaller-item lists keep results readable.
+
+---
+
 # Memento 1.0.8 — 保留整理成果 / Keep your progress
 
 - 大文件清理一部分后回到剩余结果；成功项移除，失败项保留，继续处理无需重新扫描。

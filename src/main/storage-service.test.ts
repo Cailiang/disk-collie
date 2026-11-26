@@ -1,5 +1,5 @@
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
-import {mkdtemp,mkdir,readFile,rm,writeFile} from 'node:fs/promises'
+import {mkdtemp,mkdir,readFile,rm,writeFile,symlink} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import type {StorageEntry,StorageIndex} from '../shared/storage-types'
@@ -23,6 +23,8 @@ vi.mock('./native-engine',()=>({NativeEngine:class {
     }
     if(command==='entry')return this.entries.find((e)=>e.id===args.id)
     if(command==='forget'){this.entries=this.entries.filter((e)=>!args.paths.includes(e.path));return this.index}
+    if(command==='system')return {processes:[],processCommands:[],processNames:[]}
+    if(command==='measure')return args.paths.map((path:string)=>({path,size:2048,errors:0}))
     if(command==='large')return {count:this.entries.length,items:this.entries}
     throw new Error(`Unexpected fixture command ${command}`)
   }
@@ -66,4 +68,22 @@ describe('storage scan sessions and partial cleanup',()=>{
     expect(state.engines[1].stopped).toBe(true)
     expect(state.engines[2].stopped).toBe(false)
   })
+  it('registers only inspected descendants, rejects redirects and requires the whole app for uninstall',async()=>{
+    const service=new StorageService();service.register()
+    const applicationPath=path.join(state.root,'Fixture.app'),contents=path.join(applicationPath,'Contents')
+    await mkdir(contents,{recursive:true});await writeFile(path.join(contents,'data.bin'),'fixture')
+    if(process.platform!=='win32')await symlink(state.profile,path.join(applicationPath,'redirect'))
+    const id=crypto.randomUUID()
+    const application={id,name:'Fixture',version:'1',location:applicationPath,bundleId:null,size:2048,protected:false,method:'trash' as const}
+    ;(service as unknown as {applications:Map<string,typeof application>}).applications.set(id,application)
+    expect((await service.listApplications(false))[0].id).toBe(id)
+    const roots=await service.inspectApplication(id),children=await service.relatedChildren({id:roots[0].id})
+    expect(children.items.map((f)=>f.path)).toEqual([contents])
+    expect(children.items[0].parentId).toBe(roots[0].id)
+    await expect(service.uninstall({applicationId:id,ids:[children.items[0].id]})).rejects.toThrow(/Select the application/)
+    await expect(service.relatedChildren({id:crypto.randomUUID()})).rejects.toThrow(/expired/)
+    const result=await service.uninstall({applicationId:id,ids:[roots[0].id,children.items[0].id,roots[0].id]})
+    expect(result).toMatchObject({items:1,failures:0,locations:[applicationPath]})
+  })
+
 })

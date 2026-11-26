@@ -10,6 +10,9 @@ import type { CleanupItem, DuplicateGroup, RelatedApplicationFile, StorageActivi
 import { fileCategories } from '../shared/file-categories'
 import type { StorageScanOptions } from '../shared/storage-types'
 import { NativeEngine } from './native-engine'
+import type { AppLanguage } from '../shared/app-settings'
+import { discoverApplicationUpdates, findApplications, inspectApplication, type ApplicationMetadata, type ApplicationUpdate } from './scanner'
+import { updateRegisteredApplication } from './storage-application-actions'
 import { storageRules } from './storage-rules'
 import { isStorageMutationAllowed } from './storage-policy'
 
@@ -35,6 +38,9 @@ async function unchanged(old: Snapshot): Promise<void> {
 }
 
 export class StorageService {
+  constructor(private readonly language:()=>AppLanguage=()=> 'zh-CN') {}
+  private metadata=new Map<string,ApplicationMetadata>()
+  private updates=new Map<string,ApplicationUpdate>()
   private engine = new NativeEngine((progress) => { for (const window of BrowserWindow.getAllWindows()) window.webContents.send('memento:storage:progress', progress) })
   private sessions = new Map<StorageMode,{index:StorageIndex;engine:NativeEngine;groups:Map<string,DuplicateGroup>}>()
   private latest: StorageMode | null = null
@@ -113,7 +119,9 @@ export class StorageService {
       } catch(e) {engine.stop();throw e} finally {this.activeEngine=null}
     })
   }
-  async cleanup(privacy: boolean): Promise<CleanupItem[]> {
+  async cleanup(privacy: boolean,refresh=true): Promise<CleanupItem[]> {
+    const retained=[...this.rules.values()].filter((value)=>(value.item.category==='privacy')===privacy).map((value)=>value.item)
+    if(!refresh&&retained.length)return retained
     return this.exclusive(async () => {
       // Invalidate only this kind so an unrelated scan cannot authorize stale IDs.
       for (const [id, value] of this.rules) if ((value.item.category === 'privacy') === privacy) this.rules.delete(id)
@@ -180,28 +188,30 @@ export class StorageService {
       return result
     })
   }
-  async listApplications(): Promise<StorageApplication[]> {
+  async listApplications(refresh=true): Promise<StorageApplication[]> {
+    if(!refresh&&this.applications.size)return [...this.applications.values()]
     return this.exclusive(async () => {
-      this.applications.clear(); this.related.clear()
+      this.applications.clear(); this.related.clear();this.metadata.clear();this.updates.clear()
       if (process.platform === 'darwin') {
-        for (const root of ['/Applications', path.join(home, 'Applications'), '/System/Applications']) {
-          let names: string[] = []; try { names = await readdir(root) } catch { continue }
-          for (const name of names.filter((v) => v.endsWith('.app'))) {
-            const location = path.join(root, name)
-            try {
-              await snapshot(location)
-              const { stdout } = await exec('/usr/bin/plutil', ['-convert','json','-o','-',path.join(location,'Contents/Info.plist')], { timeout: 3000 })
-              const p = JSON.parse(stdout)
-              const id=randomUUID()
-              this.applications.set(id, { id, name: String(p.CFBundleDisplayName || p.CFBundleName || name.slice(0,-4)), version: String(p.CFBundleShortVersionString || p.CFBundleVersion || ''), bundleId: typeof p.CFBundleIdentifier === 'string' ? p.CFBundleIdentifier : null, location, size:0, protected:root.startsWith('/System') || location === app.getPath('exe').split('.app/')[0]+'.app', method:'trash' })
-            } catch { /* Unreadable bundles are not authorized for removal. */ }
-          }
-        }
+        const locations=(await Promise.all(['/Applications',path.join(home,'Applications'),'/System/Applications'].map((root)=>findApplications(root)))).flat()
+        // Keep local inventory independent from network update checks.
+        for(let offset=0;offset<locations.length;offset+=8)await Promise.all(locations.slice(offset,offset+8).map(async(location)=>{
+          try {
+            await snapshot(location)
+            const info=await inspectApplication(location,this.language(),false)
+            if(!info||info.bundleId==='com.fcl.memento')return
+            const id=randomUUID(),system=location.startsWith('/System/')
+            this.metadata.set(id,info)
+            this.applications.set(id,{id,name:info.name,version:info.version,bundleId:info.bundleId,location,size:info.sizeBytes,lastUsedAt:info.lastUsedAt?.toISOString()||null,system,protected:system||location===app.getPath('exe').split('.app/')[0]+'.app',method:'trash'})
+          } catch { /* Unreadable or redirected bundles are excluded. */ }
+        }))
+        const missing=[...this.applications.values()].filter((a)=>!a.system||!a.size)
+        if(missing.length){const measured=await this.engine.request<Array<{path:string;size:number}>>('measure',{paths:missing.map((a)=>a.location)});for(const a of missing)a.size=measured.find((m)=>m.path===a.location)?.size||0}
       } else if (process.platform === 'win32') {
-        const script = "$p=@('HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'); @(Get-ItemProperty $p -ErrorAction SilentlyContinue | Where-Object {$_.DisplayName} | Select-Object DisplayName,DisplayVersion,InstallLocation,EstimatedSize) | ConvertTo-Json -Compress"
+        const script = "$p=@('HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*'); @(Get-ItemProperty $p -ErrorAction SilentlyContinue | Where-Object {$_.DisplayName} | Select-Object DisplayName,DisplayVersion,InstallLocation,EstimatedSize,DisplayIcon,SystemComponent) | ConvertTo-Json -Compress"
         const { stdout } = await exec('powershell.exe',['-NoProfile','-NonInteractive','-Command',script],{timeout:15000,maxBuffer:8*1024*1024,windowsHide:true})
         const parsed=JSON.parse(stdout || '[]')
-        for (const p of Array.isArray(parsed)?parsed:parsed?[parsed]:[]) { const id=randomUUID(); this.applications.set(id,{id,name:String(p.DisplayName),version:String(p.DisplayVersion || ''),location:String(p.InstallLocation || ''),bundleId:null,size:Number(p.EstimatedSize || 0)*1024,protected:false,method:'system'}) }
+        for (const p of Array.isArray(parsed)?parsed:parsed?[parsed]:[]) { const id=randomUUID(); this.applications.set(id,{id,name:String(p.DisplayName),version:String(p.DisplayVersion || ''),location:String(p.InstallLocation || ''),bundleId:null,size:Number(p.EstimatedSize || 0)*1024,protected:false,system:p.SystemComponent===1,iconPath:String(p.DisplayIcon||'').trim().replace(/,-?\d+$/,'').replace(/^"|"$/g,''),method:'system'}) }
       } else {
         for (const root of ['/usr/share/applications', path.join(home,'.local/share/applications')]) {
           let names: string[]=[]; try { names=await readdir(root) } catch { continue }
@@ -209,12 +219,77 @@ export class StorageService {
             try {
               const location=path.join(root,name); const content=await readFile(location,'utf8');
               const display=/^Name=(.+)$/m.exec(content)?.[1]; if (!display || /^NoDisplay=true$/m.test(content)) continue
-              const id=randomUUID(); this.applications.set(id,{id,name:display,version:'',location,bundleId:name.slice(0,-8),size:0,protected:false,method:'system'})
+              const iconName=/^Icon=(.+)$/m.exec(content)?.[1]?.trim()
+              let iconPath:string|undefined
+              if(iconName){const candidates=path.isAbsolute(iconName)?[iconName]:[...['/usr/share/icons/hicolor',path.join(home,'.local/share/icons/hicolor')].flatMap((root)=>['512x512','256x256','128x128','64x64','48x48','scalable'].flatMap((size)=>['png','svg','xpm'].map((ext)=>path.join(root,size,'apps',`${iconName}.${ext}`)))),path.join('/usr/share/pixmaps',iconName+'.png'),path.join('/usr/share/pixmaps',iconName+'.svg')];for(const candidate of candidates)try{const resolved=await realpath(candidate);if((await lstat(resolved)).isFile()){iconPath=resolved;break}}catch{/* Try the next installed theme size. */}}
+              const id=randomUUID(); this.applications.set(id,{id,name:display,version:'',location,iconPath,bundleId:name.slice(0,-8),size:0,protected:false,method:'system'})
             } catch { /* Invalid desktop entries are skipped. */ }
           }
         }
       }
       return [...this.applications.values()].sort((a,b)=>a.name.localeCompare(b.name))
+    })
+  }
+  async checkApplicationUpdates():Promise<StorageApplication[]> {
+    return this.exclusive(async()=>{
+      const candidates=[...this.metadata].filter(([id])=>!this.applications.get(id)?.protected)
+      const found=process.platform==='darwin'?await discoverApplicationUpdates(candidates.map(([,metadata])=>metadata),this.language()):new Map<string,ApplicationUpdate>()
+      this.updates.clear()
+      for(const [id,application] of this.applications){
+        const update=found.get(application.location)
+        if(update)this.updates.set(id,update)
+        Object.assign(application,{updateAvailable:Boolean(update),latestVersion:update?.latestVersion||null,updateSource:update?.source,updateMode:update?.mode,updateCheckedAt:new Date().toISOString()})
+      }
+      return [...this.applications.values()]
+    })
+  }
+  async openApplication(id:string):Promise<void> {
+    const application=this.applications.get(id)
+    if(!application)throw new Error('Application selection expired')
+    if(process.platform==='linux'){await snapshot(application.location);await exec('/usr/bin/gio',['launch',application.location],{timeout:10_000});return}
+    const target=process.platform==='win32'?application.iconPath:application.location
+    if(!target||(process.platform==='win32'&&!target.toLowerCase().endsWith('.exe')))throw new Error('The application launch entry is unavailable. Open it from the system launcher.')
+    await snapshot(target)
+    const error=await shell.openPath(target);if(error)throw new Error(error)
+  }
+  async updateApplication(id:string) {
+    return this.exclusive(async()=>{
+      const application=this.applications.get(id)
+      if(!application||application.protected)throw new Error('This application is protected')
+      if(process.platform!=='darwin'){
+        await shell.openExternal(process.platform==='win32'?'ms-settings:appsfeatures':`appstream://${encodeURIComponent(application.bundleId||'')}`)
+        return {status:'opened' as const,destination:'application' as const}
+      }
+      await snapshot(application.location)
+      const update=this.updates.get(id)
+      if(!update){await this.openApplication(id);return {status:'opened' as const,destination:'application' as const}}
+      await this.requireBrowserClosed(application.location)
+      const result=await updateRegisteredApplication(application.location,update)
+      if(result.status==='updated') {
+        const metadata=await inspectApplication(application.location,this.language(),false)
+        if(metadata){this.metadata.set(id,metadata);application.version=metadata.version;application.size=metadata.sizeBytes||application.size;application.lastUsedAt=metadata.lastUsedAt?.toISOString()||null}
+        application.updateAvailable=false;application.latestVersion=null;this.updates.delete(id)
+        for(const [key,value] of this.related)if(value.applicationId===id)this.related.delete(key)
+      }
+      return {...result,application}
+    })
+  }
+  async relatedChildren(input:{id:string;offset?:number}):Promise<{items:RelatedApplicationFile[];more:boolean}> {
+    return this.exclusive(async()=>{
+      const parent=this.related.get(input.id)
+      if(!parent||!parent.snapshot.directory)throw new Error('Folder selection expired')
+      await unchanged(parent.snapshot)
+      const names=(await readdir(parent.file.path)).sort(),offset=input.offset||0
+      const valid:Array<{snapshot:Snapshot;path:string}>=[]
+      for(const name of names.slice(offset,offset+100)){try{const target=path.join(parent.file.path,name);valid.push({snapshot:await snapshot(target),path:target})}catch{/* Links and inaccessible entries cannot authorize removal. */}}
+      const measured=await this.engine.request<Array<{path:string;size:number;errors:number}>>('measure',{paths:valid.map((v)=>v.path)})
+      const items=valid.flatMap((value)=>{
+        const size=measured.find((m)=>m.path===value.path);if(!size||size.errors)return []
+        const existing=[...this.related.values()].find((r)=>r.applicationId===parent.applicationId&&r.file.path===value.path)
+        const file:RelatedApplicationFile={id:existing?.file.id||randomUUID(),path:value.path,size:size.size,kind:parent.file.kind,parentId:parent.file.id,directory:value.snapshot.directory}
+        this.related.set(file.id,{file,snapshot:value.snapshot,applicationId:parent.applicationId});return [file]
+      })
+      return {items,more:offset+100<names.length}
     })
   }
   async inspectApplication(id: string): Promise<RelatedApplicationFile[]> {
@@ -235,7 +310,7 @@ export class StorageService {
       const measured=await this.engine.request<Array<{path:string;size:number;errors:number}>>('measure',{paths:valid.map((v)=>v.path)})
       return valid.flatMap((v)=>{
         const size=measured.find((m)=>m.path===v.path); if (!size || size.errors) return []
-        const file:RelatedApplicationFile={id:randomUUID(),path:v.path,kind:v.kind,size:size.size}
+        const file:RelatedApplicationFile={id:randomUUID(),path:v.path,kind:v.kind,size:size.size,directory:v.snapshot.directory}
         this.related.set(file.id,{file,snapshot:v.snapshot,applicationId:id}); return [file]
       })
     })
@@ -249,8 +324,9 @@ export class StorageService {
         else await shell.openExternal(`appstream://${encodeURIComponent(application.bundleId || '')}`)
         return null
       }
-      const values=input.ids.map((id)=>{const v=this.related.get(id); if (!v || v.applicationId!==application.id) throw new Error('Related file selection expired'); return v})
-      if (!values.some((v)=>v.file.kind==='application')) throw new Error('Select the application to uninstall')
+      const requested=[...new Set(input.ids)].map((id)=>{const v=this.related.get(id); if (!v || v.applicationId!==application.id) throw new Error('Related file selection expired'); return v})
+      const values=requested.filter((v)=>!requested.some((parent)=>parent!==v&&v.file.path.startsWith(parent.file.path+path.sep)))
+      if (!values.some((v)=>v.file.kind==='application'&&v.file.path===application.location)) throw new Error('Select the application to uninstall')
       await this.requireBrowserClosed(application.location)
       for (const value of values) await unchanged(value.snapshot)
       const result=await this.activity('uninstall',values.map((v)=>({path:v.file.path,size:v.file.size,run:async()=>{await unchanged(v.snapshot); await shell.trashItem(v.file.path)}})))
@@ -262,11 +338,11 @@ export class StorageService {
   register(): void {
     const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`memento:storage:${name}`,(_event,input)=>fn(input))}
     handle('state',()=>({index:this.latest?this.sessions.get(this.latest)?.index||null:null,indexes:Object.fromEntries([...this.sessions].map(([mode,s])=>[mode,s.index])),history:this.history,home}))
-    handle('scan',(v)=>this.scan(z.object({mode:z.enum(['analysis','large','duplicates']).default('analysis'),minimum:z.number().int().min(1024).optional(),includeHidden:z.boolean().optional()}).parse(v||{})))
+    handle('scan',(v)=>this.scan(z.object({mode:z.enum(['analysis','large','duplicates']).default('analysis'),minimum:z.number().int().min(10*1024**2).optional(),includeHidden:z.boolean().optional()}).parse(v||{})))
     handle('cancel',()=>{this.activeEngine?.stop();for(const [mode,s] of this.sessions)if(s.engine===this.activeEngine)this.sessions.delete(mode)})
     handle('children',(v)=>{const q=entryInput.extend({offset:int.optional()}).parse(v);return this.session(q.generation).engine.request('children',q)})
     handle('large',(v)=>{const q=scope.extend({minimum:z.number().nonnegative(),search:z.string().max(500),offset:int,category:z.enum(['all','video','image','audio','archive','installer','document','other']).default('all')}).parse(v);return this.session(q.generation).engine.request('large',{...q,categories:fileCategories})})
-    handle('duplicates',(v)=>this.exclusive(async()=>{const q=typeof v==='number'?{generation:v,minimum:1024}:scope.extend({minimum:z.number().int().min(1024).default(200*1024)}).parse(v);const session=this.session(q.generation);this.activeEngine=session.engine;try{const result=await session.engine.request<{groups:DuplicateGroup[];elapsedMs:number}>('duplicates',{minimum:q.minimum});session.groups=new Map(result.groups.map((g)=>[g.id,g]));return result}finally{this.activeEngine=null}}))
+    handle('duplicates',(v)=>this.exclusive(async()=>{const q=typeof v==='number'?{generation:v,minimum:10*1024**2}:scope.extend({minimum:z.number().int().min(10*1024**2).default(10*1024**2)}).parse(v);const session=this.session(q.generation);this.activeEngine=session.engine;try{const result=await session.engine.request<{groups:DuplicateGroup[];elapsedMs:number}>('duplicates',{minimum:q.minimum});session.groups=new Map(result.groups.map((g)=>[g.id,g]));return result}finally{this.activeEngine=null}}))
     handle('trash',(v)=>this.trash(scope.extend({ids:z.array(int).min(1).max(500).transform((v)=>[...new Set(v)]),kind:z.enum(['large','duplicates']),groupId:z.string().max(100).optional()}).parse(v)))
     handle('reveal',async(v)=>{const q=entryInput.parse(v);const entry=await this.session(q.generation).engine.request<StorageEntry>('entry',q);shell.showItemInFolder(entry.path)})
     handle('reveal-target',async(v)=>{
@@ -287,13 +363,17 @@ export class StorageService {
     handle('cleanup',(v)=>this.cleanup(z.boolean().parse(v)))
     handle('clean',(v)=>this.clean(z.array(z.string().uuid()).min(1).max(100).transform((ids)=>[...new Set(ids)]).parse(v)))
     handle('applications',()=>this.listApplications())
+    handle('check-updates',()=>this.checkApplicationUpdates())
+    handle('open-application',(v)=>this.openApplication(z.string().uuid().parse(v)))
+    handle('update-application',(v)=>this.updateApplication(z.string().uuid().parse(v)))
+    handle('related-children',(v)=>this.relatedChildren(z.object({id:z.string().uuid(),offset:int.optional()}).parse(v)))
     handle('application-icon',async(v)=>{
       const id=z.string().uuid().parse(v);const application=this.applications.get(id)
-      if(!application||!application.location)return null
-      try {const icon=await app.getFileIcon(application.location,{size:'normal'});return icon.isEmpty()?null:icon.toDataURL()}catch{return null}
+      if(!application||(!application.location&&!application.iconPath))return null
+      try {if(process.platform==='linux'&&application.iconPath&&/\.(png|svg)$/i.test(application.iconPath)){const data=await readFile(application.iconPath);if(data.length<=2*1024*1024)return `data:image/${application.iconPath.endsWith('.svg')?'svg+xml':'png'};base64,${data.toString('base64')}`}const icon=await app.getFileIcon(application.iconPath||application.location,{size:'normal'});return icon.isEmpty()?null:icon.toDataURL()}catch{return null}
     })
     handle('related',(v)=>this.inspectApplication(z.string().uuid().parse(v)))
-    handle('uninstall',(v)=>this.uninstall(z.object({applicationId:z.string().uuid(),ids:z.array(z.string().uuid()).max(100)}).parse(v)))
+    handle('uninstall',(v)=>this.uninstall(z.object({applicationId:z.string().uuid(),ids:z.array(z.string().uuid()).max(500)}).parse(v)))
     app.on('before-quit',()=>{this.engine.stop();this.activeEngine?.stop();for(const session of this.sessions.values())session.engine.stop()})
   }
 }

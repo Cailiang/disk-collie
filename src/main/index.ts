@@ -1654,7 +1654,7 @@ app.whenReady().then(async () => {
   updateState = emptyUpdateState()
   configureAppUpdater()
 
-  storageService = new StorageService()
+  storageService = new StorageService(() => appSettings.language)
   await storageService.init()
   storageService.register()
   app.on('before-quit', stopPortableOverview)

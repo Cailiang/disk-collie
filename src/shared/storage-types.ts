@@ -1,3 +1,4 @@
+import type { ApplicationUpdateMode, ApplicationUpdateResult, ApplicationUpdateSource } from './types'
 import type { FileCategory } from './file-categories'
 export interface StorageEntry {
   id: number
@@ -57,6 +58,8 @@ export interface RelatedApplicationFile {
   id: string
   path: string
   size: number
+  directory?: boolean
+  parentId?: string
   kind: 'application' | 'cache' | 'preferences' | 'support' | 'logs'
 }
 export interface StorageApplication {
@@ -68,7 +71,16 @@ export interface StorageApplication {
   size: number
   protected: boolean
   method: 'trash' | 'system'
+  system?: boolean
+  lastUsedAt?: string | null
+  updateAvailable?: boolean
+  latestVersion?: string | null
+  updateSource?: ApplicationUpdateSource
+  updateMode?: ApplicationUpdateMode
+  updateCheckedAt?: string | null
+  iconPath?: string
 }
+export type StorageApplicationUpdateResult = ApplicationUpdateResult & { application?: StorageApplication }
 export type StorageTarget =
   | { type:'entry'; generation:number; id:number }
   | { type:'rule'; id:string; path:string }
@@ -88,6 +100,10 @@ export interface StorageApi {
   storageClean: (ids: string[]) => Promise<StorageActivity>
   storageApplications: () => Promise<StorageApplication[]>
   storageApplicationIcon: (id:string) => Promise<string|null>
+  storageOpenApplication: (id:string) => Promise<void>
+  storageCheckUpdates: () => Promise<StorageApplication[]>
+  storageUpdateApplication: (id:string) => Promise<StorageApplicationUpdateResult>
+  storageRelatedChildren: (input:{id:string;offset?:number}) => Promise<{items:RelatedApplicationFile[];more:boolean}>
   storageRelated: (id: string) => Promise<RelatedApplicationFile[]>
   storageUninstall: (input: { applicationId: string; ids: string[] }) => Promise<StorageActivity | null>
   onStorageProgress: (callback: (progress: StorageProgress) => void) => () => void

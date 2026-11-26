@@ -110,7 +110,7 @@ Do not reuse or move an existing release tag. Fix the source, increment the vers
 For a local signed DMG, sign the final disk image with the full Developer ID Application identity, then run:
 
 ```sh
-APPLE_SIGNING_IDENTITY='Developer ID Application: Beijing Digital Union Network Technology Co., Ltd. (6EDPX6CD7U)' APPLE_TEAM_ID=6EDPX6CD7U scripts/verify-mac-dmg.sh x64 release/Memento-1.0.8-x64.dmg developer-id-local
+APPLE_SIGNING_IDENTITY='Developer ID Application: Beijing Digital Union Network Technology Co., Ltd. (6EDPX6CD7U)' APPLE_TEAM_ID=6EDPX6CD7U scripts/verify-mac-dmg.sh x64 release/Memento-1.0.9-x64.dmg developer-id-local
 ```
 
 `MEMENTO_SMOKE_EXECUTABLE` can point `electron:smoke` at the packaged application executable. The smoke creates only its own test files and an isolated user profile. Local notarization is optional; public notarization and stapling remain mandatory.

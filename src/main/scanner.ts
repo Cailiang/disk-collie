@@ -1546,7 +1546,7 @@ async function scanStorage(
   )
 }
 
-interface ApplicationMetadata {
+export interface ApplicationMetadata {
   target: string
   name: string
   bundleId: string | null
@@ -1572,7 +1572,7 @@ interface HomebrewCaskUpdate {
   latestVersion: string | null
 }
 
-interface ApplicationUpdate {
+export interface ApplicationUpdate {
   source: 'homebrew-cask' | 'mac-app-store' | 'sparkle'
   token: string
   latestVersion: string | null
@@ -2005,7 +2005,7 @@ export function applicationScope(target: string): ApplicationScope {
   return 'shared'
 }
 
-async function findApplications(root: string, depth = 2): Promise<string[]> {
+export async function findApplications(root: string, depth = 2): Promise<string[]> {
   if (depth < 0) return []
   let entries: Awaited<ReturnType<typeof fs.readdir>>
   try {
@@ -2027,7 +2027,7 @@ async function findApplications(root: string, depth = 2): Promise<string[]> {
   return found
 }
 
-async function inspectApplication(target: string, language: AppLanguage): Promise<ApplicationMetadata | null> {
+export async function inspectApplication(target: string, language: AppLanguage, activityFallback = true): Promise<ApplicationMetadata | null> {
   const namePromise = resolveApplicationName(target, language)
   const infoPromise = readPlist(path.join(target, 'Contents', 'Info.plist'))
   const bundleModifiedAtPromise = applicationBundleModifiedAt(target)
@@ -2059,7 +2059,7 @@ async function inspectApplication(target: string, language: AppLanguage): Promis
       version: parseMetadataValue(stdout, 'kMDItemVersion') ??
         (typeof info?.CFBundleShortVersionString === 'string' ? info.CFBundleShortVersionString : t(language, '未知版本', 'Unknown version')),
       sizeBytes: Number.parseInt(sizeValue ?? '0', 10) || 0,
-      lastUsedAt: parseApplicationLastUsedDate(dateValue, bundleModifiedAt),
+      lastUsedAt: parseApplicationLastUsedDate(dateValue, activityFallback ? bundleModifiedAt : null),
       ...capabilities,
       buildVersion: typeof info?.CFBundleVersion === 'string' ? info.CFBundleVersion : null,
       appStoreReceipt: await pathExists(path.join(target, 'Contents', '_MASReceipt', 'receipt'))
@@ -2077,7 +2077,7 @@ async function inspectApplication(target: string, language: AppLanguage): Promis
           ? info.CFBundleShortVersionString
           : t(language, '未知版本', 'Unknown version'),
         sizeBytes: await getPathSize(target),
-        lastUsedAt: parseApplicationLastUsedDate(null, bundleModifiedAt),
+        lastUsedAt: parseApplicationLastUsedDate(null, activityFallback ? bundleModifiedAt : null),
         ...capabilities,
         buildVersion: typeof info.CFBundleVersion === 'string' ? info.CFBundleVersion : null,
         appStoreReceipt: await pathExists(path.join(target, 'Contents', '_MASReceipt', 'receipt'))
@@ -2089,12 +2089,42 @@ async function inspectApplication(target: string, language: AppLanguage): Promis
       bundleId: null,
       version: t(language, '未知版本', 'Unknown version'),
       sizeBytes: 0,
-      lastUsedAt: parseApplicationLastUsedDate(null, bundleModifiedAt),
+      lastUsedAt: parseApplicationLastUsedDate(null, activityFallback ? bundleModifiedAt : null),
       ...applicationPlistCapabilities(null),
       buildVersion: null,
       appStoreReceipt: false
     }
   }
+}
+
+export async function discoverApplicationUpdates(applications: readonly ApplicationMetadata[], language: AppLanguage): Promise<Map<string,ApplicationUpdate>> {
+  const [homebrewUpdates, macAppStoreUpdates, sparkleUpdates] = await Promise.all([
+    discoverHomebrewCaskUpdates(),
+    discoverMacAppStoreUpdates(applications, language),
+    mapLimit([...applications], 4, (application) => discoverSparkleUpdate(application))
+  ])
+  const sparkleByPath = new Map(applications.map((application, index) => [application.target, sparkleUpdates[index]]))
+  const updates = new Map<string,ApplicationUpdate>()
+  for (const application of applications) {
+    const brewUpdate = !application.appStoreReceipt && homebrewUpdates.find((candidate) => {
+      const applicationTokens = applicationUpdateTokens(application)
+      const updateTokens = caskUpdateTokens(candidate)
+      return applicationTokens.some((token) => updateTokens.includes(token)) &&
+        (!candidate.latestVersion || isVersionNewer(candidate.latestVersion, application.version))
+    })
+    const masUpdate = application.appStoreReceipt && application.bundleId
+      ? macAppStoreUpdates.get(application.bundleId.toLocaleLowerCase())
+      : undefined
+    const update = selectApplicationUpdate(
+      brewUpdate
+        ? { source: 'homebrew-cask' as const, token: brewUpdate.token, latestVersion: brewUpdate.latestVersion, mode: 'direct' as const }
+        : undefined,
+      masUpdate,
+      sparkleByPath.get(application.target)
+    )
+    if(update) updates.set(application.target,update)
+  }
+  return updates
 }
 
 async function scanApplications(
@@ -2106,12 +2136,7 @@ async function scanApplications(
   const appPaths = discovered.flat()
   const inspected = await mapLimit([...new Set(appPaths)], 8, (target) => inspectApplication(target, language))
   const applications = inspected.filter((item): item is ApplicationMetadata => item !== null)
-  const [homebrewUpdates, macAppStoreUpdates, sparkleUpdates] = await Promise.all([
-    discoverHomebrewCaskUpdates(),
-    discoverMacAppStoreUpdates(applications, language),
-    mapLimit(applications, 4, (application) => discoverSparkleUpdate(application))
-  ])
-  const sparkleByPath = new Map(applications.map((application, index) => [application.target, sparkleUpdates[index]]))
+  const updates = await discoverApplicationUpdates(applications, language)
   const inventoryApplications = applications.filter(
     (application) => application.bundleId !== 'com.fcl.memento'
   )
@@ -2135,22 +2160,7 @@ async function scanApplications(
         }
     if (action) actions.set(action.id, { kind: 'trash', target: application.target })
     revealTargets.set(id, application.target)
-    const brewUpdate = !application.appStoreReceipt && homebrewUpdates.find((candidate) => {
-      const applicationTokens = applicationUpdateTokens(application)
-      const updateTokens = caskUpdateTokens(candidate)
-      return applicationTokens.some((token) => updateTokens.includes(token)) &&
-        (!candidate.latestVersion || isVersionNewer(candidate.latestVersion, application.version))
-    })
-    const masUpdate = application.appStoreReceipt && application.bundleId
-      ? macAppStoreUpdates.get(application.bundleId.toLocaleLowerCase())
-      : undefined
-    const update = selectApplicationUpdate(
-      brewUpdate
-        ? { source: 'homebrew-cask' as const, token: brewUpdate.token, latestVersion: brewUpdate.latestVersion, mode: 'direct' as const }
-        : undefined,
-      masUpdate,
-      sparkleByPath.get(application.target)
-    )
+    const update = updates.get(application.target)
     return {
       id,
       name: application.name,
