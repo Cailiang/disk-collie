@@ -4,6 +4,20 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.20 - 2026-11-26
+
+### English
+
+- Redraw the logo as a right-facing line-art border collie, with a folded ear tip, forehead blaze, long muzzle, playful tongue and neck ruff.
+- Share the profile across sidebar, Cleanup advisor, startup, favicon and regenerated PNG/ICNS application icons, retaining theme colors.
+- Verify profile visibility, bounds and theme color in the four-viewport UI coverage.
+
+### 简体中文
+
+- Logo 改为朝右的边牧侧脸简笔画，加入折耳尖、额头白斑、长吻、吐舌和颈部毛。
+- 侧栏、清理顾问、启动页、网页图标和重新导出的 PNG／ICNS 应用图标同步使用侧脸，保留主题色。
+- 四尺寸 UI 验证侧脸显示、边界和主题配色。
+
 ## 1.0.19 - 2026-11-26
 
 ### English

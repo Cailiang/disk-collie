@@ -1,4 +1,4 @@
-# Cross-platform storage rebuild — 1.0.19
+# Cross-platform storage rebuild — 1.0.20
 
 Branch: `rebuild/cross-platform-memento`. The product is organized around freeing storage; process management and the existing user-configured local Agent remain core tools.
 
@@ -190,3 +190,7 @@ Navigation uses a repo-owned 24px icon family with a 1.7px stroke and distinct f
 The photographic mascot is replaced by a repo-native SVG line drawing that inherits theme ink/surfaces. One canonical face supplies the inline sidebar/advisor mark, pre-React startup and PNG/ICNS icon export. Raster dog assets are removed. Articulated legs/tail/head and toys are drawn directly in SVG; cubic interpolation connects explicit twenty-second narrative cues. Four distinct stories include mishaps and endings, followed automatically by a different story, with alternating staging on later passes. Pause/resume and next-story controls are independent of scan operations.
 
 A large responsive scan stage occupies available space. Initial Deep cleanup and Privacy omit empty category/skeleton panels; file-scan result controls return after completion without discarding state. Animation never delays scan completion. Intersection visibility and reduced-motion settings suspend drawing; the timeline does not represent file progress. Pure timeline tests verify continuity, bounds and phase variety, while browser-controlled time covers full handoff/pause/theme/reduced-motion behavior. The browser-only demoScanMs query holds demo work for long-story QA; native IPC duration is unaffected. MASCOT_ASSETS.md describes source ownership and exports.
+
+## Border collie profile branding — 1.0.20
+
+The canonical logo is a right-facing line-art border collie profile, with a folded ear tip, forehead blaze, long muzzle and neck ruff. CollieMark inlines it for sidebar and advisor use; the icon exporter synchronizes startup markup and native PNG/ICNS assets, and the favicon uses the same SVG. Runtime marks inherit theme ink. Four-viewport UI checks cover visibility, viewBox bounds, theme color and consistency between branding surfaces.

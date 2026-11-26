@@ -1,3 +1,10 @@
+# Memento 1.0.20 — 边牧侧脸 Logo / Border collie profile logo
+
+- Logo 改为可爱的边牧侧脸线条画，以折耳尖、额头白斑、长吻和颈部毛体现边牧特征。
+- 同步侧栏、清理顾问、启动页、网页图标及应用图标，颜色继续跟随主题。
+
+English: a cute right-facing border collie profile replaces the front-facing logo. The folded ear tip, forehead blaze, long muzzle and neck ruff carry through sidebar, advisor, startup, favicon and PNG/ICNS application icons, with themed UI ink.
+
 # Memento 1.0.19 — 线条边牧小剧场 / Line-art collie stories
 
 - 边牧与 Logo 改为跟随软件主题色的简笔线条画，移除照片素材。

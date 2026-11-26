@@ -4,14 +4,14 @@ The current mascot is code-drawn SVG line art. It follows the active theme throu
 
 | Source | Purpose |
 | --- | --- |
-| `src/renderer/src/assets/mascot/collie-mark.svg` | Canonical line-art face: tipped ear, forehead blaze, happy muzzle |
+| `src/renderer/src/assets/mascot/collie-mark.svg` | Canonical right-facing border collie profile: folded ear tip, forehead blaze, long muzzle and neck ruff |
 | `src/renderer/src/CollieMark.tsx` | Inline themed sidebar and advisor mark |
 | `src/renderer/src/collie-story.ts` | Four twenty-second timelines with continuous pose/prop interpolation |
 | `src/renderer/src/MascotScene.tsx` | Articulated legs, tail, face and props; animation clock and story handoff |
 | `src/renderer/src/MascotScene.css` | Main scan stage, responsive sizing and controls |
 | `scripts/generate-icon.mjs` | Reproducible PNG/ICNS and startup exports from the SVG |
 
-`npm run icon` runs on macOS and exports the SVG to `build/icon.png` and `build/icon.icns`. The native icon uses the default forest-green ink on a quiet light tile. Runtime UI marks inherit the selected theme. The same canonical face paths are inserted into the pre-React startup markup; its color follows the startup theme.
+`npm run icon` runs on macOS and exports the SVG to `build/icon.png` and `build/icon.icns`. The native icon uses the default forest-green ink on a quiet light tile. Runtime UI marks inherit the selected theme. The same canonical profile paths are inserted into the pre-React startup markup; its color follows the startup theme. Since 1.0.20, branding uses a side profile with a folded ear tip, forehead blaze, long muzzle, playful tongue and neck ruff. The full-body scan-story artwork is separate.
 
 Each story lasts 20,000 ms and contains at least eight distinct narrative phases:
 
