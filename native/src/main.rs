@@ -11,6 +11,23 @@ use std::{
 };
 
 const NONE: u32 = u32::MAX;
+
+#[cfg(any(windows, test))]
+fn windows_path_key(value: &str) -> String {
+    let value = value.replace('/', "\\").to_lowercase();
+    if let Some(unc) = value.strip_prefix(r"\\?\unc\") {
+        format!(r"\\{unc}")
+    } else {
+        value.strip_prefix(r"\\?\").unwrap_or(&value).to_string()
+    }
+}
+
+fn scan_path_key(value: &Path) -> std::path::PathBuf {
+    #[cfg(windows)]
+    { std::path::PathBuf::from(windows_path_key(&value.to_string_lossy())) }
+    #[cfg(not(windows))]
+    { value.to_path_buf() }
+}
 #[cfg(target_os = "macos")]
 mod macos_bulk;
 
@@ -268,7 +285,7 @@ impl Index {
         let include_hidden = options["includeHidden"].as_bool().unwrap_or(false);
         let excluded: Vec<_> = options["excludePaths"]
             .as_array()
-            .map(|v| v.iter().filter_map(|v| v.as_str()).map(|p| fs::canonicalize(p).unwrap_or_else(|_| std::path::PathBuf::from(p))).collect())
+            .map(|v| v.iter().filter_map(|v| v.as_str()).map(|p| scan_path_key(&fs::canonicalize(p).unwrap_or_else(|_| std::path::PathBuf::from(p)))).collect())
             .unwrap_or_default();
         let excluded_names: Vec<_> = options["excludeNames"].as_array()
             .map(|names| names.iter().filter_map(|name| name.as_str()).collect())
@@ -302,7 +319,7 @@ impl Index {
                 self.skipped += skipped;
                 for entry in children {
                     self.visited += 1;
-                    if excluded.contains(&std::path::PathBuf::from(&entry.path))
+                    if excluded.contains(&scan_path_key(Path::new(&entry.path)))
                         || excluded_names.iter().any(|name| if cfg!(windows) {entry.name.eq_ignore_ascii_case(name)} else {entry.name == *name}) {
                         self.skipped += 1;
                         continue;
@@ -827,6 +844,12 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn windows_exclusion_keys_match_case_and_verbatim_drive_and_unc_paths() {
+        assert_eq!(windows_path_key(r"\\?\C:\Users\Test\AppData"),windows_path_key("c:/users/test/appdata"));
+        assert_eq!(windows_path_key(r"\\?\UNC\Server\Share\Private"),windows_path_key(r"\\server\share\private"));
+        assert_ne!(windows_path_key(r"C:\Private"),windows_path_key(r"C:\Private-copy"));
+    }
     #[test]
     fn index_groups_only_equal_content_and_revalidates_changes() {
         let dir = tempfile::tempdir().unwrap();

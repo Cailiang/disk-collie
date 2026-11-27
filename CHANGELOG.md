@@ -12,6 +12,7 @@ Memento Client 的重要变更会在这里使用英文和简体中文同步记�
 - Move source, updater, issue/security links and release workflows to Cailiang/disk-collie, preserving project history and the new repository's initial license commit. Retire and archive the original repository.
 - Migrate old profiles using a consistent SQLite snapshot and the original encryption key. Retain provider credentials, settings, conversations and cleanup totals, preserve the old profile, and never overwrite existing new data or redirect custom profiles.
 - Keep legacy database names, protected data folders, terminal markers and game scores compatible. Treat a new repository without a published release as up to date. Extend migration, updater, Electron and four-viewport branding checks.
+- Normalize Windows exclusion paths consistently across canonical namespace prefixes, drive/UNC paths and casing so excluded folders are pruned before indexing and hashing.
 
 ### 简体中文
 
@@ -19,6 +20,7 @@ Memento Client 的重要变更会在这里使用英文和简体中文同步记�
 - 代码、更新地址、问题／安全入口和发布流程迁至 Cailiang/disk-collie，保留原有历史和新仓库初始许可证提交；旧仓库停止维护并归档。
 - 旧数据通过一致的 SQLite 快照连同原有加密密钥迁移，保留供应商、配置、对话与清理统计，原数据不删除，新数据不覆盖，手动指定的数据目录不重定向。
 - 兼容旧数据库名、受保护目录、终端标记和游戏得分；新仓库尚无发布版本时显示已是最新，补充迁移、更新、Electron 与四尺寸品牌检查。
+- 统一 Windows 忽略目录的命名空间前缀、盘符／网络路径和大小写比较，确保在建索引、计算哈希前跳过这些目录。
 
 ## 1.0.23 - 2026-11-27
 
