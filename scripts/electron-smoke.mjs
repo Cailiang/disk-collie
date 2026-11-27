@@ -6,6 +6,7 @@ import path from 'node:path'
 import { spawn,execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import assert from 'node:assert/strict'
+const samePath=(left,right)=>process.platform==='win32'?path.resolve(left).toLowerCase()===path.resolve(right).toLowerCase():path.resolve(left)===path.resolve(right)
 import { _electron as electronLauncher } from 'playwright-core'
 import { verifyProviderKeyEditing } from './provider-key-smoke.mjs'
 const {DatabaseSync}=createRequire(import.meta.url)('node:sqlite')
@@ -135,21 +136,21 @@ try{
   mkdirSync(path.join(trashFolder,'.hidden'),{recursive:true});writeFileSync(path.join(trashFolder,'visible.txt'),'owned visible');writeFileSync(path.join(trashFolder,'.hidden/keep-until-confirmed.txt'),'owned hidden')
   mkdirSync(excludedFolder);writeFileSync(path.join(excludedFolder,'not-scanned.bin'),Buffer.alloc(1024,13))
   await electronApp.evaluate(({dialog},folder)=>{globalThis.__diskcollieOriginalFolderPicker=dialog.showOpenDialog;dialog.showOpenDialog=async()=>({canceled:false,filePaths:[folder]})},excludedFolder)
-  const excludedSettings=await p.evaluate(()=>window.diskCollie.addScanExcludedDirectory());assert(excludedSettings.scanExcludedDirectories.includes(excludedFolder))
+  const excludedSettings=await p.evaluate(()=>window.diskCollie.addScanExcludedDirectory()),savedExclusion=excludedSettings.scanExcludedDirectories.find(directory=>samePath(directory,excludedFolder));assert(savedExclusion)
   await electronApp.evaluate(({dialog})=>{dialog.showOpenDialog=globalThis.__diskcollieOriginalFolderPicker;delete globalThis.__diskcollieOriginalFolderPicker})
   const invalidated=await p.evaluate(()=>window.diskCollie.storageState());assert.equal(invalidated.index,null);assert.deepEqual(invalidated.indexes,{})
   const directoryIndex=await p.evaluate(()=>window.diskCollie.storageScan({mode:'analysis',includeHidden:false}))
   const rootChildren=await p.evaluate(generation=>window.diskCollie.storageChildren({generation,id:0}),directoryIndex.generation)
-  assert(!rootChildren.items.some(entry=>entry.path===excludedFolder),'Excluded folder must be pruned by the real native scanner')
-  const directoryEntry=rootChildren.items.find(entry=>entry.path===trashFolder);assert(directoryEntry?.trashable)
+  assert(!rootChildren.items.some(entry=>samePath(entry.path,excludedFolder)),'Excluded folder must be pruned by the real native scanner')
+  const directoryEntry=rootChildren.items.find(entry=>samePath(entry.path,trashFolder));assert(directoryEntry?.trashable)
   const directoryPlan=await p.evaluate(input=>window.diskCollie.storageDirectoryPlan(input),{generation:directoryIndex.generation,id:directoryEntry.id});assert.equal(directoryPlan.files,2);assert.equal(directoryPlan.hiddenFiles,1);assert(existsSync(trashFolder),'Review must leave the complete folder intact')
   writeFileSync(path.join(trashFolder,'.hidden/changed.txt'),'new hidden work')
   const changedDirectory=await p.evaluate(async input=>{try{await window.diskCollie.storageTrash(input);return false}catch{return true}},{generation:directoryIndex.generation,ids:[directoryEntry.id],kind:'analysis',directoryPlanId:directoryPlan.id});assert(changedDirectory);assert(existsSync(trashFolder),'Changed directory must not move to Trash')
   const refreshedDirectoryPlan=await p.evaluate(input=>window.diskCollie.storageDirectoryPlan(input),{generation:directoryIndex.generation,id:directoryEntry.id})
   const directoryOutcome=await p.evaluate(input=>window.diskCollie.storageTrash(input),{generation:directoryIndex.generation,ids:[directoryEntry.id],kind:'analysis',directoryPlanId:refreshedDirectoryPlan.id});assert.equal(directoryOutcome.items,1);assert.equal(directoryOutcome.failures,0);assert(!existsSync(trashFolder));assert(existsSync(path.join(excludedFolder,'not-scanned.bin')))
   assert.equal((await p.evaluate(generation=>window.diskCollie.storageChildren({generation,id:0}),directoryIndex.generation)).items.some(entry=>entry.path===trashFolder),false)
-  const removedExclusion=await p.evaluate(directory=>window.diskCollie.removeScanExcludedDirectory(directory),excludedFolder);assert.deepEqual(removedExclusion.scanExcludedDirectories,[])
-  const restoredIndex=await p.evaluate(()=>window.diskCollie.storageScan({mode:'analysis'}));assert((await p.evaluate(generation=>window.diskCollie.storageChildren({generation,id:0}),restoredIndex.generation)).items.some(entry=>entry.path===excludedFolder),'Removed exclusion must appear in the next native scan')
+  const removedExclusion=await p.evaluate(directory=>window.diskCollie.removeScanExcludedDirectory(directory),savedExclusion);assert.deepEqual(removedExclusion.scanExcludedDirectories,[])
+  const restoredIndex=await p.evaluate(()=>window.diskCollie.storageScan({mode:'analysis'}));assert((await p.evaluate(generation=>window.diskCollie.storageChildren({generation,id:0}),restoredIndex.generation)).items.some(entry=>samePath(entry.path,excludedFolder)),'Removed exclusion must appear in the next native scan')
   await p.evaluate(directories=>window.diskCollie.updateAppSettings({scanExcludedDirectories:directories}),[excludedFolder])
   // Await the coalesced startup discovery, including its cache write, instead of a Promise-valued browser predicate.
   const beforeApps=await p.evaluate(()=>window.diskCollie.storageApplications(true));assert(beforeApps.length>0);const completedInventory=await p.evaluate(()=>window.diskCollie.storageApplicationState());assert(completedInventory.updatedAt&&!completedInventory.refreshing&&!completedInventory.error,'Application discovery must complete successfully');const cached=JSON.parse(readFileSync(path.join(profile,'application-inventory.json'),'utf8'));assert.equal(cached.entries.length,beforeApps.length,'Startup inventory must persist its complete cache');
