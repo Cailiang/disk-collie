@@ -4,6 +4,20 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.29 - 2026-11-27
+
+### English
+
+- Inspect physical filesystem entries during folder Trash review and file/application snapshots. Electron's virtual ASAR directories use synthetic identities and previously caused an incorrect protected-content/cross-volume rejection for ordinary project folders containing packaged apps.
+- Treat each ASAR as one physical file, preserve strict identity/tree-change checks, and avoid changing Electron's global ASAR behavior.
+- Add a real ASAR archive to the production Electron smoke, verify physical size/counts, reject an archive changed after review, and move only the smoke-owned folder to Trash.
+
+### 简体中文
+
+- 目录移到废纸篓复核及文件／应用快照改为读取真实文件系统；修复 Electron 将 ASAR 归档虚拟成目录、返回合成标识后，项目目录被误判为跨盘受保护内容的问题。
+- ASAR 按一个真实文件计数和计量，保留身份、完整目录与变化复核，不修改 Electron 的全局 ASAR 行为。
+- 真实 Electron 冒烟加入真实 ASAR，校验物理体积和数量，拒绝复核后变化的归档，并验证仅将测试自有目录移到废纸篓。
+
 ## 1.0.28 - 2026-11-27
 
 ### English

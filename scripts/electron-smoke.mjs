@@ -9,6 +9,7 @@ const samePath=(left,right)=>process.platform==='win32'?path.resolve(left).toLow
 import { _electron as electronLauncher } from 'playwright-core'
 import { verifyProviderKeyEditing } from './provider-key-smoke.mjs'
 const {DatabaseSync}=createRequire(import.meta.url)('node:sqlite')
+const {createPackage}=createRequire(import.meta.url)('@electron/asar')
 const smokePrivacyRoot=realpathSync.native(mkdtempSync(path.join(tmpdir(),'diskcollie-privacy-electron-')))
 function privacyFixture(){
   const now=Date.now(),times=[now-10*86400000,now-300000,now+86400000],chromeTime=(value)=>(BigInt(value)+11644473600000n)*1000n
@@ -133,6 +134,10 @@ try{
   const trashFolder=path.join(fixture,'diskcollie-owned-folder'),excludedFolder=path.join(fixture,'diskcollie-excluded-folder')
   mkdirSync(path.join(trashFolder,'.hidden'),{recursive:true});writeFileSync(path.join(trashFolder,'visible.txt'),'owned visible');writeFileSync(path.join(trashFolder,'.hidden/keep-until-confirmed.txt'),'owned hidden')
   const ownedBundle=path.join(trashFolder,'node_modules/electron/dist/Electron.app/Contents/MacOS');mkdirSync(ownedBundle,{recursive:true});writeFileSync(path.join(ownedBundle,'Electron'),'owned project dependency runtime')
+  const archiveSource=path.join(profile,'owned-archive-source'),archive=path.join(ownedBundle,'../Resources/app.asar')
+  mkdirSync(archiveSource);writeFileSync(path.join(archiveSource,'.env.example'),'SYNTHETIC_EXAMPLE=true');mkdirSync(path.dirname(archive),{recursive:true});await createPackage(archiveSource,archive)
+  const archiveStats=await electronApp.evaluate((_,archive)=>{const load=process.getBuiltinModule('module').createRequire(process.execPath),virtual=load('node:fs').lstatSync(archive),physical=load('original-fs').lstatSync(archive);return {virtualDirectory:virtual.isDirectory(),physicalFile:physical.isFile()}},archive)
+  assert(archiveStats.virtualDirectory&&archiveStats.physicalFile,'Regression fixture must exercise Electron’s real ASAR filesystem patch')
   mkdirSync(excludedFolder);writeFileSync(path.join(excludedFolder,'not-scanned.bin'),Buffer.alloc(1024,13))
   await electronApp.evaluate(({dialog},folder)=>{globalThis.__diskcollieOriginalFolderPicker=dialog.showOpenDialog;dialog.showOpenDialog=async()=>({canceled:false,filePaths:[folder]})},excludedFolder)
   const excludedSettings=await p.evaluate(()=>window.diskCollie.addScanExcludedDirectory()),savedExclusion=excludedSettings.scanExcludedDirectories.find(directory=>samePath(directory,excludedFolder));assert(savedExclusion)
@@ -142,7 +147,10 @@ try{
   const rootChildren=await p.evaluate(generation=>window.diskCollie.storageChildren({generation,id:0}),directoryIndex.generation)
   assert(!rootChildren.items.some(entry=>samePath(entry.path,excludedFolder)),'Excluded folder must be pruned by the real native scanner')
   const directoryEntry=rootChildren.items.find(entry=>samePath(entry.path,trashFolder));assert(directoryEntry?.trashable)
-  const directoryPlan=await p.evaluate(input=>window.diskCollie.storageDirectoryPlan(input),{generation:directoryIndex.generation,id:directoryEntry.id});assert.equal(directoryPlan.files,3);assert.equal(directoryPlan.hiddenFiles,1);assert(existsSync(trashFolder),'Review must leave the complete folder intact')
+  let directoryPlan=await p.evaluate(input=>window.diskCollie.storageDirectoryPlan(input),{generation:directoryIndex.generation,id:directoryEntry.id});assert.equal(directoryPlan.files,4);assert.equal(directoryPlan.hiddenFiles,1);assert(existsSync(trashFolder),'Review must leave the complete folder intact');assert.equal(directoryPlan.size,readFileSync(archive).length+Buffer.byteLength('owned visibleowned hiddenowned project dependency runtime'),'Count the physical archive bytes once, without traversing its virtual .env.example')
+  writeFileSync(archive,Buffer.concat([readFileSync(archive),Buffer.from('changed owned archive')]))
+  const changedArchive=await p.evaluate(async input=>{try{await window.diskCollie.storageTrash(input);return false}catch{return true}},{generation:directoryIndex.generation,ids:[directoryEntry.id],kind:'analysis',directoryPlanId:directoryPlan.id});assert(changedArchive);assert(existsSync(trashFolder),'An archive changed after review must not authorize Trash')
+  directoryPlan=await p.evaluate(input=>window.diskCollie.storageDirectoryPlan(input),{generation:directoryIndex.generation,id:directoryEntry.id})
   writeFileSync(path.join(trashFolder,'.hidden/changed.txt'),'new hidden work')
   const changedDirectory=await p.evaluate(async input=>{try{await window.diskCollie.storageTrash(input);return false}catch{return true}},{generation:directoryIndex.generation,ids:[directoryEntry.id],kind:'analysis',directoryPlanId:directoryPlan.id});assert(changedDirectory);assert(existsSync(trashFolder),'Changed directory must not move to Trash')
   const refreshedDirectoryPlan=await p.evaluate(input=>window.diskCollie.storageDirectoryPlan(input),{generation:directoryIndex.generation,id:directoryEntry.id})
@@ -171,7 +179,7 @@ try{
   await electronApp.close();const ownedPrivacy=privacyFixture();electronApp=await launch(smokePrivacyRoot);const restarted=await electronApp.firstWindow();restarted.on('pageerror',e=>errors.push(e.message));await restarted.locator('.nav-button[title="首页"]').waitFor({timeout:20000});assert((await restarted.evaluate(()=>window.diskCollie.getAppSettings())).scanExcludedDirectories.some(directory=>samePath(directory,excludedFolder)),'Excluded directories must persist after restart');const restoredInventory=await restarted.evaluate(()=>window.diskCollie.storageApplicationState());assert(restoredInventory.applications.some(application=>application.id===beforeApps[0].id),'Warm launch must restore stable application IDs without opening Applications');const restoredHistory=await restarted.evaluate(()=>window.diskCollie.storageState());assert.equal(restoredHistory.history.filter(record=>record.id===legacyActivity.id).length,1);assert(restoredHistory.history.some(record=>record.kind==='analysis'&&record.items===1),'Explorer cleanup must survive restart');assert.equal(await restarted.locator('.overview-recent').count(),0)
   const privacyOutcome=await verifyPrivacyFixture(restarted,ownedPrivacy);assert.deepEqual(errors,[])
   await electronApp.close();electronApp=await launch(smokePrivacyRoot);const privacyRestarted=await electronApp.firstWindow();await privacyRestarted.locator('.nav-button[title="首页"]').waitFor({timeout:20000});const persistedPrivacy=await privacyRestarted.evaluate(()=>window.diskCollie.storageState());assert(persistedPrivacy.history.some(record=>record.kind==='privacy'&&record.items===privacyOutcome.selected&&record.traces===privacyOutcome.traces),'Verified privacy outcomes must persist after restart')
-  console.log(`Electron smoke passed: production IPC, native scan (${state.index.elapsedMs}ms), tree file actions, cross-group duplicate batch guard and real Trash operations on owned fixtures, persisted activity, ${metrics.processes.length} processes, ${applicationCount} applications, registered application actions, read-only real privacy scan, ${privacyOutcome.traces} owned privacy traces, encrypted provider editing. Version ${version}.`)
+  console.log(`Electron smoke passed: production IPC, native scan (${state.index.elapsedMs}ms), tree file actions, physical ASAR directory review and changed-archive rejection, cross-group duplicate batch guard and real Trash operations on owned fixtures, persisted activity, ${metrics.processes.length} processes, ${applicationCount} applications, registered application actions, read-only real privacy scan, ${privacyOutcome.traces} owned privacy traces, encrypted provider editing. Version ${version}.`)
 }finally{
   if(ownedWorker?.exitCode===null&&!ownedWorker.signalCode)ownedWorker.kill('SIGKILL')
   await electronApp?.close().catch(()=>undefined)

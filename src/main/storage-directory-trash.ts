@@ -1,4 +1,4 @@
-import {lstat,readdir,readlink} from 'node:fs/promises'
+import {lstat,readdir,readlink} from './physical-fs'
 import os from 'node:os'
 import path from 'node:path'
 import type {StorageDirectoryPlan} from '../shared/storage-directory-types'
