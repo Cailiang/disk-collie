@@ -10,8 +10,8 @@ const samePath=(left,right)=>process.platform==='win32'?path.resolve(left).toLow
 import { _electron as electronLauncher } from 'playwright-core'
 import { verifyProviderKeyEditing } from './provider-key-smoke.mjs'
 const {DatabaseSync}=createRequire(import.meta.url)('node:sqlite')
-const smokeDeepRoot=realpathSync(mkdtempSync(path.join(tmpdir(),'diskcollie-deep-electron-')))
-const smokePrivacyRoot=realpathSync(mkdtempSync(path.join(tmpdir(),'diskcollie-privacy-electron-')))
+const smokeDeepRoot=realpathSync.native(mkdtempSync(path.join(tmpdir(),'diskcollie-deep-electron-')))
+const smokePrivacyRoot=realpathSync.native(mkdtempSync(path.join(tmpdir(),'diskcollie-privacy-electron-')))
 function privacyFixture(){
   const now=Date.now(),times=[now-10*86400000,now-300000,now+86400000],chromeTime=(value)=>(BigInt(value)+11644473600000n)*1000n
   const roots=process.platform==='darwin'?['Library/Application Support/Google/Chrome','Library/Application Support/Microsoft Edge','Library/Application Support/Vivaldi']:process.platform==='win32'?['AppData/Local/Google/Chrome/User Data','AppData/Local/Microsoft/Edge/User Data','AppData/Local/Vivaldi/User Data']:['.config/google-chrome','.config/microsoft-edge','.config/vivaldi']

@@ -12,8 +12,8 @@ const sortedPaths=(values)=>values.map(pathIdentity).sort()
 
 /** All destructive smoke inputs are created beneath this explicit, owned home. */
 export function createDeepFixture(root){
-  mkdirSync(root,{recursive:true});root=realpathSync(root)
-  assert(root!==path.parse(root).root&&root!==realpathSync(homedir()),'A real user home must never be used for the deep-clean fixture')
+  mkdirSync(root,{recursive:true});root=realpathSync.native(root)
+  assert(root!==path.parse(root).root&&root!==realpathSync.native(homedir()),'A real user home must never be used for the deep-clean fixture')
   const marker=path.join(root,'.diskcollie-deep-clean-smoke-owned')
   assert(!existsSync(marker),'Use a new empty deep-clean fixture home')
   writeFileSync(marker,'Owned deep-clean smoke fixture\n')
@@ -76,7 +76,7 @@ const readPreserved=(fixture)=>{
 
 /** Use the production IPC and UI. The caller must launch with both test roots pointing at fixture.root. */
 export async function verifyDeepFixture(page,fixture){
-  assert.equal(realpathSync(fixture.root),fixture.root)
+  assert.equal(realpathSync.native(fixture.root),fixture.root)
   await page.locator('.nav-button[title="深度清理"]').click()
   const initial=page.locator('.deep-first-scan')
   if(await initial.count())await initial.getByRole('button',{name:'开始扫描',exact:true}).click()
