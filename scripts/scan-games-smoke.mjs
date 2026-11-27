@@ -141,7 +141,12 @@ export async function verifyScanGames(browser,baseUrl,directory){
     if(mode==='frisbee')assert(result.state.score>0,'Caught discs score points')
     assert(await page.locator('.space-large .space-progress-heading').getByRole('button',{name:'取消',exact:true}).isEnabled(),'Gameplay must leave scan cancellation available')
   }
-  await page.emulateMedia({reducedMotion:'reduce'});await page.clock.runFor(50);assert(await game.evaluate(element=>element.classList.contains('is-motion-reduced')))
+  await page.emulateMedia({reducedMotion:'reduce'})
+  // Chromium dispatches media changes between frames, independently of the controlled game clock.
+  for(let attempt=0;attempt<20&&!await game.evaluate(element=>element.classList.contains('is-motion-reduced'));attempt++){
+    await page.waitForTimeout(20);await page.clock.runFor(50)
+  }
+  assert(await game.evaluate(element=>element.classList.contains('is-motion-reduced')))
   await game.getByRole('button',{name:'越障快跑',exact:true}).click();await page.clock.runFor(400);assert.equal(await phase(),'ready','Reduced motion never starts a game automatically');await page.keyboard.press('Space');await page.clock.runFor(150);assert.equal(await phase(),'running','User-started play remains available with reduced motion')
   await page.setViewportSize({width:390,height:844});await settleGameViewport(page,game);assert.equal(await phase(),'paused','Resizing an active game must pause the round');await page.screenshot({path:`${directory}/390-game.png`});assert(await game.evaluate(element=>element.scrollWidth<=element.clientWidth+1),'The game must fit narrow windows')
   const beforeResize=await readGame(game),cameraWidths=[]
