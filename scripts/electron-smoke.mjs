@@ -1,5 +1,5 @@
 import {acknowledgeMessage} from './message-smoke.mjs'
-import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync, mkdirSync, realpathSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync, mkdirSync, realpathSync, copyFileSync } from 'node:fs'
 import { tmpdir, homedir } from 'node:os'
 import path from 'node:path'
 import { spawn,execFileSync } from 'node:child_process'
@@ -136,7 +136,10 @@ try{
   const ownedBundle=path.join(trashFolder,'node_modules/electron/dist/Electron.app/Contents/MacOS');mkdirSync(ownedBundle,{recursive:true});writeFileSync(path.join(ownedBundle,'Electron'),'owned project dependency runtime')
   const archiveSource=path.join(profile,'owned-archive-source'),archive=path.join(ownedBundle,'../Resources/app.asar')
   mkdirSync(archiveSource);writeFileSync(path.join(archiveSource,'.env.example'),'SYNTHETIC_EXAMPLE=true');mkdirSync(path.dirname(archive),{recursive:true});await createPackage(archiveSource,archive)
-  const archiveStats=await electronApp.evaluate((_,archive)=>{const load=process.getBuiltinModule('module').createRequire(process.execPath),virtual=load('node:fs').lstatSync(archive),physical=load('original-fs').lstatSync(archive);return {virtualDirectory:virtual.isDirectory(),physicalFile:physical.isFile()}},archive)
+  // Electron caches archive handles on Windows. Probe a separate copy so the test
+  // itself does not lock the archive that the physical folder operation must move.
+  const archiveProbe=path.join(profile,'owned-archive-probe.asar');copyFileSync(archive,archiveProbe)
+  const archiveStats=await electronApp.evaluate((_,archive)=>{const load=process.getBuiltinModule('module').createRequire(process.execPath),virtual=load('node:fs').lstatSync(archive),physical=load('original-fs').lstatSync(archive);return {virtualDirectory:virtual.isDirectory(),physicalFile:physical.isFile()}},archiveProbe)
   assert(archiveStats.virtualDirectory&&archiveStats.physicalFile,'Regression fixture must exercise Electron’s real ASAR filesystem patch')
   mkdirSync(excludedFolder);writeFileSync(path.join(excludedFolder,'not-scanned.bin'),Buffer.alloc(1024,13))
   await electronApp.evaluate(({dialog},folder)=>{globalThis.__diskcollieOriginalFolderPicker=dialog.showOpenDialog;dialog.showOpenDialog=async()=>({canceled:false,filePaths:[folder]})},excludedFolder)
@@ -154,7 +157,7 @@ try{
   writeFileSync(path.join(trashFolder,'.hidden/changed.txt'),'new hidden work')
   const changedDirectory=await p.evaluate(async input=>{try{await window.diskCollie.storageTrash(input);return false}catch{return true}},{generation:directoryIndex.generation,ids:[directoryEntry.id],kind:'analysis',directoryPlanId:directoryPlan.id});assert(changedDirectory);assert(existsSync(trashFolder),'Changed directory must not move to Trash')
   const refreshedDirectoryPlan=await p.evaluate(input=>window.diskCollie.storageDirectoryPlan(input),{generation:directoryIndex.generation,id:directoryEntry.id})
-  const directoryOutcome=await p.evaluate(input=>window.diskCollie.storageTrash(input),{generation:directoryIndex.generation,ids:[directoryEntry.id],kind:'analysis',directoryPlanId:refreshedDirectoryPlan.id});assert.equal(directoryOutcome.items,1);assert.equal(directoryOutcome.failures,0);assert(!existsSync(trashFolder));assert(existsSync(path.join(excludedFolder,'not-scanned.bin')))
+  const directoryOutcome=await p.evaluate(input=>window.diskCollie.storageTrash(input),{generation:directoryIndex.generation,ids:[directoryEntry.id],kind:'analysis',directoryPlanId:refreshedDirectoryPlan.id});assert.equal(directoryOutcome.items,1,JSON.stringify(directoryOutcome));assert.equal(directoryOutcome.failures,0);assert(!existsSync(trashFolder));assert(existsSync(path.join(excludedFolder,'not-scanned.bin')))
   assert.equal((await p.evaluate(generation=>window.diskCollie.storageChildren({generation,id:0}),directoryIndex.generation)).items.some(entry=>entry.path===trashFolder),false)
   const removedExclusion=await p.evaluate(directory=>window.diskCollie.removeScanExcludedDirectory(directory),savedExclusion);assert.deepEqual(removedExclusion.scanExcludedDirectories,[])
   const restoredIndex=await p.evaluate(()=>window.diskCollie.storageScan({mode:'analysis'}));assert((await p.evaluate(generation=>window.diskCollie.storageChildren({generation,id:0}),restoredIndex.generation)).items.some(entry=>samePath(entry.path,excludedFolder)),'Removed exclusion must appear in the next native scan')
