@@ -2,6 +2,8 @@
 
 DiskCollie Agent is a from-scratch product rebuild. Reuse deterministic scanner and cleanup internals when they remain useful, but do not restore the old Renderer, hosted AI analysis, legacy Memento Server, OAuth, or AI Gateway architecture.
 
+This repository is self-contained. Resolve source, assets, tests and packaging inputs from this repository root. The former source checkout is retired and may be deleted; do not read it or use it as a fallback. Any required project-owned input must be migrated into this repository before use. Legacy user-profile migration is separate from the retired source checkout.
+
 For every user-requested code or UI change in this repository, complete every item below before sending the final response. Do not defer packaging or wait for the user to remind you:
 
 1. Keep UI structure, copy, and interaction consistent across the production Renderer, current project documentation, and automated UI coverage in this repository. Update them together when visible behavior changes.
