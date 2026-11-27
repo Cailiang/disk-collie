@@ -1,8 +1,8 @@
 # Changelog / 更新记录
 
-All notable changes to Memento Client are documented here in English and Simplified Chinese.
+All notable changes to DiskCollie are documented here in English and Simplified Chinese.
 
-Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
+DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
 ## 1.0.24 - 2026-11-27
 
