@@ -8,12 +8,14 @@ DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
 ### English
 
+- Put direct installer downloads and real screenshots at the top of the repository documentation, move detailed features into linked guides, and keep the public release description focused on the current version.
 - Publish DiskCollie for macOS, Windows and Linux on x64 and arm64 after the repository migration.
 - Fix release collection to use Electron Builder’s actual Linux x64 names: `x86_64.AppImage` and `amd64.deb`. Preserve updater payload names and verify manifest hashes against collected files.
 - Version 1.0.25 passed all six package builds but was not published because collection rejected the Linux filenames; its tag remains unchanged.
 
 ### 简体中文
 
+- 仓库首页改用置顶安装包下载与真实截图，详细功能移入链接文档，公开发布说明仅保留当前版本。
 - 完成仓库迁移后的 DiskCollie 正式发布，支持 macOS、Windows、Linux 的 x64 与 arm64。
 - 修复发布收集脚本，使用 Electron Builder 实际生成的 Linux x64 文件名 `x86_64.AppImage` 和 `amd64.deb`，保留更新包名，并验证更新清单与文件哈希一致。
 - 1.0.25 的六路打包全部成功，但 Linux 文件名校验导致发布中止，未公开发布，原标签保持不变。

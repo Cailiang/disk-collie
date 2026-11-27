@@ -15,4 +15,6 @@ For every user-requested code or UI change in this repository, complete every it
 
 When the user requests a public release, merge the verified source into `main`, push `main`, create the matching `v<package-version>` tag, and monitor `.github/workflows/release.yml` through successful publication. Confirm all expected platform assets and `SHA256SUMS.txt` in the GitHub Release before reporting completion.
 
+Keep both repository READMEs concise, led by direct installer downloads and real product screenshots. `RELEASE_NOTES.md` and the public release description contain only the current version, with installer links first; historical notes stay in `CHANGELOG.md`. After verifying a new public release, retain only the latest GitHub Release and remove older release entries and assets, preserving source tags.
+
 Local macOS packages are Developer ID signed when the project identity is available. Public workflow packages must also be notarized and stapled before upload.

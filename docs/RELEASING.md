@@ -31,7 +31,7 @@ For every user-requested code or UI change:
 4. Build and verify the local Intel x64 DMG.
 5. Commit the source so the package can be traced to an exact revision.
 
-Documentation-only maintenance does not create a new application package unless it is part of a release or changes user-visible release material.
+Documentation-only maintenance, including screenshots and formatting an existing release description, does not create a new application package. Application code or packaged UI changes still require the full checklist above.
 
 ## Local Verification
 
@@ -89,6 +89,12 @@ Commit the verified source, rebuild so `source-revision.json` records a clean co
 - The source commit contains the matching version and release notes.
 
 ## Public Release
+
+Keep both READMEs brief and lead with direct installer downloads and current screenshots. `RELEASE_NOTES.md` contains only the current version: put the eight installer links first, followed by a short bilingual change list. Historical notes belong in `CHANGELOG.md`.
+
+Before publishing, update the versioned download URLs in both READMEs and `RELEASE_NOTES.md`. After the new release has passed the complete asset and checksum verification below, retain only that latest public GitHub Release and delete older release entries and their assets. Preserve source tags and the changelog. Do not remove the previous working release before its replacement is verified.
+
+Editing screenshots, README copy or the presentation of an existing release is documentation maintenance; update the published release body from `RELEASE_NOTES.md` without rebuilding or replacing verified installers.
 
 1. Merge the verified source into `main` and push `main`.
 2. Read the version from `package.json` and create the matching annotated tag.
