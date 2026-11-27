@@ -1164,9 +1164,9 @@
   "game.resumeButton": "Resume game",
   "game.over": "Another round?",
   "game.paused": "Paused",
-  "game.guide.runner": "Jump over logs and keep running",
-  "game.guide.frisbee": "Jump for discs. Three misses end the round",
-  "game.guide.pond": "Jump across the water to the next bank",
+  "game.guide.runner": "Time your jumps. Run under high birds",
+  "game.guide.frisbee": "High, low and curved flights. Chain catches for bonuses",
+  "game.guide.pond": "Cross streams and land on stones and islands",
   "game.tap": "or click / tap",
   "game.space": "Space",
   "game.pauseHint": "Press Space to resume",
@@ -1175,5 +1175,14 @@
   "game.state.ready": "Game ready",
   "game.state.running": "Game running",
   "game.state.paused": "Game paused",
-  "game.state.over": "Round over"
+  "game.state.over": "Round over",
+  "game.region.meadow": "Meadow",
+  "game.region.forest": "Pine woods",
+  "game.region.river": "River valley",
+  "game.region.village": "Village",
+  "game.light.day": "Day",
+  "game.light.dusk": "Dusk",
+  "game.light.night": "Night",
+  "game.light.dawn": "Dawn",
+  "game.combo": "Combo ×{count}"
 }

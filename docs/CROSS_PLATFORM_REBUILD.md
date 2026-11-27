@@ -1,4 +1,4 @@
-# Cross-platform storage rebuild — 1.0.21
+# Cross-platform storage rebuild — 1.0.22
 
 Branch: `rebuild/cross-platform-memento`. The product is organized around freeing storage; process management and the existing user-configured local Agent remain core tools.
 
@@ -198,3 +198,9 @@ The canonical logo is a right-facing line-art border collie profile, with a fold
 ## Approved identity and scan games — 1.0.21
 
 The selected upright-eared, left-facing border collie is traced into a currentColor SVG and exported for sidebar/advisor/startup/favicon/native icons. The original approved concept is retained in docs/assets. Passive story animation is replaced by three opt-in SVG games: Hurdle run, Frisbee catch and Pond hop. The same character head appears in every game. One Space press starts, jumps, resumes or retries; click/tap is equivalent, while held keys, editable controls and modal dialogs are isolated. A seeded pure engine handles bounded physics steps, fair object spacing, collision/miss rules and scoring. Separate local best scores persist across modes and completed scans. Intersection/document visibility and window blur pause rounds. Reduced motion removes decorative movement; user-started gameplay remains available. Scans and cancellation remain independent, and completion restores results immediately. New physics and browser integration checks replace the retired story checks.
+
+## Varied challenges and route scenery — 1.0.22
+
+Scan games now use shuffled pattern pools, progressive unlocks, varied obstacle bounds/altitudes, and full-group spacing with a landing/reaction interval. Runner shapes include stumps, rocks, cones, hedges, hurdles, rolling balls, two/three-log clusters and low/overhead birds; high birds can be passed while grounded. Frisbee flights include skim/loft/wave/pair patterns, formation-aware misses and streak bonuses. Pond groups add short streams, wide water, close stone channels, broken bridges and separated islands that need consecutive jumps. Optional treats add goals. New UI rounds receive fresh randomness; explicit engine seeds keep tests repeatable.
+
+GameScenery supplies meadow/forest/river/village panoramas, distance-based crossfades, cloud/hill/tree/ground parallax, sun/moon/stars and an independent daylight cycle through theme-colored tints. All art stays clipped inside the game. Reduced motion freezes decoration, and hidden or blurred rounds remain paused. Two-minute physics runs across six seeds per mode verify every formation and environment phase without disabling collisions. Browser long play drives normal Space events against rendered hazards and captures changing landscapes; a paused test clock prevents screenshot overhead from stealing reaction time. Existing scan/cancel/completion and text/modal isolation remain covered.

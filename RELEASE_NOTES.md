@@ -1,3 +1,12 @@
+# Memento 1.0.22 — 变化的障碍与场景 / Varied challenges and scenery
+
+- 快跑增加十种障碍与单／双／三连组合，高飞鸟可从下方通过；飞盘与荷塘也有不同轨迹和地形组合。
+- 随机池避免反复出现相同障碍，随路程解锁更多组合并逐步提速，增加骨头奖励和连击得分。
+- 草地、松林、溪谷、小镇沿路切换，加入远近景滚动、日月星空与昼夜变化，配色继续跟随主题。
+- 仍只需空格或点击操作，保留暂停、减少动态效果、输入隔离和扫描完成立即返回结果。
+
+English: ten runner obstacles and single/double/triple groups, varied frisbee trajectories and pond formations replace repetitive boxes. Shuffled pools, progressive unlocks, fair landing gaps, treats and catch streaks add changing goals. Four parallax landscapes crossfade with a theme-colored day/night cycle. One-button controls and scan independence remain intact, verified with multi-seed two-minute physics runs and real-keyboard browser journeys.
+
 # Memento 1.0.21 — 边牧扫描小游戏 / Collie scan games
 
 - 使用选定的朝左竖耳边牧 Logo，保留坚定眼神和调皮笑意，界面与游戏角色跟随主题色。

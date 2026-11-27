@@ -1164,9 +1164,9 @@
   "game.resumeButton": "继续游戏",
   "game.over": "再来一局",
   "game.paused": "已暂停",
-  "game.guide.runner": "跳过木桩，跑得更远",
-  "game.guide.frisbee": "起跳接飞盘，漏接三次结束",
-  "game.guide.pond": "跳过水面，落到对岸",
+  "game.guide.runner": "看准障碍起跳，高飞鸟可从下方通过",
+  "game.guide.frisbee": "高抛、低掠、回旋；连击加分",
+  "game.guide.pond": "跨过溪流，利用石台和岛屿落脚",
   "game.tap": "也可点击或轻触",
   "game.space": "空格",
   "game.pauseHint": "按空格继续",
@@ -1175,5 +1175,14 @@
   "game.state.ready": "游戏待开始",
   "game.state.running": "游戏进行中",
   "game.state.paused": "游戏已暂停",
-  "game.state.over": "本局结束"
+  "game.state.over": "本局结束",
+  "game.region.meadow": "草地",
+  "game.region.forest": "松林",
+  "game.region.river": "溪谷",
+  "game.region.village": "小镇",
+  "game.light.day": "白昼",
+  "game.light.dusk": "黄昏",
+  "game.light.night": "夜晚",
+  "game.light.dawn": "黎明",
+  "game.combo": "连击 ×{count}"
 }

@@ -4,6 +4,22 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.22 - 2026-11-27
+
+### English
+
+- Replace repeated boxes with ten runner obstacles, low/overhead birds and one/two/three-log groups; add varied frisbee trajectories and stone/bridge/wide-water/island pond formations. Shuffle pattern pools, introduce fresh rounds and unlock more patterns with distance.
+- Reserve complete group spans plus landing/reaction intervals as speed increases. Add optional treats, higher-value lofted discs, catch streaks and formation-aware misses.
+- Crossfade meadow, pine woods, river valley and village scenery with layered parallax, ground details and an independent sun/moon/star day-night cycle. Keep theme colors and freeze decorative movement under reduced motion.
+- Verify two-minute physics rounds across six seeds per mode and real-keyboard browser journeys, covering obstacle variety, every landscape/light phase, fair spacing, collision rules, input isolation and scan completion.
+
+### 简体中文
+
+- 快跑增加十种障碍、低／高空飞鸟及单／双／三连木桩；飞盘增加不同轨迹，荷塘增加石台、断桥、宽水面和连续岛屿。随机池避免重复，新一局变化，随路程逐步解锁更多组合。
+- 根据整组跨度预留落地和反应间距，逐步提速；增加骨头奖励、高抛飞盘分值、连击和整组漏接判断。
+- 草地、松林、溪谷、小镇沿路渐变，加入分层远近景、地面细节及独立的日月星空昼夜周期，保持主题配色，减少动态效果时冻结装饰运动。
+- 每款游戏以六个种子完成两分钟物理验证，并用真实空格按键进行界面长玩，覆盖全部障碍、场景和光照阶段，以及间距、碰撞、输入隔离和扫描完成。
+
 ## 1.0.21 - 2026-11-27
 
 ### English
