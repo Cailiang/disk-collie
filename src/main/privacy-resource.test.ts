@@ -7,7 +7,7 @@ import {PrivacyCleanupError,privacyFileResource,privacyPathSnapshot,privacySince
 
 const NOW=Date.UTC(2026,10,26,12),OLD=NOW-10*86400000,RECENT=NOW-1800000,FUTURE=NOW+86400000
 let home:string
-beforeEach(async()=>{home=await realpath(await mkdtemp(path.join(os.tmpdir(),'memento-privacy-resource-')))})
+beforeEach(async()=>{home=await realpath(await mkdtemp(path.join(os.tmpdir(),'diskcollie-privacy-resource-')))})
 afterEach(async()=>{await rm(home,{recursive:true,force:true})})
 async function fixture(relative:string,content:string,time=RECENT):Promise<string>{
   const target=path.join(home,relative);await mkdir(path.dirname(target),{recursive:true});await writeFile(target,content);await utimes(target,new Date(time),new Date(time));return target

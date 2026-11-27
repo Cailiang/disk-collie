@@ -8,7 +8,7 @@ const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite')
 const temporaryDirectories: string[] = []
 
 function temporaryDirectory(): string {
-  const directory = mkdtempSync(path.join(tmpdir(), 'memento-cc-switch-'))
+  const directory = mkdtempSync(path.join(tmpdir(), 'diskcollie-cc-switch-'))
   temporaryDirectories.push(directory)
   return directory
 }

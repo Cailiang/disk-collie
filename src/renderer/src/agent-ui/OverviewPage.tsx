@@ -109,8 +109,8 @@ function ProcessIcon({ process, application }: {
 
   useEffect(() => {
     let active = true
-    if (!visible || application || !window.memento) return
-    void window.memento.getProcessIcon(process.command).then((value) => {
+    if (!visible || application || !window.diskCollie) return
+    void window.diskCollie.getProcessIcon(process.command).then((value) => {
       if (active) setSource(value)
     })
     return () => { active = false }

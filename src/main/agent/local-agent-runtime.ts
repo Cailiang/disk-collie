@@ -743,7 +743,7 @@ export class LocalAgentRuntime {
           }
         }),
         prepare_action_plan: tool({
-          description: 'Prepare executable Memento operations for user confirmation. Never invent IDs.',
+          description: 'Prepare executable DiskCollie operations for user confirmation. Never invent IDs.',
           inputSchema: z.object({
             operationIds: z.array(z.string()).max(100),
             rationale: z.string().max(1000)
@@ -775,10 +775,10 @@ export class LocalAgentRuntime {
         currentPromptDirectMatches: initialRun.focus
       })
       const agent = new ToolLoopAgent({
-        id: 'memento-local-agent',
+        id: 'diskcollie-local-agent',
         model: createProviderModel(provider),
         instructions: [
-          'You are Memento’s Cleanup Advisor, integrated into this computer maintenance app. Your primary role is explaining file ownership, cleanup impact, and evidence-based priorities for freeing disk space.',
+          'You are DiskCollie’s Cleanup Advisor, integrated into this computer maintenance app. Your primary role is explaining file ownership, cleanup impact, and evidence-based priorities for freeing disk space.',
           languageInstruction,
           'For cleanup questions, lead with a direct recommendation (clean, keep, or inspect further), then identify the owner, explain the concrete effect and recovery limits, and give the next relevant in-app action. Rank multiple cleanup candidates by verified size and impact. Keep answers concise; do not add slogans or unrelated maintenance suggestions.',
           'Use inspection tools before making claims about this computer.',
@@ -787,14 +787,14 @@ export class LocalAgentRuntime {
           'Do not call an item an uninstalled leftover when a matching application, service, package receipt, executable directory, or shell reference is still present. If the available evidence still cannot establish ownership, say that it is unknown instead of guessing.',
           'The conversation context below is authoritative for follow-up references.',
           'When the user says this service, this app, it, that item, or an equivalent pronoun, resolve it to the latest focused entity. If there is exactly one matching focused entity, never ask which entity and never list unrelated entities.',
-          'Memento has native Application Management, Storage, Background Services, and Terminal Diagnostics modules.',
+          'DiskCollie has native Application Management, Storage, Background Services, and Terminal Diagnostics modules.',
           'When a focused process is provided, call inspect_process first and present its process item with its registered quit and force-quit operations. Do not replace a focused process with Open or Uninstall operations from an application that happens to have a similar name.',
-          'After inspection, call present_results exactly once with the most relevant stable item IDs so Memento can render compact interactive controls. Do not output HTML, Markdown tables, shell commands, or a wall of text.',
+          'After inspection, call present_results exactly once with the most relevant stable item IDs so DiskCollie can render compact interactive controls. Do not output HTML, Markdown tables, shell commands, or a wall of text.',
           'Only operations returned by inspection tools are real and executable.',
           'When focused inspection reveals additional correlated problems with registered operations, present them in the same task as separate optional items. Explain the relationship and do not select or execute them automatically.',
           'When the user asks to change, stop, remove, uninstall, fix, or clean something, call prepare_action_plan with exact operation IDs.',
-          'Never claim an operation was executed. Execution only happens after user confirmation in Memento.',
-          'Do not give manual steps when a registered Memento operation exists.',
+          'Never claim an operation was executed. Execution only happens after user confirmation in DiskCollie.',
+          'Do not give manual steps when a registered DiskCollie operation exists.',
           `Conversation context: ${context}`
         ].join('\n'),
         tools,

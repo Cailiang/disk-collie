@@ -9,7 +9,7 @@ const state=vi.hoisted(()=>({profile:'',locations:[] as string[],versions:new Ma
 vi.mock('electron',()=>({app:{getPath:()=>state.profile,on:vi.fn()},BrowserWindow:{getAllWindows:()=>[]},ipcMain:{handle:vi.fn()},shell:{openPath:state.open,openExternal:vi.fn(),trashItem:state.trash}}))
 vi.mock('./scanner',()=>({
   findApplications:async()=>state.locations,
-  inspectApplication:async(target:string)=>({target,name:path.basename(target,'.app'),version:state.versions.get(target)||'1',bundleId:`dev.memento.${path.basename(target,'.app')}`,sizeBytes:1024,lastUsedAt:null}),
+  inspectApplication:async(target:string)=>({target,name:path.basename(target,'.app'),version:state.versions.get(target)||'1',bundleId:`dev.diskcollie.${path.basename(target,'.app')}`,sizeBytes:1024,lastUsedAt:null}),
   discoverApplicationUpdates:state.discover
 }))
 vi.mock('./storage-application-actions',()=>({updateRegisteredApplication:state.install}))
@@ -20,11 +20,11 @@ describe.skipIf(process.platform!=='darwin')('production application update conc
   let directory:string,service:StorageService,apps:StorageApplication[]
   const update:ApplicationUpdate={source:'sparkle',token:'https://updates.fixture/feed',downloadUrl:'https://updates.fixture/app.zip',mode:'direct',latestVersion:'2'}
   beforeEach(async()=>{
-    directory=await realpath(await mkdtemp(path.join(os.tmpdir(),'memento-app-updates-')));state.profile=path.join(directory,'profile');state.locations=[];state.versions.clear();vi.clearAllMocks();state.open.mockResolvedValue('');state.trash.mockResolvedValue(undefined)
+    directory=await realpath(await mkdtemp(path.join(os.tmpdir(),'diskcollie-app-updates-')));state.profile=path.join(directory,'profile');state.locations=[];state.versions.clear();vi.clearAllMocks();state.open.mockResolvedValue('');state.trash.mockResolvedValue(undefined)
     apps=[]
     for(const name of ['A','B','C']){
       const location=path.join(directory,`${name}.app`);await mkdir(path.join(location,'Contents'),{recursive:true});await writeFile(path.join(location,'Contents/Info.plist'),'owned synthetic application')
-      apps.push({id:crypto.randomUUID(),name,version:'1',location,bundleId:`dev.memento.${name}`,size:1024,protected:false,method:'trash',updateAvailable:true,latestVersion:'2'});state.locations.push(location);state.versions.set(location,'1')
+      apps.push({id:crypto.randomUUID(),name,version:'1',location,bundleId:`dev.diskcollie.${name}`,size:1024,protected:false,method:'trash',updateAvailable:true,latestVersion:'2'});state.locations.push(location);state.versions.set(location,'1')
     }
     service=new StorageService(()=>'en-US')
     ;(service as any).persistApplications=async()=>undefined

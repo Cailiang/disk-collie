@@ -4,7 +4,7 @@ describe('native file mutation scope',()=>{
   it('allows selected personal files but protects root, escape, app data and credentials',()=>{
     const root='/Users/test'
     expect(allowed(`${root}/Downloads/archive.zip`,root,'darwin',root)).toBe(true)
-    for(const target of [root,'/Users/elsewhere/file',`${root}/Library/Caches/file`,`${root}/.ssh/key`,'/System/file','/Applications/Example.app/Contents/file'])expect(allowed(target,root,'darwin',root),target).toBe(false)
+    for(const target of [root,'/Users/elsewhere/file',`${root}/Library/Caches/file`,`${root}/.ssh/key`,`${root}/.memento/key`,`${root}/.diskcollie/key`,`${root}/.disk-collie/key`,'/System/file','/Applications/Example.app/Contents/file'])expect(allowed(target,root,'darwin',root),target).toBe(false)
     expect(allowed('/Applications/Example.app/Contents/file','/','darwin',root)).toBe(false)
     expect(allowed('/Volumes/External/project.mov','/Volumes/External','darwin',root)).toBe(true)
   })

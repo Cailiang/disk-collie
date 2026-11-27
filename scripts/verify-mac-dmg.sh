@@ -26,13 +26,13 @@ case "${verification_mode}" in
 esac
 
 expected_version="$(node -p "require('./package.json').version")"
-dmg_path="${2:-release/Memento-${expected_version}-${expected_arch}.dmg}"
+dmg_path="${2:-release/DiskCollie-${expected_version}-${expected_arch}.dmg}"
 if [[ ! -f "${dmg_path}" ]]; then
   echo "DMG not found: ${dmg_path}" >&2
   exit 1
 fi
 
-mount_directory="$(mktemp -d "${TMPDIR:-/tmp}/memento-dmg.XXXXXX")"
+mount_directory="$(mktemp -d "${TMPDIR:-/tmp}/diskcollie-dmg.XXXXXX")"
 mounted=false
 cleanup() {
   if [[ "${mounted}" == true ]]; then
@@ -46,11 +46,11 @@ hdiutil verify "${dmg_path}"
 hdiutil attach -readonly -nobrowse -mountpoint "${mount_directory}" "${dmg_path}" >/dev/null
 mounted=true
 
-app_path="${mount_directory}/Memento.app"
-executable_path="${app_path}/Contents/MacOS/Memento"
+app_path="${mount_directory}/DiskCollie.app"
+executable_path="${app_path}/Contents/MacOS/DiskCollie"
 plist_path="${app_path}/Contents/Info.plist"
 if [[ ! -x "${executable_path}" || ! -f "${plist_path}" ]]; then
-  echo "Mounted DMG does not contain a complete Memento.app" >&2
+  echo "Mounted DMG does not contain a complete DiskCollie.app" >&2
   exit 1
 fi
 
@@ -65,7 +65,7 @@ if [[ "${architecture}" != *"${expected_macho_arch}"* ]]; then
   echo "Unexpected executable architecture: ${architecture}" >&2
   exit 1
 fi
-native_path="${app_path}/Contents/Resources/native/memento-engine"
+native_path="${app_path}/Contents/Resources/native/disk-collie-engine"
 if [[ ! -x "${native_path}" || "$(file "${native_path}")" != *"${expected_macho_arch}"* ]]; then
   echo "Missing or mismatched native storage engine" >&2
   exit 1
@@ -75,7 +75,7 @@ test -f "${app_path}/Contents/Resources/native/source-revision.json"
 
 codesign --verify --deep --strict --verbose=4 "${app_path}"
 signature="$(codesign -d --verbose=4 "${app_path}" 2>&1)"
-if [[ "${signature}" != *"Identifier=com.fcl.memento"* ]]; then
+if [[ "${signature}" != *"Identifier=com.fcl.diskcollie"* ]]; then
   echo "Unexpected application signature identity:" >&2
   echo "${signature}" >&2
   exit 1
@@ -112,4 +112,4 @@ if [[ "${verification_mode}" == developer-id || "${verification_mode}" == develo
   fi
 fi
 
-echo "Verified Memento ${actual_version} ${expected_macho_arch} DMG (${verification_mode})"
+echo "Verified DiskCollie ${actual_version} ${expected_macho_arch} DMG (${verification_mode})"

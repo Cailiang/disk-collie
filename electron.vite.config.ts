@@ -15,7 +15,7 @@ export default defineConfig({
   renderer: {
     root: resolve('src/renderer'),
     define: {
-      __MEMENTO_VERSION__: JSON.stringify(appVersion)
+      __DISKCOLLIE_VERSION__: JSON.stringify(appVersion)
     },
     resolve: {
       alias: {

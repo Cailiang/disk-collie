@@ -25,7 +25,7 @@ function session(mode:StorageMode,generation:number){
   const value={index,engine,groups:new Map(),removed:new Set()};(service as any).sessions.set(mode,value);return value
 }
 beforeEach(async()=>{
-  state.home=await mkdtemp(path.join(os.homedir(),'memento-directory-service-'));state.profile=path.join(state.home,'profile');state.trash=path.join(state.home,'owned-trash');state.fail=false;state.calls=[];state.excluded=[];state.handlers.clear()
+  state.home=await mkdtemp(path.join(os.homedir(),'diskcollie-directory-service-'));state.profile=path.join(state.home,'profile');state.trash=path.join(state.home,'owned-trash');state.fail=false;state.calls=[];state.excluded=[];state.handlers.clear()
   folder=path.join(state.home,'Downloads/archive');await mkdir(path.join(folder,'.hidden'),{recursive:true});await mkdir(state.trash)
   await writeFile(path.join(folder,'visible.txt'),'visible');await writeFile(path.join(folder,'.hidden/extra.txt'),'hidden')
   entries=await Promise.all([folder,path.join(folder,'visible.txt'),path.join(folder,'.hidden'),path.join(folder,'.hidden/extra.txt')].map(async(target,index)=>{const stat=await lstat(target);return {id:index+1,parent:index===0?0:index===3?3:1,path:target,name:path.basename(target),directory:stat.isDirectory(),size:stat.isDirectory()?13:stat.size,allocated:stat.isDirectory()?8192:stat.blocks*512,modified:stat.mtimeMs*1e6,identity:`${stat.dev}:${stat.ino}`,links:stat.nlink}}))

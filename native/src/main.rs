@@ -16,7 +16,7 @@ mod macos_bulk;
 
 fn read_directory(directory: &Path, parent: usize) -> (Vec<Entry>, usize, usize) {
     #[cfg(target_os = "macos")]
-    if std::env::var_os("MEMENTO_STANDARD_READDIR").is_none() {
+    if std::env::var_os("DISKCOLLIE_STANDARD_READDIR").is_none() {
         if let Ok((entries, skipped)) = macos_bulk::read(directory, parent) {
             return (entries, 0, skipped);
         }
@@ -636,7 +636,7 @@ fn terminate(pid: u32, force: bool) -> Result<Value, String> {
     let mut ancestor = Some(own_pid);
     while let Some(id) = ancestor {
         if id.as_u32() == pid {
-            return Err("Memento and its parent processes are protected".into());
+            return Err("DiskCollie and its parent processes are protected".into());
         }
         ancestor = system.process(id).and_then(|p| p.parent());
     }

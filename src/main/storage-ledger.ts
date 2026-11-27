@@ -1,5 +1,6 @@
 import {existsSync,mkdirSync,readFileSync} from 'node:fs'
 import path from 'node:path'
+import {currentDatabasePath} from './profile-migration'
 import {z} from 'zod'
 import type {StorageActivity} from '../shared/storage-types'
 
@@ -11,7 +12,7 @@ export class StorageLedger {
   private readonly database:InstanceType<typeof DatabaseSync>
   constructor(directory:string){
     mkdirSync(directory,{recursive:true,mode:0o700})
-    this.database=new DatabaseSync(path.join(directory,'memento.sqlite'))
+    this.database=new DatabaseSync(currentDatabasePath(directory))
     this.database.exec(`PRAGMA journal_mode=WAL;
       CREATE TABLE IF NOT EXISTS cleanup_activity(id TEXT PRIMARY KEY,date TEXT NOT NULL,value_json TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS cleanup_activity_date ON cleanup_activity(date DESC);

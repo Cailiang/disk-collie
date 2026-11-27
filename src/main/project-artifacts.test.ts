@@ -10,7 +10,7 @@ import {
 
 describe('project artifact cleanup', () => {
   it('does not let unrelated early folders hide projects in a later root', async () => {
-    const home=await fs.mkdtemp(path.join(os.tmpdir(),'memento-project-scope-'))
+    const home=await fs.mkdtemp(path.join(os.tmpdir(),'diskcollie-project-scope-'))
     try {
       await fs.mkdir(path.join(home,'Projects'),{recursive:true})
       await Promise.all(Array.from({length:170},(_,i)=>fs.mkdir(path.join(home,'Projects',`empty-${i}`))))
@@ -22,7 +22,7 @@ describe('project artifact cleanup', () => {
     } finally { await fs.rm(home,{recursive:true,force:true}) }
   })
   it('finds rebuildable project directories and skips protected outputs', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-project-artifacts-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-project-artifacts-'))
     try {
       const project = path.join(home, 'Projects', 'sample-app')
       await fs.mkdir(path.join(project, 'node_modules'), { recursive: true })
@@ -49,7 +49,7 @@ describe('project artifact cleanup', () => {
   })
 
   it('rejects changed, protected, and unrecognized targets before moving them', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-project-artifacts-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-project-artifacts-'))
     try {
       const project = path.join(home, 'Code', 'sample-app')
       const target = path.join(project, 'dist')

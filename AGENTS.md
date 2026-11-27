@@ -1,6 +1,6 @@
-# Memento Agent Development Contract
+# DiskCollie Agent Development Contract
 
-Memento Agent is a from-scratch product rebuild. Reuse deterministic scanner and cleanup internals when they remain useful, but do not restore the old Renderer, hosted AI analysis, Memento Server, OAuth, or AI Gateway architecture.
+DiskCollie Agent is a from-scratch product rebuild. Reuse deterministic scanner and cleanup internals when they remain useful, but do not restore the old Renderer, hosted AI analysis, legacy Memento Server, OAuth, or AI Gateway architecture.
 
 For every user-requested code or UI change in this repository, complete every item below before sending the final response. Do not defer packaging or wait for the user to remind you:
 

@@ -84,7 +84,7 @@ describe('local artifact evidence', () => {
   })
 
   it('collects shallow path evidence and redacts shell secrets', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-evidence-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-evidence-'))
     try {
       await fs.mkdir(path.join(home, '.antigravity', 'extensions'), { recursive: true })
       await fs.mkdir(path.join(home, '.antigravity', 'antigravity', 'bin'), { recursive: true })

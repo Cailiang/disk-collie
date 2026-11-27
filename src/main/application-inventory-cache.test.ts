@@ -5,7 +5,7 @@ import {describe,expect,it} from 'vitest'
 import {ApplicationInventoryCache} from './application-inventory-cache'
 describe('application inventory cache',()=>{
   it('restores display entries as unverified and serializes writes without persisting update authorizations',async()=>{
-    const directory=await mkdtemp(path.join(os.tmpdir(),'memento-inventory-'))
+    const directory=await mkdtemp(path.join(os.tmpdir(),'diskcollie-inventory-'))
     try{
       const filename=path.join(directory,'cache.json'),cache=new ApplicationInventoryCache(filename)
       const application={id:crypto.randomUUID(),name:'Fixture',location:'/Applications/Fixture.app',bundleId:'test.fixture',version:'1',size:12,protected:false,method:'trash' as const,updateAvailable:true}

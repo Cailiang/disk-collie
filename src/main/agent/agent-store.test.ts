@@ -11,7 +11,7 @@ const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite')
 const temporaryDirectories: string[] = []
 
 function temporaryDirectory(): string {
-  const directory = mkdtempSync(path.join(tmpdir(), 'memento-agent-store-'))
+  const directory = mkdtempSync(path.join(tmpdir(), 'diskcollie-agent-store-'))
   temporaryDirectories.push(directory)
   return directory
 }
@@ -46,7 +46,7 @@ describe('AgentStore', () => {
     expect(saved.keyHint).toBe('••••3456')
     expect(store.getPrivateProvider(saved.id).apiKey).toBe('secret-key-123456')
 
-    const database = new DatabaseSync(path.join(directory, 'memento.sqlite'))
+    const database = new DatabaseSync(path.join(directory, 'disk-collie.sqlite'))
     const row = database.prepare(`
       SELECT api_key_iv, api_key_tag, api_key_ciphertext FROM ai_providers WHERE id = ?
     `).get(saved.id) as {
@@ -111,7 +111,7 @@ describe('AgentStore', () => {
     })
     store.close()
 
-    const database = new DatabaseSync(path.join(directory, 'memento.sqlite'))
+    const database = new DatabaseSync(path.join(directory, 'disk-collie.sqlite'))
     database.prepare('UPDATE ai_providers SET type = ? WHERE id = ?').run('google', saved.id)
     database.exec('PRAGMA user_version = 2')
     database.close()
@@ -226,7 +226,7 @@ describe('AgentStore', () => {
       id: claude.id,
       name: 'My editable relay',
       type: 'anthropic',
-      baseUrl: 'https://memento.example.com/v1',
+      baseUrl: 'https://diskcollie.example.com/v1',
       model: 'edited-model',
       apiKey: ''
     })
@@ -234,7 +234,7 @@ describe('AgentStore', () => {
     expect(store.syncCcSwitchImportedProviders([])).toEqual({ imported: 0, removed: 0 })
     expect(store.getPrivateProvider(claude.id)).toMatchObject({
       name: 'My editable relay',
-      baseUrl: 'https://memento.example.com/v1',
+      baseUrl: 'https://diskcollie.example.com/v1',
       model: 'edited-model'
     })
     store.close()
@@ -303,7 +303,7 @@ describe('AgentStore', () => {
     store.deleteRun(created.id)
     expect(store.listRuns()).toEqual([])
 
-    const database = new DatabaseSync(path.join(directory, 'memento.sqlite'))
+    const database = new DatabaseSync(path.join(directory, 'disk-collie.sqlite'))
     expect(database.prepare('PRAGMA user_version').get()).toEqual({ user_version: 4 })
     expect(database.prepare('SELECT COUNT(*) AS count FROM tool_calls').get()).toEqual({ count: 0 })
     database.close()
@@ -395,7 +395,7 @@ describe('AgentStore', () => {
     })
     store.completeMaintenanceOperation(run.operations[0].id, {
       status: 'completed',
-      recoveryRef: '/private/local/.zshrc.memento-backup',
+      recoveryRef: '/private/local/.zshrc.diskcollie-backup',
       message: 'Completed'
     })
     store.completeMaintenanceRun(run.id)
@@ -405,7 +405,7 @@ describe('AgentStore', () => {
     expect(JSON.stringify(listed)).not.toContain('/private/local')
     expect(store.getMaintenanceRecovery(listed.operations[0].id)).toEqual({
       mode: 'backup',
-      reference: '/private/local/.zshrc.memento-backup'
+      reference: '/private/local/.zshrc.diskcollie-backup'
     })
     store.close()
   })

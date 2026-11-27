@@ -15,7 +15,7 @@ import {StorageService} from './storage-service'
 describe.skipIf(process.platform!=='darwin')('background application inventory',()=>{
   let directory:string,service:StorageService
   beforeEach(async()=>{
-    directory=await realpath(await mkdtemp(path.join(os.tmpdir(),'memento-inventory-service-')));fixture.profile=path.join(directory,'profile');fixture.location=path.join(directory,'Fixture.app');fixture.version='1';fixture.calls=0;fixture.error=false;fixture.measurements=[]
+    directory=await realpath(await mkdtemp(path.join(os.tmpdir(),'diskcollie-inventory-service-')));fixture.profile=path.join(directory,'profile');fixture.location=path.join(directory,'Fixture.app');fixture.version='1';fixture.calls=0;fixture.error=false;fixture.measurements=[]
     await mkdir(path.join(fixture.location,'Contents'),{recursive:true});await writeFile(path.join(fixture.location,'Contents/Info.plist'),'fixture')
     service=new StorageService(()=>'en-US');await service.init()
   })

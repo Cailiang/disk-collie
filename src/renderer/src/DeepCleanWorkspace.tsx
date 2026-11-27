@@ -36,7 +36,7 @@ function RuleLogo({item,load}:{item:DeepCleanItem;load:DeepCleanWorkspaceProps['
   const [value,setValue]=useState<string|null>(null),latest=useRef(load);latest.current=load
   useEffect(()=>{let active=true;setValue(null);void latest.current(item.id).then((icon)=>{if(active)setValue(icon)}).catch(()=>undefined);return()=>{active=false}},[item.id])
   if(value)return <img className="deep-rule-logo" src={value} alt={item.owner?.name||''}/>
-  if(!window.memento&&item.owner?.key==='vscode')return <img className="deep-rule-logo" src={new URL('./assets/demo-vscode.ico',import.meta.url).href} alt="Visual Studio Code"/>
+  if(!window.diskCollie&&item.owner?.key==='vscode')return <img className="deep-rule-logo" src={new URL('./assets/demo-vscode.ico',import.meta.url).href} alt="Visual Studio Code"/>
   const Icon=groupIcons[item.group]
   return <span className="deep-rule-logo deep-logo-fallback"><Icon size={22}/></span>
 }

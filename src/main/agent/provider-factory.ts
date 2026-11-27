@@ -78,7 +78,7 @@ export async function testProviderConnection(
     }
   })
   const agent = new ToolLoopAgent({
-    id: 'memento-provider-test',
+    id: 'diskcollie-provider-test',
     model: createProviderModel(provider),
     instructions: 'You are a connection tester. Call connection_probe once, then answer with OK.',
     tools: { connection_probe: probe },

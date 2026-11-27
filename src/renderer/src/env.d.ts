@@ -1,12 +1,12 @@
 /// <reference types="vite/client" />
 
-import type { MementoApi } from '../../shared/types'
+import type { DiskCollieApi } from '../../shared/types'
 
 declare global {
-  const __MEMENTO_VERSION__: string
+  const __DISKCOLLIE_VERSION__: string
 
   interface Window {
-    memento?: MementoApi
+    diskCollie?: DiskCollieApi
   }
 }
 

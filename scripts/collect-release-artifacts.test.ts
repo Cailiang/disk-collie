@@ -36,48 +36,48 @@ function manifest(files: string[]): string {
 
 async function createFixture(root: string): Promise<void> {
   const installers = [
-    ['macos-x64', `Memento-${version}-x64.dmg`],
-    ['macos-arm64', `Memento-${version}-arm64.dmg`],
-    ['windows-x64', `Memento-${version}-x64.exe`],
-    ['windows-arm64', `Memento-${version}-arm64.exe`],
-    ['linux-x64', `Memento-${version}-x64.AppImage`],
-    ['linux-arm64', `Memento-${version}-arm64.AppImage`],
-    ['linux-x64', `Memento-${version}-x64.deb`],
-    ['linux-arm64', `Memento-${version}-arm64.deb`]
+    ['macos-x64', `DiskCollie-${version}-x64.dmg`],
+    ['macos-arm64', `DiskCollie-${version}-arm64.dmg`],
+    ['windows-x64', `DiskCollie-${version}-x64.exe`],
+    ['windows-arm64', `DiskCollie-${version}-arm64.exe`],
+    ['linux-x64', `DiskCollie-${version}-x64.AppImage`],
+    ['linux-arm64', `DiskCollie-${version}-arm64.AppImage`],
+    ['linux-x64', `DiskCollie-${version}-x64.deb`],
+    ['linux-arm64', `DiskCollie-${version}-arm64.deb`]
   ]
   for (const [runner, name] of installers) await addArtifact(root, runner, name)
   for (const [runner, name] of [
-    ['macos-x64', `Memento-${version}-x64.zip`],
-    ['macos-x64', `Memento-${version}-x64.zip.blockmap`],
-    ['macos-arm64', `Memento-${version}-arm64.zip`],
-    ['macos-arm64', `Memento-${version}-arm64.zip.blockmap`],
-    ['windows-x64', `Memento-${version}-x64.exe.blockmap`],
-    ['windows-arm64', `Memento-${version}-arm64.exe.blockmap`]
+    ['macos-x64', `DiskCollie-${version}-x64.zip`],
+    ['macos-x64', `DiskCollie-${version}-x64.zip.blockmap`],
+    ['macos-arm64', `DiskCollie-${version}-arm64.zip`],
+    ['macos-arm64', `DiskCollie-${version}-arm64.zip.blockmap`],
+    ['windows-x64', `DiskCollie-${version}-x64.exe.blockmap`],
+    ['windows-arm64', `DiskCollie-${version}-arm64.exe.blockmap`]
   ]) await addArtifact(root, runner, name)
 
   await addArtifact(root, 'macos-x64', 'latest-mac.yml', manifest([
-    `Memento-${version}-x64.zip`,
-    `Memento-${version}-x64.dmg`
+    `DiskCollie-${version}-x64.zip`,
+    `DiskCollie-${version}-x64.dmg`
   ]))
   await addArtifact(root, 'macos-arm64', 'latest-mac.yml', manifest([
-    `Memento-${version}-arm64.zip`,
-    `Memento-${version}-arm64.dmg`
+    `DiskCollie-${version}-arm64.zip`,
+    `DiskCollie-${version}-arm64.dmg`
   ]))
-  await addArtifact(root, 'windows-x64', 'latest.yml', manifest([`Memento-${version}-x64.exe`]))
-  await addArtifact(root, 'windows-arm64', 'latest.yml', manifest([`Memento-${version}-arm64.exe`]))
+  await addArtifact(root, 'windows-x64', 'latest.yml', manifest([`DiskCollie-${version}-x64.exe`]))
+  await addArtifact(root, 'windows-arm64', 'latest.yml', manifest([`DiskCollie-${version}-arm64.exe`]))
   await addArtifact(root, 'linux-x64', 'latest-linux.yml', manifest([
-    `Memento-${version}-x64.AppImage`,
-    `Memento-${version}-x64.deb`
+    `DiskCollie-${version}-x64.AppImage`,
+    `DiskCollie-${version}-x64.deb`
   ]))
   await addArtifact(root, 'linux-arm64', 'latest-linux-arm64.yml', manifest([
-    `Memento-${version}-arm64.AppImage`,
-    `Memento-${version}-arm64.deb`
+    `DiskCollie-${version}-arm64.AppImage`,
+    `DiskCollie-${version}-arm64.deb`
   ]))
 }
 
 describe('release artifact collector', () => {
   it('publishes every platform installer, updater payload and checksum', async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'memento-release-test-'))
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'diskcollie-release-test-'))
     const artifacts = path.join(temporaryDirectory, 'artifacts')
     const output = path.join(temporaryDirectory, 'dist')
     await createFixture(artifacts)
@@ -89,31 +89,31 @@ describe('release artifact collector', () => {
       files: Array<{ url: string }>
     }
     expect(macManifest.files.map((file) => file.url)).toEqual([
-      `Memento-${version}-x64.zip`,
-      `Memento-${version}-arm64.zip`
+      `DiskCollie-${version}-x64.zip`,
+      `DiskCollie-${version}-arm64.zip`
     ])
     const outputNames = await readdir(output)
-    expect(outputNames).toContain(`Memento-${version}-x64.dmg`)
-    expect(outputNames).toContain(`Memento-${version}-arm64.dmg`)
+    expect(outputNames).toContain(`DiskCollie-${version}-x64.dmg`)
+    expect(outputNames).toContain(`DiskCollie-${version}-arm64.dmg`)
     expect(outputNames.filter((name) => /\.(exe|AppImage|deb)$/.test(name))).toHaveLength(6)
     expect(outputNames).toContain('latest.yml')
     expect(outputNames).toContain('latest-linux.yml')
     const checksums = (await readFile(path.join(output, 'SHA256SUMS.txt'), 'utf8')).trim().split('\n')
     expect(checksums).toHaveLength(8)
     expect(checksums.every((line) => !line.includes('.zip') && !line.includes('.blockmap'))).toBe(true)
-    expect(checksums.some((line) => line.endsWith(`Memento-${version}-x64.dmg`))).toBe(true)
-    expect(checksums.some((line) => line.endsWith(`Memento-${version}-arm64.dmg`))).toBe(true)
+    expect(checksums.some((line) => line.endsWith(`DiskCollie-${version}-x64.dmg`))).toBe(true)
+    expect(checksums.some((line) => line.endsWith(`DiskCollie-${version}-arm64.dmg`))).toBe(true)
   })
 
   it('rejects a missing updater payload', async () => {
-    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'memento-release-test-'))
+    temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), 'diskcollie-release-test-'))
     const artifacts = path.join(temporaryDirectory, 'artifacts')
     const output = path.join(temporaryDirectory, 'dist')
     await createFixture(artifacts)
-    await rm(path.join(artifacts, 'macos-arm64', 'release', `Memento-${version}-arm64.zip`))
+    await rm(path.join(artifacts, 'macos-arm64', 'release', `DiskCollie-${version}-arm64.zip`))
 
     await expect(collectReleaseArtifacts(artifacts, output, version)).rejects.toThrow(
-      `Expected exactly one Memento-${version}-arm64.zip`
+      `Expected exactly one DiskCollie-${version}-arm64.zip`
     )
   })
 })

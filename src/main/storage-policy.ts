@@ -1,7 +1,7 @@
 import path from 'node:path'
 import os from 'node:os'
 
-export const storageProtectedNames=['.ssh','.gnupg','.aws','.kube','.memento','.Trash','.Trashes','$Recycle.Bin','System Volume Information']
+export const storageProtectedNames=['.ssh','.gnupg','.aws','.kube','.diskcollie','.disk-collie','.memento','.Trash','.Trashes','$Recycle.Bin','System Volume Information']
 /** One boundary for cleanup discovery and deletion; analysis may inspect these read-only. */
 export function storageProtectedPaths(userHome:string,platform:NodeJS.Platform=process.platform,env:NodeJS.ProcessEnv=process.env):string[]{
   const paths=platform==='win32'?path.win32:path.posix

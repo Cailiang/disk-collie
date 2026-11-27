@@ -27,7 +27,7 @@ async function readBrowserDatabase<T>(filename:string,read:(database:Database)=>
   let live:Database|undefined
   try{live=openDatabase(filename);return read(live)}catch(error){if(!databaseBusy(error))throw error}finally{live?.close()}
   for(let attempt=0;attempt<3;attempt++){
-    const directory=await realpath(await mkdtemp(path.join(os.tmpdir(),'memento-private-browser-')))
+    const directory=await realpath(await mkdtemp(path.join(os.tmpdir(),'diskcollie-private-browser-')))
     let copy:Database|undefined
     try{
       await chmod(directory,0o700)
@@ -99,11 +99,11 @@ async function validateDatabase(observed:Map<string,PrivacyPathSnapshot|null>,id
   }
 }
 function selected(database:Database,ids:readonly string[]):void{
-  database.exec('CREATE TEMP TABLE memento_privacy_keys(id INTEGER PRIMARY KEY)')
-  const insert=database.prepare('INSERT INTO memento_privacy_keys(id) VALUES(?)')
+  database.exec('CREATE TEMP TABLE diskcollie_privacy_keys(id INTEGER PRIMARY KEY)')
+  const insert=database.prepare('INSERT INTO diskcollie_privacy_keys(id) VALUES(?)')
   for(const id of ids)insert.run(BigInt(id))
 }
-const keys='SELECT id FROM temp.memento_privacy_keys'
+const keys='SELECT id FROM temp.diskcollie_privacy_keys'
 function optionalDelete(database:Database,table:string,column:string,source=keys):void{if(tableExists(database,table)&&columns(database,table).has(column))database.exec(`DELETE FROM ${quote(table)} WHERE ${quote(column)} IN (${source})`)}
 function remaining(database:Database,table:string):number{return Number(database.prepare(`SELECT COUNT(*) AS count FROM ${quote(table)} WHERE rowid IN (${keys})`).get()!.count)}
 function queryFingerprint(database:Database,query:string):string{
@@ -129,7 +129,7 @@ function rowsFingerprint(database:Database,spec:SqlSpec,source:string):string{
 }
 
 function chromiumVisits(database:Database):void{
-  database.exec(`CREATE TEMP TABLE memento_privacy_urls(id INTEGER PRIMARY KEY); INSERT INTO memento_privacy_urls SELECT DISTINCT url FROM visits WHERE rowid IN (${keys})`)
+  database.exec(`CREATE TEMP TABLE diskcollie_privacy_urls(id INTEGER PRIMARY KEY); INSERT INTO diskcollie_privacy_urls SELECT DISTINCT url FROM visits WHERE rowid IN (${keys})`)
   for(const [table,column] of [['visit_source','id'],['content_annotations','visit_id'],['context_annotations','visit_id'],['clusters_and_visits','visit_id']] as const)optionalDelete(database,table,column)
   const visitColumns=columns(database,'visits')
   for(const column of ['from_visit','opener_visit'])if(visitColumns.has(column))database.exec(`UPDATE visits SET ${quote(column)}=0 WHERE ${quote(column)} IN (${keys})`)
@@ -138,25 +138,25 @@ function chromiumVisits(database:Database):void{
   if(urlColumns.has('visit_count'))assignments.push('visit_count=(SELECT COUNT(*) FROM visits WHERE visits.url=urls.id)')
   if(urlColumns.has('last_visit_time'))assignments.push('last_visit_time=COALESCE((SELECT MAX(visit_time) FROM visits WHERE visits.url=urls.id),0)')
   if(urlColumns.has('typed_count')&&visitColumns.has('transition'))assignments.push('typed_count=(SELECT COUNT(*) FROM visits WHERE visits.url=urls.id AND (transition&255)=1)')
-  if(assignments.length)database.exec(`UPDATE urls SET ${assignments.join(',')} WHERE id IN (SELECT id FROM temp.memento_privacy_urls)`)
+  if(assignments.length)database.exec(`UPDATE urls SET ${assignments.join(',')} WHERE id IN (SELECT id FROM temp.diskcollie_privacy_urls)`)
   const keepSearch=tableExists(database,'keyword_search_terms')&&columns(database,'keyword_search_terms').has('url_id')?' AND NOT EXISTS(SELECT 1 FROM keyword_search_terms WHERE url_id=urls.id)':''
-  database.exec(`DELETE FROM urls WHERE id IN (SELECT id FROM temp.memento_privacy_urls) AND NOT EXISTS(SELECT 1 FROM visits WHERE visits.url=urls.id)${keepSearch}`)
+  database.exec(`DELETE FROM urls WHERE id IN (SELECT id FROM temp.diskcollie_privacy_urls) AND NOT EXISTS(SELECT 1 FROM visits WHERE visits.url=urls.id)${keepSearch}`)
 }
 function firefoxVisits(database:Database):void{
-  database.exec(`CREATE TEMP TABLE memento_privacy_places(id INTEGER PRIMARY KEY); INSERT INTO memento_privacy_places SELECT DISTINCT place_id FROM moz_historyvisits WHERE rowid IN (${keys}); DELETE FROM moz_historyvisits WHERE rowid IN (${keys})`)
+  database.exec(`CREATE TEMP TABLE diskcollie_privacy_places(id INTEGER PRIMARY KEY); INSERT INTO diskcollie_privacy_places SELECT DISTINCT place_id FROM moz_historyvisits WHERE rowid IN (${keys}); DELETE FROM moz_historyvisits WHERE rowid IN (${keys})`)
   const available=columns(database,'moz_places'),assignments:string[]=[]
   if(available.has('visit_count'))assignments.push('visit_count=(SELECT COUNT(*) FROM moz_historyvisits WHERE place_id=moz_places.id)')
   if(available.has('last_visit_date'))assignments.push('last_visit_date=(SELECT MAX(visit_date) FROM moz_historyvisits WHERE place_id=moz_places.id)')
-  if(assignments.length)database.exec(`UPDATE moz_places SET ${assignments.join(',')} WHERE id IN (SELECT id FROM temp.memento_privacy_places)`)
+  if(assignments.length)database.exec(`UPDATE moz_places SET ${assignments.join(',')} WHERE id IN (SELECT id FROM temp.diskcollie_privacy_places)`)
   const foreign=available.has('foreign_count')?'AND COALESCE(foreign_count,0)=0':''
   const bookmarks=tableExists(database,'moz_bookmarks')&&columns(database,'moz_bookmarks').has('fk')?'AND NOT EXISTS(SELECT 1 FROM moz_bookmarks WHERE fk=moz_places.id)':''
-  database.exec(`DELETE FROM moz_places WHERE id IN (SELECT id FROM temp.memento_privacy_places) AND NOT EXISTS(SELECT 1 FROM moz_historyvisits WHERE place_id=moz_places.id) ${foreign} ${bookmarks}`)
+  database.exec(`DELETE FROM moz_places WHERE id IN (SELECT id FROM temp.diskcollie_privacy_places) AND NOT EXISTS(SELECT 1 FROM moz_historyvisits WHERE place_id=moz_places.id) ${foreign} ${bookmarks}`)
 }
 function safariVisits(database:Database):void{
-  database.exec(`CREATE TEMP TABLE memento_privacy_safari_items(id INTEGER PRIMARY KEY); INSERT INTO memento_privacy_safari_items SELECT DISTINCT history_item FROM history_visits WHERE rowid IN (${keys}); DELETE FROM history_visits WHERE rowid IN (${keys}); DELETE FROM history_items WHERE id IN (SELECT id FROM temp.memento_privacy_safari_items) AND NOT EXISTS(SELECT 1 FROM history_visits WHERE history_item=history_items.id)`)
+  database.exec(`CREATE TEMP TABLE diskcollie_privacy_safari_items(id INTEGER PRIMARY KEY); INSERT INTO diskcollie_privacy_safari_items SELECT DISTINCT history_item FROM history_visits WHERE rowid IN (${keys}); DELETE FROM history_visits WHERE rowid IN (${keys}); DELETE FROM history_items WHERE id IN (SELECT id FROM temp.diskcollie_privacy_safari_items) AND NOT EXISTS(SELECT 1 FROM history_visits WHERE history_item=history_items.id)`)
 }
 function chromiumSearch(database:Database):void{
-  database.exec(`CREATE TEMP TABLE memento_privacy_search_urls(id INTEGER PRIMARY KEY); INSERT OR IGNORE INTO memento_privacy_search_urls SELECT url_id FROM keyword_search_terms WHERE rowid IN (${keys}); DELETE FROM keyword_search_terms WHERE rowid IN (${keys}); DELETE FROM urls WHERE id IN (SELECT id FROM temp.memento_privacy_search_urls) AND NOT EXISTS(SELECT 1 FROM keyword_search_terms WHERE url_id=urls.id) AND NOT EXISTS(SELECT 1 FROM visits WHERE visits.url=urls.id)`)
+  database.exec(`CREATE TEMP TABLE diskcollie_privacy_search_urls(id INTEGER PRIMARY KEY); INSERT OR IGNORE INTO diskcollie_privacy_search_urls SELECT url_id FROM keyword_search_terms WHERE rowid IN (${keys}); DELETE FROM keyword_search_terms WHERE rowid IN (${keys}); DELETE FROM urls WHERE id IN (SELECT id FROM temp.diskcollie_privacy_search_urls) AND NOT EXISTS(SELECT 1 FROM keyword_search_terms WHERE url_id=urls.id) AND NOT EXISTS(SELECT 1 FROM visits WHERE visits.url=urls.id)`)
 }
 
 function sqlResource(definition:PrivacyDefinition,spec:SqlSpec):PrivacyResource{
@@ -212,7 +212,7 @@ function sqlResource(definition:PrivacyDefinition,spec:SqlSpec):PrivacyResource{
 }
 
 async function readJson(filename:string):Promise<Record<string,any>>{const observed=await privacyPathSnapshot(filename);if(observed.directory||observed.size>MAX_JSON_BYTES)throw new Error('privacy.sourceUnavailable');const value=JSON.parse(await readFile(filename,'utf8'));if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('privacy.sourceUnavailable');return value}
-async function replaceJson(filename:string,value:unknown):Promise<void>{const temporary=filename+'.memento-'+randomUUID();try{await writeFile(temporary,JSON.stringify(value),{mode:0o600,flag:'wx'});await rename(temporary,filename)}finally{await rm(temporary,{force:true})}}
+async function replaceJson(filename:string,value:unknown):Promise<void>{const temporary=filename+'.diskcollie-'+randomUUID();try{await writeFile(temporary,JSON.stringify(value),{mode:0o600,flag:'wx'});await rename(temporary,filename)}finally{await rm(temporary,{force:true})}}
 function firefoxPasswords(definition:PrivacyDefinition):PrivacyResource{
   return {...definition,scan:async(range)=>{
     if(range!=='all')return privacyUnavailable('range-unsupported')
@@ -315,7 +315,7 @@ export async function browserPrivacyResources(context:PrivacyContext):Promise<Pr
         database('autofill','Web Data',{table:'autofill',required:{autofill:['name']},grouped:true,records:'SELECT name AS id,name AS title,COUNT(*) AS count FROM autofill WHERE rowid IN ($IDS) GROUP BY name ORDER BY name'})
         database('top-sites','Top Sites',{table:'top_sites',required:{top_sites:['url','title']},records:"SELECT rowid AS id,COALESCE(NULLIF(title,''),url) AS title,url FROM top_sites WHERE rowid IN ($IDS) ORDER BY rowid"})
         database('shortcuts','Shortcuts',{table:'omni_box_shortcuts',required:{omni_box_shortcuts:['text','url','last_access_time']},time:{column:'last_access_time',family:'chromium'},records:`SELECT rowid AS id,text AS title,url,${timestamp('last_access_time','chromium')} AS timestamp FROM omni_box_shortcuts WHERE rowid IN ($IDS) ORDER BY last_access_time DESC,rowid DESC`})
-        database('favicons','Favicons',{table:'icon_mapping',required:{icon_mapping:['page_url','icon_id'],favicons:['id'],favicon_bitmaps:['icon_id']},grouped:true,records:'SELECT page_url AS id,page_url AS title,page_url AS url,COUNT(*) AS count FROM icon_mapping WHERE rowid IN ($IDS) GROUP BY page_url ORDER BY page_url',related:[{table:'favicons',where:'id IN (SELECT icon_id FROM icon_mapping WHERE rowid IN ($IDS))'},{table:'favicon_bitmaps',where:'icon_id IN (SELECT icon_id FROM icon_mapping WHERE rowid IN ($IDS))'}],mutate:(database)=>{database.exec(`CREATE TEMP TABLE memento_privacy_icons(id INTEGER PRIMARY KEY); INSERT OR IGNORE INTO memento_privacy_icons SELECT icon_id FROM icon_mapping WHERE rowid IN (${keys}); DELETE FROM icon_mapping WHERE rowid IN (${keys}); DELETE FROM favicon_bitmaps WHERE icon_id IN (SELECT id FROM temp.memento_privacy_icons) AND NOT EXISTS(SELECT 1 FROM icon_mapping WHERE icon_mapping.icon_id=favicon_bitmaps.icon_id); DELETE FROM favicons WHERE id IN (SELECT id FROM temp.memento_privacy_icons) AND NOT EXISTS(SELECT 1 FROM icon_mapping WHERE icon_mapping.icon_id=favicons.id)`)}})
+        database('favicons','Favicons',{table:'icon_mapping',required:{icon_mapping:['page_url','icon_id'],favicons:['id'],favicon_bitmaps:['icon_id']},grouped:true,records:'SELECT page_url AS id,page_url AS title,page_url AS url,COUNT(*) AS count FROM icon_mapping WHERE rowid IN ($IDS) GROUP BY page_url ORDER BY page_url',related:[{table:'favicons',where:'id IN (SELECT icon_id FROM icon_mapping WHERE rowid IN ($IDS))'},{table:'favicon_bitmaps',where:'icon_id IN (SELECT icon_id FROM icon_mapping WHERE rowid IN ($IDS))'}],mutate:(database)=>{database.exec(`CREATE TEMP TABLE diskcollie_privacy_icons(id INTEGER PRIMARY KEY); INSERT OR IGNORE INTO diskcollie_privacy_icons SELECT icon_id FROM icon_mapping WHERE rowid IN (${keys}); DELETE FROM icon_mapping WHERE rowid IN (${keys}); DELETE FROM favicon_bitmaps WHERE icon_id IN (SELECT id FROM temp.diskcollie_privacy_icons) AND NOT EXISTS(SELECT 1 FROM icon_mapping WHERE icon_mapping.icon_id=favicon_bitmaps.icon_id); DELETE FROM favicons WHERE id IN (SELECT id FROM temp.diskcollie_privacy_icons) AND NOT EXISTS(SELECT 1 FROM icon_mapping WHERE icon_mapping.icon_id=favicons.id)`)}})
         add(chromiumPermissions(definition('site-permissions',[paths.join(profile.root,'Preferences')],false)))
         files('sessions',['Sessions','Current Session','Current Tabs','Last Session','Last Tabs'].map((name)=>paths.join(profile.root,name)))
         const cacheNames=['Cache','Code Cache','GPUCache','DawnCache','DawnGraphiteCache','DawnWebGPUCache']

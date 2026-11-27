@@ -11,7 +11,7 @@ import {
 
 describe('terminal fixes', () => {
   it('backs up, optimizes, and restores a zsh configuration', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-terminal-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-terminal-'))
     try {
       const target = path.join(home, '.zshrc')
       const original = [
@@ -35,10 +35,10 @@ describe('terminal fixes', () => {
       )
       const optimized = await fs.readFile(target, 'utf8')
       expect(await fs.readFile(backup.backup, 'utf8')).toBe(original)
-      expect(optimized).toContain('# Memento disabled during startup optimization: source')
+      expect(optimized).toContain('# DiskCollie disabled during startup optimization: source')
       expect(optimized).toContain('typeset -U path PATH')
-      expect(optimized).toContain('Memento removes PATH entries that no longer exist.')
-      expect(optimized).toContain('[[ -d "$memento_path_entry" ]]')
+      expect(optimized).toContain('DiskCollie removes PATH entries that no longer exist.')
+      expect(optimized).toContain('[[ -d "$diskcollie_path_entry" ]]')
 
       await restoreTerminalBackup(backup, home)
       expect(await fs.readFile(target, 'utf8')).toBe(original)
@@ -48,7 +48,7 @@ describe('terminal fixes', () => {
   })
 
   it('refuses to overwrite a configuration changed after scanning', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-terminal-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-terminal-'))
     try {
       const target = path.join(home, '.zprofile')
       await fs.writeFile(target, 'pyenv init -\n')
@@ -67,7 +67,7 @@ describe('terminal fixes', () => {
   })
 
   it('refuses to restore over changes made after optimization', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-terminal-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-terminal-'))
     try {
       const target = path.join(home, '.zshrc')
       const original = 'source "$NVM_DIR/nvm.sh"\n'
@@ -90,7 +90,7 @@ describe('terminal fixes', () => {
   })
 
   it.runIf(process.platform === 'darwin')('rejects optimized content with invalid zsh syntax', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-terminal-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-terminal-'))
     try {
       const target = path.join(home, '.zshrc')
       const original = 'source "$NVM_DIR/nvm.sh"\nif then\n'
@@ -103,7 +103,7 @@ describe('terminal fixes', () => {
         lineNumbers: [0]
       }], home)).rejects.toThrow('syntax validation')
       expect(await fs.readFile(target, 'utf8')).toBe(original)
-      expect((await fs.readdir(home)).some((name) => name.includes('memento-backup'))).toBe(false)
+      expect((await fs.readdir(home)).some((name) => name.includes('diskcollie-backup'))).toBe(false)
     } finally {
       await fs.rm(home, { recursive: true, force: true })
     }

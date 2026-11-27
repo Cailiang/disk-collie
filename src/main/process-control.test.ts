@@ -3,9 +3,9 @@ import {parseProcessIdentities,terminateUserProcess,type ProcessIdentity} from '
 const item=(pid:number,command:string,parent=1,uid=501):ProcessIdentity=>({pid,command,parent,uid,started:'Thu Nov 26 10:00:00 2026'})
 describe('confirmed user process termination',()=>{
   it('quits the owning app when a helper is selected and preserves unrelated applications',async()=>{
-    let processes=[item(99,'/Applications/Memento.app/Contents/MacOS/Memento'),item(10,'/Applications/GitHub Desktop.app/Contents/MacOS/GitHub Desktop'),item(11,'/Applications/GitHub Desktop.app/Contents/Frameworks/Helper.app/Contents/MacOS/Helper',10),item(12,'/Applications/Other.app/Contents/MacOS/Other')]
+    let processes=[item(99,'/Applications/DiskCollie.app/Contents/MacOS/DiskCollie'),item(10,'/Applications/GitHub Desktop.app/Contents/MacOS/GitHub Desktop'),item(11,'/Applications/GitHub Desktop.app/Contents/Frameworks/Helper.app/Contents/MacOS/Helper',10),item(12,'/Applications/Other.app/Contents/MacOS/Other')]
     const signal=vi.fn((pid:number)=>{processes=processes.filter((p)=>p.pid!==pid)})
-    await terminateUserProcess(11,true,{uid:501,ownPid:99,ownBundle:'/Applications/Memento.app'},{list:async()=>processes,inspect:async(pid)=>processes.find((p)=>p.pid===pid),signal})
+    await terminateUserProcess(11,true,{uid:501,ownPid:99,ownBundle:'/Applications/DiskCollie.app'},{list:async()=>processes,inspect:async(pid)=>processes.find((p)=>p.pid===pid),signal})
     expect(signal.mock.calls.map(([pid])=>pid)).toEqual([10,11]);expect(processes.map((p)=>p.pid)).toEqual([99,12])
   })
   it('rejects PID reuse and protects system, other-user and own processes',async()=>{

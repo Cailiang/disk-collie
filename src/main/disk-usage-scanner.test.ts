@@ -29,10 +29,10 @@ describe('disk usage scanner', () => {
   })
 
   it('allows only real descendants of the scanned root to move to Trash', async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-disk-trash-'))
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-disk-trash-'))
     const home = path.join(root, 'Users', 'tester')
     const child = path.join(home, 'Downloads')
-    const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-disk-outside-'))
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-disk-outside-'))
     const link = path.join(root, 'linked-outside')
     await fs.mkdir(child, { recursive: true })
     await fs.symlink(outside, link)
@@ -96,7 +96,7 @@ describe('disk usage scanner', () => {
   })
 
   it('scans a real directory asynchronously with the system disk utility', async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-disk-usage-'))
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-disk-usage-'))
     try {
       const directory = path.join(root, 'Downloads')
       const largeFile = path.join(directory, 'archive.dmg')

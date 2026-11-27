@@ -1,6 +1,8 @@
-# Memento Release Process
+# DiskCollie Release Process
 
-GitHub Actions is the only supported path for publishing Memento packages. Developer machines produce the required traceability build but do not upload platform packages directly to GitHub Releases.
+GitHub Actions is the only supported path for publishing DiskCollie packages. Developer machines produce the required traceability build but do not upload platform packages directly to GitHub Releases.
+
+The canonical repository and updater source is [Cailiang/disk-collie](https://github.com/Cailiang/disk-collie). The former `memento-client` repository is archived. A source-repository migration does not create a release tag. Before the first public DiskCollie release, configure the signing/notarization secrets in the new repository; GitHub does not transfer repository secrets when code is pushed elsewhere. Existing historical Memento packages retain their original names.
 
 ## Published Targets
 
@@ -67,17 +69,17 @@ The local bundle check verifies the disk image, bundled version, executable arch
 
 ```bash
 version="$(node -p "require('./package.json').version")"
-scripts/verify-mac-dmg.sh x64 "release/Memento-${version}-x64.dmg" bundle
-shasum -a 256 "release/Memento-${version}-x64.dmg"
+scripts/verify-mac-dmg.sh x64 "release/DiskCollie-${version}-x64.dmg" bundle
+shasum -a 256 "release/DiskCollie-${version}-x64.dmg"
 ```
 
 Use `developer-id-local` with `APPLE_SIGNING_IDENTITY` and `APPLE_TEAM_ID` to require the Developer ID on both the app and signed DMG without requiring notarization. The `bundle` mode also checks the application identifier; verify the Developer ID authority and Team ID separately as listed below. A local Developer ID-signed app can pass these checks without notarization credentials. The public workflow uses `developer-id` mode with `APPLE_SIGNING_IDENTITY` and `APPLE_TEAM_ID`; that stricter mode additionally requires the signed DMG, Gatekeeper acceptance, and valid stapled tickets on both the app and DMG. The local build and public CI build can have different checksums; use the Release's `SHA256SUMS.txt` for downloaded public installers.
 
 Commit the verified source, rebuild so `source-revision.json` records a clean commit, then verify all of the following:
 
-- `hdiutil verify` accepts `release/Memento-<version>-x64.dmg`.
-- The mounted `Memento.app` reports the same version as `package.json`.
-- `file Memento.app/Contents/MacOS/Memento` reports an `x86_64` executable.
+- `hdiutil verify` accepts `release/DiskCollie-<version>-x64.dmg`.
+- The mounted `DiskCollie.app` reports the same version as `package.json`.
+- `file DiskCollie.app/Contents/MacOS/DiskCollie` reports an `x86_64` executable.
 - `codesign --verify --deep --strict` accepts the mounted application bundle.
 - `codesign --display --verbose=4` reports the expected Developer ID authority and Team ID `6EDPX6CD7U`.
 - A SHA-256 checksum is recorded for the DMG.
@@ -99,7 +101,7 @@ git switch main
 git pull --ff-only origin main
 git push origin main
 version="$(node -p "require('./package.json').version")"
-git tag -a "v${version}" -m "Memento ${version}"
+git tag -a "v${version}" -m "DiskCollie ${version}"
 git push origin "v${version}"
 ```
 
@@ -110,7 +112,7 @@ Do not reuse or move an existing release tag. Fix the source, increment the vers
 For a local signed DMG, sign the final disk image with the full Developer ID Application identity, then run:
 
 ```sh
-APPLE_SIGNING_IDENTITY='Developer ID Application: Beijing Digital Union Network Technology Co., Ltd. (6EDPX6CD7U)' APPLE_TEAM_ID=6EDPX6CD7U scripts/verify-mac-dmg.sh x64 release/Memento-1.0.9-x64.dmg developer-id-local
+APPLE_SIGNING_IDENTITY='Developer ID Application: Beijing Digital Union Network Technology Co., Ltd. (6EDPX6CD7U)' APPLE_TEAM_ID=6EDPX6CD7U scripts/verify-mac-dmg.sh x64 release/DiskCollie-1.0.9-x64.dmg developer-id-local
 ```
 
-`MEMENTO_SMOKE_EXECUTABLE` can point `electron:smoke` at the packaged application executable. The smoke creates only its own test files and an isolated user profile. Local notarization is optional; public notarization and stapling remain mandatory.
+`DISKCOLLIE_SMOKE_EXECUTABLE` can point `electron:smoke` at the packaged application executable. The smoke creates only its own test files and an isolated user profile. Local notarization is optional; public notarization and stapling remain mandatory.

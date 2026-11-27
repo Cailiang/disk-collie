@@ -88,7 +88,7 @@ export async function verifyProviderKeyEditing(page) {
     await page.waitForFunction(() => document.querySelector('#provider-key')?.placeholder === '••••1111')
     await acknowledgeMessage(page, /已加密保存/)
     const created = await page.evaluate(async (name) =>
-      (await window.memento.listAgentProviders()).find((item) => item.name === name), input.name)
+      (await window.diskCollie.listAgentProviders()).find((item) => item.name === name), input.name)
     assert(created, 'The new custom provider must be saved through the Renderer')
 
     await key.fill('smoke-delayed-5555')
@@ -146,7 +146,7 @@ export async function verifyProviderKeyEditing(page) {
     await page.locator('.provider-error-panel').filter({ hasText: '连接测试失败' }).waitFor()
     await acknowledgeMessage(page,/invalid|401|失败/i)
     assert.equal(await key.inputValue(), 'smoke-invalid-3333', 'Failed tests must retain edits too')
-    const saved = await page.evaluate(async (id) => (await window.memento.listAgentProviders()).find((item) => item.id === id), created.id)
+    const saved = await page.evaluate(async (id) => (await window.diskCollie.listAgentProviders()).find((item) => item.id === id), created.id)
     assert.equal(saved.keyHint, '••••2222', 'Testing must not save a draft key')
     assert(!('apiKey' in saved), 'Saved plaintext keys must not cross IPC')
 
@@ -172,7 +172,7 @@ export async function verifyProviderKeyEditing(page) {
       baseUrl: `http://127.0.0.1:${server.address().port}/v1beta`, model: 'gemini-imported',
       apiKey: 'smoke-imported-6666'
     }
-    await page.evaluate((provider) => window.memento.saveAgentProvider(provider), imported)
+    await page.evaluate((provider) => window.diskCollie.saveAgentProvider(provider), imported)
     await page.reload()
     await page.locator('.nav-button[title="首页"]').waitFor({ timeout: 60_000 })
     await page.locator('.nav-button[title="设置"]').click()
@@ -186,7 +186,7 @@ export async function verifyProviderKeyEditing(page) {
     await save.click()
     await acknowledgeMessage(page, /已加密保存/)
     const preserved = await page.evaluate(async (id) =>
-      (await window.memento.listAgentProviders()).find((item) => item.id === id), imported.id)
+      (await window.diskCollie.listAgentProviders()).find((item) => item.id === id), imported.id)
     assert.equal(preserved.type, imported.type, 'Editing an imported provider must preserve its protocol')
     assert.equal(preserved.keyHint, '••••6666')
     assert.equal(preserved.model, imported.model)

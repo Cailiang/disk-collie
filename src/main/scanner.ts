@@ -864,7 +864,7 @@ async function scanLaunchAgents(
           : foundApp && !appPath
             ? t(language, '启动配置指向的应用已经不存在，可停止仍在反复尝试启动的服务并移除失效配置。', 'The application referenced by this launch configuration is missing. The service can be stopped and its stale configuration removed.')
             : appPath
-            ? t(language, '已定位关联应用，但它位于自动清理白名单之外；请使用软件自带卸载器，本工具只提供停止操作。', 'The associated application was identified but is outside the automatic cleanup allowlist. Use its own uninstaller; Memento only offers a stop action.')
+            ? t(language, '已定位关联应用，但它位于自动清理白名单之外；请使用软件自带卸载器，本工具只提供停止操作。', 'The associated application was identified but is outside the automatic cleanup allowlist. Use its own uninstaller; DiskCollie only offers a stop action.')
             : isLoaded
               ? t(language, '当前服务已加载。可以只停止，也可以移除启动项；移除启动项不会删除程序目录或用户数据。', 'The service is loaded. You can stop it only or remove its startup item. Removing the startup item does not delete its program directory or user data.')
               : t(language, '服务已经停止，但启动配置仍然存在。可以移除启动项，程序目录和用户数据会继续保留。', 'The service is stopped, but its launch configuration remains. You can remove the startup item while keeping its program directory and user data.'),
@@ -1891,7 +1891,7 @@ export async function discoverSparkleUpdate(
   try {
     const response = await fetcher(DUCKDUCKGO_RELEASES_ENDPOINT, {
       signal: AbortSignal.timeout(8_000),
-      headers: { accept: 'application/vnd.github+json', 'user-agent': 'Memento application update checker' }
+      headers: { accept: 'application/vnd.github+json', 'user-agent': 'DiskCollie application update checker' }
     })
     if (!response.ok) return null
     return duckDuckGoReleaseUpdateFromPayload(await response.json(), application.version, application.buildVersion, feedUrl)
@@ -2139,7 +2139,7 @@ async function scanApplications(
   const applications = inspected.filter((item): item is ApplicationMetadata => item !== null)
   const updates = await discoverApplicationUpdates(applications, language)
   const inventoryApplications = applications.filter(
-    (application) => application.bundleId !== 'com.fcl.memento'
+    (application) => application.bundleId !== 'com.fcl.diskcollie'
   )
   const manageableApplications = inventoryApplications.filter(
     (application) => applicationScope(application.target) !== 'system'
@@ -2321,12 +2321,12 @@ async function measureShell(shell: string, clean: boolean): Promise<number | nul
 
 async function readInteractivePath(shell: string): Promise<string[]> {
   try {
-    const args = ['-i', '-c', 'printf "__MEMENTO_PATH__%s\\n" "$PATH"']
+    const args = ['-i', '-c', 'printf "__DISKCOLLIE_PATH__%s\\n" "$PATH"']
     const { stdout } = await run(shell, args, 10_000)
     const value = stdout
       .split('\n')
-      .find((line) => line.startsWith('__MEMENTO_PATH__'))
-      ?.slice('__MEMENTO_PATH__'.length)
+      .find((line) => line.startsWith('__DISKCOLLIE_PATH__'))
+      ?.slice('__DISKCOLLIE_PATH__'.length)
     if (value !== undefined) return value.split(':').filter(Boolean)
   } catch {
     // Fall back to the environment inherited by the app.
@@ -2589,7 +2589,7 @@ async function inspectShellFiles(
     const zshrcHash = fileHashes.get(zshrcTarget)
     const zshrcContent = fileContents.get(zshrcTarget)
     const fix = shell.endsWith('zsh') && zshrcHash && zshrcContent &&
-      !zshrcContent.includes('# Memento removes PATH entries that no longer exist.')
+      !zshrcContent.includes('# DiskCollie removes PATH entries that no longer exist.') && !zshrcContent.includes('# Memento removes PATH entries that no longer exist.')
       ? {
           id,
           label: t(language, '移除无效 PATH', 'Remove missing PATH entries'),

@@ -22,7 +22,7 @@ export function AiTaskProvider({configured,visibleRunId,origin,start,onRun,onOpe
     early.current.set(run.id,{run,complete});latest.current.onRun(run)
     update((items)=>items.map((task)=>task.run?.id!==run.id||task.phase==='cancelled'?task:{...task,run,phase:run.status==='failed'?'failed':run.status==='cancelled'?'cancelled':complete||aiRunReady(run)?'ready':'running',message:run.error||'',read:complete?latest.current.visibleRunId===run.id:task.read}))
   },[update])
-  useEffect(()=>window.memento?.onAgentRunEvent((event)=>{
+  useEffect(()=>window.diskCollie?.onAgentRunEvent((event)=>{
     if(event.type==='status'){update((items)=>items.map((task)=>task.run?.id===event.runId&&task.phase!=='cancelled'?{...task,message:event.message,run:{...task.run!,status:event.status}}:task));return}
     publish(event.run,true)
   }),[publish,update])
@@ -41,7 +41,7 @@ export function AiTaskProvider({configured,visibleRunId,origin,start,onRun,onOpe
       const buffered=early.current.get(initial.id),run=buffered?.run||initial
       latest.current.onRun(run)
       update((items)=>items.map((task)=>task.id!==next.id||task.phase==='cancelled'?task:{...task,run,phase:run.status==='failed'?'failed':run.status==='cancelled'?'cancelled':buffered?.complete||aiRunReady(run)?'ready':'running',message:run.error||'',read:latest.current.visibleRunId===run.id}))
-      if(controller.signal.aborted&&window.memento)void window.memento.cancelAgentRun(run.id)
+      if(controller.signal.aborted&&window.diskCollie)void window.diskCollie.cancelAgentRun(run.id)
     }).catch((error)=>{update((items)=>items.map((task)=>task.id!==next.id||task.phase==='cancelled'?task:{...task,phase:latest.current.configured?'failed':'needs-provider',message:latest.current.configured?readableTaskError(error):'',read:false}))})
   },[tasks,configured,publish,update])
   useEffect(()=>{
@@ -58,7 +58,7 @@ export function AiTaskProvider({configured,visibleRunId,origin,start,onRun,onOpe
     const task:AiTask={...input,id:crypto.randomUUID(),origin:latest.current.origin(),phase:latest.current.configured?'queued':'needs-provider',run:null,message:'',read:false}
     update((items)=>[...items,task]);setOpen(true)
   }
-  const cancel=(task:AiTask):void=>{controllers.current.get(task.id)?.abort();if(task.run&&window.memento)void window.memento.cancelAgentRun(task.run.id).catch(()=>undefined);update((items)=>items.map((item)=>item.id===task.id?{...item,phase:'cancelled',read:true}:item))}
+  const cancel=(task:AiTask):void=>{controllers.current.get(task.id)?.abort();if(task.run&&window.diskCollie)void window.diskCollie.cancelAgentRun(task.run.id).catch(()=>undefined);update((items)=>items.map((item)=>item.id===task.id?{...item,phase:'cancelled',read:true}:item))}
   const retry=(task:AiTask):void=>{update((items)=>items.map((item)=>item.id===task.id?{...item,phase:configured?'queued':'needs-provider',message:'',run:null,read:false}:item));setOpen(true)}
   const pending=tasks.filter((task)=>['queued','preparing','running'].includes(task.phase)).length,unread=tasks.filter((task)=>task.phase==='ready'&&!task.read).length
   const originName=(value:AgentViewKey):string=>t(`nav.${value==='overview'?'home':value==='health'?'cleanup':value}`)

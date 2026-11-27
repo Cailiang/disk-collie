@@ -11,7 +11,7 @@ export class NativeEngine {
   constructor(private readonly progress: (progress: StorageProgress) => void = () => undefined) {}
   private start(): ChildProcessWithoutNullStreams {
     if (this.child) return this.child
-    const executable = process.platform === 'win32' ? 'memento-engine.exe' : 'memento-engine'
+    const executable = process.platform === 'win32' ? 'disk-collie-engine.exe' : 'disk-collie-engine'
     const binary = app.isPackaged ? path.join(process.resourcesPath, 'native', executable) : path.join(app.getAppPath(), 'build/native', executable)
     const child = spawn(binary, [], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
     this.child = child

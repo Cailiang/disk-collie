@@ -25,7 +25,7 @@ export function readApplicationIcon(target:string,revision=''):Promise<string|nu
         }catch{/* Asset-catalog applications may have only a fallback ICNS. */}
         try{for(const name of (await readdir(resources)).filter((name)=>/\.icns$/i.test(name)).sort())candidates.push(path.join(resources,name))}catch{/* Fall back to the OS icon. */}
         for(const filename of new Set(candidates)){
-          const directory=await mkdtemp(path.join(os.tmpdir(),'memento-icon-'))
+          const directory=await mkdtemp(path.join(os.tmpdir(),'diskcollie-icon-'))
           try{
             const output=path.join(directory,'icon.png')
             await exec('/usr/bin/sips',['-Z','96','-s','format','png',filename,'--out',output],{timeout:8000})

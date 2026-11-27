@@ -5,7 +5,7 @@ import path from 'node:path'
 import {discoverProjectArtifacts} from './project-artifacts'
 import {projectArtifactSnapshot} from './deep-clean-projects'
 let home:string,project:string,output:string
-beforeEach(async()=>{home=await realpath(await mkdtemp(path.join(os.tmpdir(),'memento-deep-project-')));project=path.join(home,'Projects/fixture');output=path.join(project,'node_modules');await mkdir(path.join(output,'package'),{recursive:true});await writeFile(path.join(project,'package.json'),'{}');await writeFile(path.join(project,'source.ts'),'original source');await writeFile(path.join(output,'package/index.js'),'downloaded dependency')})
+beforeEach(async()=>{home=await realpath(await mkdtemp(path.join(os.tmpdir(),'diskcollie-deep-project-')));project=path.join(home,'Projects/fixture');output=path.join(project,'node_modules');await mkdir(path.join(output,'package'),{recursive:true});await writeFile(path.join(project,'package.json'),'{}');await writeFile(path.join(project,'source.ts'),'original source');await writeFile(path.join(output,'package/index.js'),'downloaded dependency')})
 afterEach(async()=>{await rm(home,{recursive:true,force:true})})
 async function artifact(){const found=(await discoverProjectArtifacts(home)).find((entry)=>entry.target===output);expect(found).toBeDefined();return found!}
 describe('registered project artifact Trash',()=>{

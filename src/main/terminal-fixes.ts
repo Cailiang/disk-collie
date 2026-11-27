@@ -47,7 +47,7 @@ export function isAllowedTerminalConfig(target: string, home = os.homedir()): bo
 async function writeAtomically(target: string, content: string, mode: number): Promise<void> {
   const temporary = path.join(
     path.dirname(target),
-    `.${path.basename(target)}.memento-${randomUUID()}.tmp`
+    `.${path.basename(target)}.diskcollie-${randomUUID()}.tmp`
   )
   try {
     await fs.writeFile(temporary, content, { encoding: 'utf8', flag: 'wx', mode })
@@ -119,22 +119,22 @@ export async function applyTerminalFixGroup(
   for (const lineNumber of commentLines) {
     const line = lines[lineNumber]
     const indentation = line.match(/^\s*/)?.[0] ?? ''
-    lines[lineNumber] = `${indentation}# Memento disabled during startup optimization: ${line.slice(indentation.length)}`
+    lines[lineNumber] = `${indentation}# DiskCollie disabled during startup optimization: ${line.slice(indentation.length)}`
   }
   if (dedupePath && !lines.some((line) => line.trim() === 'typeset -U path PATH')) {
     if (lines.at(-1) !== '') lines.push('')
-    lines.push('# Memento keeps PATH entries unique.', 'typeset -U path PATH', '')
+    lines.push('# DiskCollie keeps PATH entries unique.', 'typeset -U path PATH', '')
   }
-  if (prunePath && !lines.some((line) => line.trim() === '# Memento removes PATH entries that no longer exist.')) {
+  if (prunePath && !lines.some((line) => ['# DiskCollie removes PATH entries that no longer exist.','# Memento removes PATH entries that no longer exist.'].includes(line.trim()))) {
     if (lines.at(-1) !== '') lines.push('')
     lines.push(
-      '# Memento removes PATH entries that no longer exist.',
-      'typeset -a memento_valid_path_entries=()',
-      'for memento_path_entry in "${path[@]}"; do',
-      '  [[ -d "$memento_path_entry" ]] && memento_valid_path_entries+=("$memento_path_entry")',
+      '# DiskCollie removes PATH entries that no longer exist.',
+      'typeset -a diskcollie_valid_path_entries=()',
+      'for diskcollie_path_entry in "${path[@]}"; do',
+      '  [[ -d "$diskcollie_path_entry" ]] && diskcollie_valid_path_entries+=("$diskcollie_path_entry")',
       'done',
-      'path=("${memento_valid_path_entries[@]}")',
-      'unset memento_valid_path_entries memento_path_entry',
+      'path=("${diskcollie_valid_path_entries[@]}")',
+      'unset diskcollie_valid_path_entries diskcollie_path_entry',
       ''
     )
   }
@@ -144,7 +144,7 @@ export async function applyTerminalFixGroup(
   await validateZshSyntax(optimized)
 
   const stamp = now.toISOString().replace(/[:.]/g, '-')
-  const backup = `${target}.memento-backup-${stamp}-${randomUUID().slice(0, 8)}`
+  const backup = `${target}.diskcollie-backup-${stamp}-${randomUUID().slice(0, 8)}`
   await fs.copyFile(target, backup, constants.COPYFILE_EXCL)
   await fs.chmod(backup, stats.mode)
   await writeAtomically(target, optimized, stats.mode)

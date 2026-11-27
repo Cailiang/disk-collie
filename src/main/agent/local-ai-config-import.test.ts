@@ -10,7 +10,7 @@ import {
 const temporaryDirectories: string[] = []
 
 function temporaryHome(): string {
-  const directory = mkdtempSync(path.join(tmpdir(), 'memento-local-ai-'))
+  const directory = mkdtempSync(path.join(tmpdir(), 'diskcollie-local-ai-'))
   temporaryDirectories.push(directory)
   return directory
 }

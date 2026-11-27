@@ -24,7 +24,7 @@ export interface AppSettings {
 
 export type UpdateAppSettingsInput = Partial<AppSettings>
 
-export interface MementoSettingsApi {
+export interface DiskCollieSettingsApi {
   addScanExcludedDirectory:()=>Promise<AppSettings>
   removeScanExcludedDirectory:(directory:string)=>Promise<AppSettings>
   getAppSettings: () => Promise<AppSettings>

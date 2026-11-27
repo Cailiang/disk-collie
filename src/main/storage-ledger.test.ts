@@ -6,7 +6,7 @@ import {StorageLedger} from './storage-ledger'
 import {AgentStore} from './agent/agent-store'
 import type {StorageActivity} from '../shared/storage-types'
 const directories:string[]=[]
-const directory=():string=>{const value=mkdtempSync(path.join(os.tmpdir(),'memento-ledger-'));directories.push(value);return value}
+const directory=():string=>{const value=mkdtempSync(path.join(os.tmpdir(),'diskcollie-ledger-'));directories.push(value);return value}
 afterEach(()=>{for(const value of directories.splice(0))rmSync(value,{recursive:true,force:true})})
 describe('embedded cleanup history',()=>{
   it('imports legacy records once and persists incremental results beside encrypted providers and custom settings',()=>{

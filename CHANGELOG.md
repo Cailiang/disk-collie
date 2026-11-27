@@ -4,6 +4,22 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.24 - 2026-11-27
+
+### English
+
+- Rename the product to DiskCollie, package to `disk-collie`, application identifier to `com.fcl.diskcollie` and native engine to `disk-collie-engine`. Unify startup, branding, tray, prompts, preload/IPC, environment variables, installers and current documentation.
+- Move source, updater, issue/security links and release workflows to Cailiang/disk-collie, preserving project history and the new repository's initial license commit. Retire and archive the original repository.
+- Migrate old profiles using a consistent SQLite snapshot and the original encryption key. Retain provider credentials, settings, conversations and cleanup totals, preserve the old profile, and never overwrite existing new data or redirect custom profiles.
+- Keep legacy database names, protected data folders, terminal markers and game scores compatible. Treat a new repository without a published release as up to date. Extend migration, updater, Electron and four-viewport branding checks.
+
+### 简体中文
+
+- 产品统一更名 DiskCollie，包名 `disk-collie`，应用标识 `com.fcl.diskcollie`，原生引擎 `disk-collie-engine`；同步启动页、侧栏、托盘、提示、通信接口、环境变量、安装包及现行文档。
+- 代码、更新地址、问题／安全入口和发布流程迁至 Cailiang/disk-collie，保留原有历史和新仓库初始许可证提交；旧仓库停止维护并归档。
+- 旧数据通过一致的 SQLite 快照连同原有加密密钥迁移，保留供应商、配置、对话与清理统计，原数据不删除，新数据不覆盖，手动指定的数据目录不重定向。
+- 兼容旧数据库名、受保护目录、终端标记和游戏得分；新仓库尚无发布版本时显示已是最新，补充迁移、更新、Electron 与四尺寸品牌检查。
+
 ## 1.0.23 - 2026-11-27
 
 ### English

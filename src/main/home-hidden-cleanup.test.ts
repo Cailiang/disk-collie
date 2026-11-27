@@ -13,7 +13,7 @@ import {
 
 describe('hidden Home cleanup', () => {
   it('finds unmatched app data while protecting credentials, shell files, and container roots', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-hidden-home-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-hidden-home-'))
     try {
       const paths = [
         '.anyconnect',
@@ -84,8 +84,8 @@ describe('hidden Home cleanup', () => {
   })
 
   it('rejects linked, protected, nested, and changed targets before cleanup', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-hidden-home-'))
-    const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-hidden-outside-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-hidden-home-'))
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-hidden-outside-'))
     try {
       const target = path.join(home, '.anyconnect')
       const nested = path.join(target, 'settings.json')

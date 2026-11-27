@@ -5,8 +5,8 @@ import path from 'node:path'
 import { createInterface } from 'node:readline'
 import assert from 'node:assert/strict'
 
-const fixture=await mkdtemp(path.join(os.tmpdir(),'memento-native-smoke-'))
-const count=Number(process.env.MEMENTO_BENCHMARK_FILES||20000)
+const fixture=await mkdtemp(path.join(os.tmpdir(),'diskcollie-native-smoke-'))
+const count=Number(process.env.DISKCOLLIE_BENCHMARK_FILES||20000)
 try {
   for(let folder=0;folder<100;folder++) {
     const directory=path.join(fixture,`folder-${folder}`);await mkdir(directory)
@@ -15,7 +15,7 @@ try {
   await writeFile(path.join(fixture,'copy-a'),Buffer.alloc(1024*1024,7))
   await writeFile(path.join(fixture,'copy-b'),Buffer.alloc(1024*1024,7))
   async function measure(standard) {
-    const engine=spawn(path.resolve('build/native',process.platform==='win32'?'memento-engine.exe':'memento-engine'),[],{env:{...process.env,...(standard?{MEMENTO_STANDARD_READDIR:'1'}:{})},stdio:['pipe','pipe','inherit']})
+    const engine=spawn(path.resolve('build/native',process.platform==='win32'?'disk-collie-engine.exe':'disk-collie-engine'),[],{env:{...process.env,...(standard?{DISKCOLLIE_STANDARD_READDIR:'1'}:{})},stdio:['pipe','pipe','inherit']})
     let sequence=0;const pending=new Map()
     createInterface({input:engine.stdout}).on('line',line=>{const v=JSON.parse(line);if(v.event)return;const p=pending.get(v.request);if(p){pending.delete(v.request);v.error?p.reject(new Error(v.error)):p.resolve(v.result)}})
     engine.on('exit',()=>{for(const p of pending.values())p.reject(new Error('Native engine exited'))})

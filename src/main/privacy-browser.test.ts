@@ -20,7 +20,7 @@ const safariTime=(ms:number)=>ms/1000-978307200
 let home:string,chrome:string,context:PrivacyContext
 
 beforeEach(async()=>{
-  home=await realpath(await mkdtemp(path.join(os.tmpdir(),'memento-browser-privacy-')))
+  home=await realpath(await mkdtemp(path.join(os.tmpdir(),'diskcollie-browser-privacy-')))
   chrome=path.join(home,'Library/Application Support/Google/Chrome/Default')
   await mkdir(chrome,{recursive:true})
   context={platform:'darwin',home,env:{},applications:[]}
@@ -170,7 +170,7 @@ describe('browser privacy SQLite adapters',()=>{
   it('reads committed history, searches and downloads through an isolated rollback-journal copy while Chrome holds an exclusive lock',async()=>{
     chromeHistory()
     const filename=path.join(chrome,'History'),writer=new DatabaseSync(filename)
-    const privateDirectories=async()=>new Set((await readdir(os.tmpdir())).filter((name)=>name.startsWith('memento-private-browser-')))
+    const privateDirectories=async()=>new Set((await readdir(os.tmpdir())).filter((name)=>name.startsWith('diskcollie-private-browser-')))
     const beforeDirectories=await privateDirectories()
     try{
       writer.exec("PRAGMA locking_mode=EXCLUSIVE; PRAGMA cache_size=1; BEGIN EXCLUSIVE; UPDATE urls SET title='uncommitted private title' WHERE id=2;")

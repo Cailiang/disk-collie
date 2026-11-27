@@ -38,12 +38,12 @@ function GroupCheck({items,selected,onToggle,label,disabled=false}:{items:Privac
 }
 function SourceLogo({rule}:{rule:PrivacyItem}):React.JSX.Element {
   const [icon,setIcon]=useState<string|null>(null)
-  useEffect(()=>{let current=true;setIcon(null);if(window.memento)void window.memento.storageCleanupIcon(rule.id).then((value)=>{if(current)setIcon(value)}).catch(()=>undefined);return()=>{current=false}},[rule.id])
+  useEffect(()=>{let current=true;setIcon(null);if(window.diskCollie)void window.diskCollie.storageCleanupIcon(rule.id).then((value)=>{if(current)setIcon(value)}).catch(()=>undefined);return()=>{current=false}},[rule.id])
   if(icon)return <img className="privacy-source-logo" src={icon} alt={rule.source?.name||rule.browser||''}/>
-  if(!window.memento&&rule.source?.key==='chrome')return <svg className="privacy-source-logo" viewBox="0 0 40 40" aria-label="Google Chrome" role="img"><circle cx="20" cy="20" r="18" fill="#e8b83d"/><path d="M20 20 4.4 29A18 18 0 0 1 20 2H36Z" fill="#df6256"/><path d="M20 20 36 11a18 18 0 0 1-16 27H4Z" fill="#67a471"/><circle cx="20" cy="20" r="8.8" fill="#f5f8fa"/><circle cx="20" cy="20" r="7" fill="#5d93cb"/></svg>
-  if(!window.memento&&rule.source?.key==='safari')return <svg className="privacy-source-logo" viewBox="0 0 40 40" aria-label="Safari" role="img"><rect x="1" y="1" width="38" height="38" rx="9" fill="#f4f6f7"/><circle cx="20" cy="20" r="16" fill="#67aacf"/><path d="m27 8-4 15-10 9 4-15Z" fill="white"/><path d="m27 8-4 15-6-6Z" fill="#df6662"/></svg>
-  if(!window.memento&&rule.source?.key==='vscode')return <img className="privacy-source-logo" src={new URL('./assets/demo-vscode.ico',import.meta.url).href} alt="Visual Studio Code"/>
-  if(!window.memento&&rule.source?.key==='figma')return <img className="privacy-source-logo" src={new URL('./assets/demo-figma.svg',import.meta.url).href} alt="Figma"/>
+  if(!window.diskCollie&&rule.source?.key==='chrome')return <svg className="privacy-source-logo" viewBox="0 0 40 40" aria-label="Google Chrome" role="img"><circle cx="20" cy="20" r="18" fill="#e8b83d"/><path d="M20 20 4.4 29A18 18 0 0 1 20 2H36Z" fill="#df6256"/><path d="M20 20 36 11a18 18 0 0 1-16 27H4Z" fill="#67a471"/><circle cx="20" cy="20" r="8.8" fill="#f5f8fa"/><circle cx="20" cy="20" r="7" fill="#5d93cb"/></svg>
+  if(!window.diskCollie&&rule.source?.key==='safari')return <svg className="privacy-source-logo" viewBox="0 0 40 40" aria-label="Safari" role="img"><rect x="1" y="1" width="38" height="38" rx="9" fill="#f4f6f7"/><circle cx="20" cy="20" r="16" fill="#67aacf"/><path d="m27 8-4 15-10 9 4-15Z" fill="white"/><path d="m27 8-4 15-6-6Z" fill="#df6662"/></svg>
+  if(!window.diskCollie&&rule.source?.key==='vscode')return <img className="privacy-source-logo" src={new URL('./assets/demo-vscode.ico',import.meta.url).href} alt="Visual Studio Code"/>
+  if(!window.diskCollie&&rule.source?.key==='figma')return <img className="privacy-source-logo" src={new URL('./assets/demo-figma.svg',import.meta.url).href} alt="Figma"/>
   const Icon=rule.privacyCategory.startsWith('browser')?Globe:rule.privacyCategory==='system-activity'?Monitor:AppWindow
   return <span className="privacy-source-logo privacy-logo-fallback"><Icon size={23}/></span>
 }

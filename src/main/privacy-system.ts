@@ -82,7 +82,7 @@ async function validateIdentity(old:Awaited<ReturnType<typeof identity>>):Promis
   if(createHash('sha256').update(await readFile(old.file.path)).digest('hex')!==old.hash)throw new Error('privacy.sourceChanged')
 }
 async function replaceFile(old:Awaited<ReturnType<typeof identity>>,content:string,plist=false):Promise<number>{
-  const temporary=path.join(path.dirname(old.file.path),`.memento-privacy-${randomUUID()}`)
+  const temporary=path.join(path.dirname(old.file.path),`.diskcollie-privacy-${randomUUID()}`)
   const mode=(await lstat(old.file.path)).mode&0o777
   try{
     await writeFile(temporary,content,{flag:'wx',mode})

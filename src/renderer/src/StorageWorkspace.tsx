@@ -99,7 +99,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const detailsSequence=useRef(0)
   const attempted=useRef(new Set<string>())
   const mainRef=useRef<HTMLDivElement>(null)
-  const demo=!window.memento
+  const demo=!window.diskCollie
   const demoScanMs=demo?Math.min(90000,Math.max(1100,Number(new URLSearchParams(location.search).get('demoScanMs'))||1100)):0
   const runTask=useCallback(async<T,>(kind:typeof task,work:()=>Promise<T>):Promise<T|null>=>{
     const epoch=scopeEpoch.current
@@ -110,10 +110,10 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   useEffect(()=>{
     mounted.current=true
     const epoch=scopeEpoch.current
-    if(window.memento) void window.memento.storageState().then((s)=>{if(epoch!==scopeEpoch.current)return;const retained=s.indexes[view==='disk'?'analysis':view==='large'||view==='duplicates'?view:'analysis'];setIndex(retained||null);setIncludeHidden(retained?.includeHidden??false);setHistory(s.history)}).catch((e)=>setError(readableTaskError(e)))
+    if(window.diskCollie) void window.diskCollie.storageState().then((s)=>{if(epoch!==scopeEpoch.current)return;const retained=s.indexes[view==='disk'?'analysis':view==='large'||view==='duplicates'?view:'analysis'];setIndex(retained||null);setIncludeHidden(retained?.includeHidden??false);setHistory(s.history)}).catch((e)=>setError(readableTaskError(e)))
     else {setIndex(demoIndex);setHistory(demoHistory)}
-    const unsubscribe=window.memento?.onStorageProgress((p)=>{if(!p.scope||p.scope===(view==='health'?'cleanup':view==='disk'?'analysis':view))setProgress(p)})
-    const stopScope=window.memento?.onStorageScopeChanged(()=>{
+    const unsubscribe=window.diskCollie?.onStorageProgress((p)=>{if(!p.scope||p.scope===(view==='health'?'cleanup':view==='disk'?'analysis':view))setProgress(p)})
+    const stopScope=window.diskCollie?.onStorageScopeChanged(()=>{
       ++scopeEpoch.current;++querySequence.current;++detailsSequence.current;cancelled.current=true
       setIndex(null);setLarge([]);setLargeCount(0);setCategoryCounts({});setGroups(null);setFolder(null);setChildren([]);setBreadcrumbs([]);setMapFile(null);setMapOffset(0)
       setSelected(new Set());setCleanup(null);setDeepScan(null);setDeepSelected(new Set());setPrivacy(null);setRuleSelected(new Set());setRelated([]);setRelatedSelected(new Set());setConfirmation(null)
@@ -123,10 +123,10 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   },[])
   useEffect(()=>{
     if(view!=='apps')return
-    if(!window.memento){setApplications(demoApps);return}
+    if(!window.diskCollie){setApplications(demoApps);return}
     const receive=(state:ApplicationInventoryState):void=>{if(!mounted.current)return;setInventory(state);setApplications(state.applications);setApplication((previous)=>previous?state.applications.find((application)=>application.id===previous.id&&application.version===previous.version)||null:null)}
-    const stop=window.memento.onStorageApplications(receive)
-    void window.memento.storageApplicationState().then(receive).catch((error)=>setError(String(error)))
+    const stop=window.diskCollie.onStorageApplications(receive)
+    void window.diskCollie.storageApplicationState().then(receive).catch((error)=>setError(String(error)))
     return stop
   },[])
   useEffect(()=>{
@@ -161,32 +161,32 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
         if(parent){const adjusted=adjustDemoEntry(parent);setFolder(adjusted);setBreadcrumbs((trail.length?trail:[parent]).map(adjustDemoEntry));setChildren(demoChildren(parent).map(adjustDemoEntry).filter((entry)=>!removed(entry.path)&&!removedPaths.some((location)=>entry.path===location||entry.path.startsWith(location+'/'))));setMapFile(parent.id===0?null:adjusted)}
       }
     }
-    if(view==='disk'&&index&&activity.locations.length&&window.memento)void (async()=>{
+    if(view==='disk'&&index&&activity.locations.length&&window.diskCollie)void (async()=>{
       try {
-        const state=await window.memento!.storageState(),next=state.indexes.analysis
+        const state=await window.diskCollie!.storageState(),next=state.indexes.analysis
         if(!next)return
         setIndex(next)
         const survivingTrail=breadcrumbs.filter((entry)=>!removed(entry.path)),current=folder&&!removed(folder.path)?folder:survivingTrail.at(-1)||next.root
-        if(current){const result=await window.memento!.storageChildren({generation:next.generation,id:current.id});setFolder(result.parent);setChildren(result.items);if(folder&&removed(folder.path)){setBreadcrumbs(survivingTrail.length?survivingTrail:[result.parent]);setMapFile(result.parent.id===0?null:result.parent)}else if(current.id===0)setBreadcrumbs([result.parent])}
+        if(current){const result=await window.diskCollie!.storageChildren({generation:next.generation,id:current.id});setFolder(result.parent);setChildren(result.items);if(folder&&removed(folder.path)){setBreadcrumbs(survivingTrail.length?survivingTrail:[result.parent]);setMapFile(result.parent.id===0?null:result.parent)}else if(current.id===0)setBreadcrumbs([result.parent])}
       }catch(e){setError(readableTaskError(e))}
     })()
   },[activity])
   useEffect(()=>{setGroups(null);setSelected(new Set());setOffset(0);setBreadcrumbs([]);setFolder(null);setMapFile(null);if(index&&duplicateAfterScan.current===index.generation){duplicateAfterScan.current=null;void findDuplicates(index)}},[index?.generation,index?.root?.path])
   const scan=async():Promise<void>=>{
     const result=await runTask('scan',async()=>{
-      if(window.memento)return window.memento.storageScan({mode:view==='disk'||view==='overview'?'analysis':view==='duplicates'?'duplicates':'large',minimum:duplicateMinimum,includeHidden})
+      if(window.diskCollie)return window.diskCollie.storageScan({mode:view==='disk'||view==='overview'?'analysis':view==='duplicates'?'duplicates':'large',minimum:duplicateMinimum,includeHidden})
       await new Promise((resolve)=>setTimeout(resolve,demoScanMs));return {...demoIndex,generation:(index?.generation||0)+1}
     })
     if(result){if(view==='duplicates')duplicateAfterScan.current=result.generation;setIndex(result);setGroups(null);setSelected(new Set());setBreadcrumbs([]);setFolder(null)}
   }
-  const cancel=async():Promise<void>=>{cancelled.current=true;const active=await window.memento?.storageCancel(view==='health'?'cleanup':view==='disk'?'analysis':view==='privacy'?'privacy':view==='duplicates'?'duplicates':'large');if(active&&task==='duplicates')setIndex(null)}
+  const cancel=async():Promise<void>=>{cancelled.current=true;const active=await window.diskCollie?.storageCancel(view==='health'?'cleanup':view==='disk'?'analysis':view==='privacy'?'privacy':view==='duplicates'?'duplicates':'large');if(active&&task==='duplicates')setIndex(null)}
   const loadCleanup=useCallback(async(isPrivacy:boolean,range:PrivacyTimeRange=privacyRange):Promise<void>=>{
-    if(isPrivacy){const result=await runTask('cleanup',async()=>window.memento?window.memento.storagePrivacyScan(range):new Promise<PrivacyItem[]>((resolve)=>setTimeout(()=>resolve(demoPrivacyItems(range,demoPrivacyCleared.current)),demoScanMs)));if(result){setPrivacy(result);setRuleSelected(new Set())}}
-    else{const result=await runTask('cleanup',async()=>window.memento?window.memento.storageCleanup(false):demoCleanup);if(result){setCleanup(result);setRuleSelected(new Set())}}
+    if(isPrivacy){const result=await runTask('cleanup',async()=>window.diskCollie?window.diskCollie.storagePrivacyScan(range):new Promise<PrivacyItem[]>((resolve)=>setTimeout(()=>resolve(demoPrivacyItems(range,demoPrivacyCleared.current)),demoScanMs)));if(result){setPrivacy(result);setRuleSelected(new Set())}}
+    else{const result=await runTask('cleanup',async()=>window.diskCollie?window.diskCollie.storageCleanup(false):demoCleanup);if(result){setCleanup(result);setRuleSelected(new Set())}}
   },[runTask,privacyRange])
-  const loadDeep=async():Promise<void>=>{const result=await runTask('cleanup',async()=>window.memento?window.memento.storageDeepScan():new Promise<DeepCleanScan>((resolve)=>setTimeout(()=>resolve(demoDeepCleanScan(demoDeepCleared.current)),demoScanMs)));if(result){setDeepScan(result);setDeepSelected(new Set())}}
+  const loadDeep=async():Promise<void>=>{const result=await runTask('cleanup',async()=>window.diskCollie?window.diskCollie.storageDeepScan():new Promise<DeepCleanScan>((resolve)=>setTimeout(()=>resolve(demoDeepCleanScan(demoDeepCleared.current)),demoScanMs)));if(result){setDeepScan(result);setDeepSelected(new Set())}}
   const loadApps=useCallback(async():Promise<void>=>{
-    const result=await runTask('apps',async()=>window.memento?window.memento.storageApplications(true):demoApps)
+    const result=await runTask('apps',async()=>window.diskCollie?window.diskCollie.storageApplications(true):demoApps)
     if(result){setApplications(result);setApplication(null);setRelated([]);setRelatedSelected(new Set())}
   },[runTask])
   useEffect(()=>{
@@ -197,7 +197,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     if(view!=='large'||!active||!index)return
     const sequence=++querySequence.current
     const timeout=setTimeout(()=>{
-      const work=window.memento?window.memento.storageLarge({generation:index.generation,minimum,search,offset,category}):Promise.resolve({items:demoLarge.filter((e)=>!removedPaths.some((p)=>e.path===p||e.path.startsWith(p+'/'))&&e.size>=minimum&&e.name.toLowerCase().includes(search.toLowerCase())&&(category==='all'||fileCategory(e.name)===category)),count:demoLarge.filter((e)=>!removedPaths.some((p)=>e.path===p||e.path.startsWith(p+'/'))&&e.size>=minimum&&e.name.toLowerCase().includes(search.toLowerCase())&&(category==='all'||fileCategory(e.name)===category)).length,categories:demoLarge.filter((e)=>!removedPaths.some((p)=>e.path===p||e.path.startsWith(p+'/'))&&e.size>=minimum&&e.name.toLowerCase().includes(search.toLowerCase())).reduce<Record<string,number>>((counts,e)=>{const key=fileCategory(e.name);counts[key]=(counts[key]||0)+1;return counts},{})})
+      const work=window.diskCollie?window.diskCollie.storageLarge({generation:index.generation,minimum,search,offset,category}):Promise.resolve({items:demoLarge.filter((e)=>!removedPaths.some((p)=>e.path===p||e.path.startsWith(p+'/'))&&e.size>=minimum&&e.name.toLowerCase().includes(search.toLowerCase())&&(category==='all'||fileCategory(e.name)===category)),count:demoLarge.filter((e)=>!removedPaths.some((p)=>e.path===p||e.path.startsWith(p+'/'))&&e.size>=minimum&&e.name.toLowerCase().includes(search.toLowerCase())&&(category==='all'||fileCategory(e.name)===category)).length,categories:demoLarge.filter((e)=>!removedPaths.some((p)=>e.path===p||e.path.startsWith(p+'/'))&&e.size>=minimum&&e.name.toLowerCase().includes(search.toLowerCase())).reduce<Record<string,number>>((counts,e)=>{const key=fileCategory(e.name);counts[key]=(counts[key]||0)+1;return counts},{})})
       void work.then((r)=>{if(sequence!==querySequence.current)return;setLarge((prev)=>offset?[...new Map([...prev,...r.items].map((item)=>[item.id,item])).values()]:r.items);setLargeCount(r.count);setCategoryCounts(r.categories||{})}).catch((e)=>{if(sequence===querySequence.current)setError(readableTaskError(e))})
     },150)
     return ()=>{clearTimeout(timeout);++querySequence.current}
@@ -206,7 +206,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     if(!index)return
     const sequence=++querySequence.current
     try {
-      const result=window.memento?await window.memento.storageChildren({generation:index.generation,id:entry.id}):{parent:adjustDemoEntry(entry),items:demoChildren(entry).map(adjustDemoEntry)}
+      const result=window.diskCollie?await window.diskCollie.storageChildren({generation:index.generation,id:entry.id}):{parent:adjustDemoEntry(entry),items:demoChildren(entry).map(adjustDemoEntry)}
       if(sequence!==querySequence.current)return
       setMapFile(result.parent.id===0?null:result.parent);setFolder(result.parent);setChildren(result.items.filter((file)=>!demo||!removedPaths.some((location)=>file.path===location||file.path.startsWith(location+'/')||file.path.startsWith(location+'\\'))));setBreadcrumbs(trail);setMapOffset(0)
     }catch(e){setError(readableTaskError(e))}
@@ -214,14 +214,14 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   useEffect(()=>{if(view==='disk'&&index?.root&&!folder)void openFolder(index.root,[index.root])},[view,index,folder,openFolder])
   const findDuplicates=async(current=index):Promise<void>=>{
     if(!current)return
-    const result=await runTask('duplicates',()=>window.memento?window.memento.storageDuplicates(current.generation,duplicateMinimum):Promise.resolve({groups:demoDuplicates.map((g)=>{const files=g.files.filter((e)=>!removedPaths.includes(e.path));return {...g,files,reclaimable:files.slice(1).reduce((s,e)=>s+e.allocated,0)}}).filter((g)=>g.files.length>1),elapsedMs:150}))
+    const result=await runTask('duplicates',()=>window.diskCollie?window.diskCollie.storageDuplicates(current.generation,duplicateMinimum):Promise.resolve({groups:demoDuplicates.map((g)=>{const files=g.files.filter((e)=>!removedPaths.includes(e.path));return {...g,files,reclaimable:files.slice(1).reduce((s,e)=>s+e.allocated,0)}}).filter((g)=>g.files.length>1),elapsedMs:150}))
     if(result){setGroups(result.groups);setSelected(new Set())}
   }
   const inspect=async(app:StorageApplication):Promise<void>=>{
     const sequence=++detailsSequence.current
     setApplication(app);setRelated([]);setRelatedSelected(new Set())
     if(app.method==='system'||app.system||app.protected)return
-    const result=await runTask('related',()=>window.memento?window.memento.storageRelated(app.id):Promise.resolve(demoRelated.filter((file)=>app.bundleId!=='com.figma.Desktop'||file.kind==='application').map((r)=>({...r,size:r.kind==='application'?app.size:r.size,path:r.kind==='application'?app.location:r.path.replace('com.microsoft.VSCode',app.bundleId||'com.microsoft.VSCode').replace('/Code','/'+(app.name==='Figma'?'Figma':'Code'))}))))
+    const result=await runTask('related',()=>window.diskCollie?window.diskCollie.storageRelated(app.id):Promise.resolve(demoRelated.filter((file)=>app.bundleId!=='com.figma.Desktop'||file.kind==='application').map((r)=>({...r,size:r.kind==='application'?app.size:r.size,path:r.kind==='application'?app.location:r.path.replace('com.microsoft.VSCode',app.bundleId||'com.microsoft.VSCode').replace('/Code','/'+(app.name==='Figma'?'Figma':'Code'))}))))
     if(result&&sequence===detailsSequence.current){setRelated(result);setRelatedSelected(new Set(result.filter((r)=>r.kind==='application').map((r)=>r.id)))}
   }
   const fakeActivity=async(kind:StorageActivity['kind'],count:number,size:number,locations:string[]):Promise<StorageActivity>=>{
@@ -240,7 +240,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     if(directory){
       if(directory.id===0||directory.trashable===false||kind!=='analysis')return
       const result=await runTask('related',async()=>{
-        if(window.memento)return window.memento.storageDirectoryPlan({generation:index.generation,id:directory.id})
+        if(window.diskCollie)return window.diskCollie.storageDirectoryPlan({generation:index.generation,id:directory.id})
         const all:StorageEntry[]=[],pending=[directory],visited=new Set<number>()
         while(pending.length&&visited.size<1000){const current=pending.pop()!;if(visited.has(current.id))continue;visited.add(current.id);if(current.id!==directory.id)all.push(current);if(current.directory)pending.push(...demoChildren(current))}
         return {id:crypto.randomUUID(),generation:index.generation,entryId:directory.id,path:directory.path,name:directory.name,size:directory.size,allocated:directory.allocated,files:all.filter((entry)=>!entry.directory).length,directories:all.filter((entry)=>entry.directory).length,links:0,hiddenFiles:all.filter((entry)=>entry.name.startsWith('.')).length}
@@ -249,7 +249,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
       plan=result
     }
     const size=plan?.allocated??entries.reduce((sum,entry)=>sum+entry.allocated,0)
-    setConfirmation({kind,count:entries.length,size,names:entries.map((entry)=>entry.path),effects:plan?[t('disk.directoryContents',{files:plan.files,directories:plan.directories,hidden:plan.hiddenFiles})]:undefined,run:()=>window.memento?window.memento.storageTrash({generation:index.generation,ids:entries.map((entry)=>entry.id),kind,groupId:group?.id,directoryPlanId:plan?.id}):fakeActivity(kind,entries.length,size,entries.map((entry)=>entry.path))})
+    setConfirmation({kind,count:entries.length,size,names:entries.map((entry)=>entry.path),effects:plan?[t('disk.directoryContents',{files:plan.files,directories:plan.directories,hidden:plan.hiddenFiles})]:undefined,run:()=>window.diskCollie?window.diskCollie.storageTrash({generation:index.generation,ids:entries.map((entry)=>entry.id),kind,groupId:group?.id,directoryPlanId:plan?.id}):fakeActivity(kind,entries.length,size,entries.map((entry)=>entry.path))})
   }
   const confirmDeep=():void=>{
     if(!deepScan)return
@@ -258,7 +258,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     setPrivacySkipRunning(false)
     const localized=(value:{zh:string;en:string}):string=>locale==='zh-CN'?value.zh:value.en
     setConfirmation({deep:true,kind:'cleanup',count:sources.length,size:sources.reduce((sum,entry)=>sum+entry.source.size,0),names:sources.map(({item,source})=>`${localized(item.name)} · ${source.path}`),effects:[...new Set(sources.map(({item})=>localized(item.description)))],run:async(options)=>{
-      if(window.memento)return window.memento.storageDeepClean({ids:sources.map(({source})=>source.id),skipRunning:Boolean(options?.skipRunning)})
+      if(window.diskCollie)return window.diskCollie.storageDeepClean({ids:sources.map(({source})=>source.id),skipRunning:Boolean(options?.skipRunning)})
       const running=sources.filter(({source})=>source.status==='requires-close')
       if(running.length&&!options?.skipRunning)throw new Error(t('deep.closeApplications'))
       const actionable=sources.filter((entry)=>!running.includes(entry))
@@ -275,7 +275,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
       const sources=new Map<string,number>();for(const item of items)sources.set(item.path||item.id,Math.max(sources.get(item.path||item.id)||0,item.size))
       const traces=items.reduce((sum,item)=>sum+(item.count||0),0)
       setConfirmation({kind:'privacy',count:items.length,size:[...sources.values()].reduce((sum,size)=>sum+size,0),effects:[t('privacy.confirmTraces',{count:traces}),...new Set(items.map((item)=>t(`cleanup.${item.effectKey}Effect`)))],names:items.map((item)=>`${item.source?.name||''} · ${t(`privacy.kind.${item.kind}`)}${item.profile?' · '+item.profile:''}`),run:async(options)=>{
-        if(window.memento)return window.memento.storagePrivacyClean({ids:items.map((item)=>item.id),skipRunning:Boolean(options?.skipRunning)})
+        if(window.diskCollie)return window.diskCollie.storagePrivacyClean({ids:items.map((item)=>item.id),skipRunning:Boolean(options?.skipRunning)})
         const result=await fakeActivity('privacy',items.length,0,[])
         for(const item of items)demoPrivacyCleared.current.add(item.id)
         return {...result,privacyIds:items.map((item)=>item.id),removedPaths:[],traces,skipped:0,unchanged:0}
@@ -284,13 +284,13 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     }
     const items=cleanup?.filter((rule)=>ruleSelected.has(rule.id))||[]
     if(!items.length)return
-    setConfirmation({kind:'cleanup',effects:[...new Set(items.map((item)=>t(`cleanup.${item.effectKey}Effect`)))],count:items.length,size:items.reduce((sum,item)=>sum+item.size,0),names:items.flatMap((item)=>item.paths||[item.path]),run:()=>window.memento?window.memento.storageClean(items.map((item)=>item.id)):fakeActivity('cleanup',items.length,items.reduce((sum,item)=>sum+item.size,0),items.flatMap((item)=>item.paths||[item.path]))})
+    setConfirmation({kind:'cleanup',effects:[...new Set(items.map((item)=>t(`cleanup.${item.effectKey}Effect`)))],count:items.length,size:items.reduce((sum,item)=>sum+item.size,0),names:items.flatMap((item)=>item.paths||[item.path]),run:()=>window.diskCollie?window.diskCollie.storageClean(items.map((item)=>item.id)):fakeActivity('cleanup',items.length,items.reduce((sum,item)=>sum+item.size,0),items.flatMap((item)=>item.paths||[item.path]))})
   }
 
   const confirmUninstall=():void=>{
     if(!application)return
     const items=selectedApplicationFiles(related,relatedSelected)
-    setConfirmation({kind:'uninstall',count:items.length,size:items.reduce((s,e)=>s+e.size,0),names:items.map((e)=>e.path),run:()=>window.memento?window.memento.storageUninstall({applicationId:application.id,ids:items.map((e)=>e.id)}):fakeActivity('uninstall',items.length,items.reduce((s,e)=>s+e.size,0),items.map((e)=>e.path))})
+    setConfirmation({kind:'uninstall',count:items.length,size:items.reduce((s,e)=>s+e.size,0),names:items.map((e)=>e.path),run:()=>window.diskCollie?window.diskCollie.storageUninstall({applicationId:application.id,ids:items.map((e)=>e.id)}):fakeActivity('uninstall',items.length,items.reduce((s,e)=>s+e.size,0),items.map((e)=>e.path))})
   }
   const execute=async():Promise<void>=>{
     if(!confirmation||executing)return
@@ -302,8 +302,8 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     }catch(e){setError(readableTaskError(e));setConfirmation(null)}finally{setExecuting(false)}
   }
   const toggle=<T,>(setter:React.Dispatch<React.SetStateAction<Set<T>>>,id:T):void=>setter((prev)=>{const next=new Set(prev);if(next.has(id))next.delete(id);else next.add(id);return next})
-  const reveal=async(entry:StorageEntry):Promise<void>=>{if(!index)return;try{if(window.memento)await window.memento.storageReveal({generation:index.generation,id:entry.id});else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}
-  const fileActions=(file:{path:string;size:number;name?:string;modified?:number;trashable?:boolean},target:StorageTarget,onTrash?:()=>void):React.JSX.Element=><FileActions file={file} target={target} onTrash={onTrash} onReveal={async(target)=>{try{if(window.memento)await window.memento.storageRevealTarget(target);else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}}/>
+  const reveal=async(entry:StorageEntry):Promise<void>=>{if(!index)return;try{if(window.diskCollie)await window.diskCollie.storageReveal({generation:index.generation,id:entry.id});else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}
+  const fileActions=(file:{path:string;size:number;name?:string;modified?:number;trashable?:boolean},target:StorageTarget,onTrash?:()=>void):React.JSX.Element=><FileActions file={file} target={target} onTrash={onTrash} onReveal={async(target)=>{try{if(window.diskCollie)await window.diskCollie.storageRevealTarget(target);else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}}/>
   const formatDate=(date:string|number):string=>new Intl.DateTimeFormat(locale,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(date))
   const heading=(title:string,subtitle:string,action?:React.ReactNode):React.JSX.Element=><header className="space-heading"><div><h1>{t(title)}</h1>{['large','duplicates','privacy'].includes(view)&&<WorkspaceHelp>{t(subtitle)}{view==='duplicates'&&<p>{t('compact.duplicateHelp')}</p>}{view==='large'&&<p>{t('compact.largeHelp')}</p>}{view==='privacy'&&<p>{t('privacy.warning')}</p>}</WorkspaceHelp>}</div>{action}</header>
   const scanButtons=<div className="space-actions"><button className="space-button primary" disabled={busy} onClick={()=>void scan()}><Search size={16}/>{t(index?'common.rescan':'common.scan')}</button></div>
@@ -328,7 +328,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const map=useMemo(()=>readableTreemap(mapEntries,mapSize.width,mapSize.height),[mapEntries,mapSize])
   const openMapOther=async():Promise<void>=>{
     const next=mapOffset+10
-    if(next>=children.length&&window.memento&&index&&folder){try{const result=await window.memento.storageChildren({generation:index.generation,id:folder.id,offset:children.length});setChildren((previous)=>[...previous,...result.items])}catch(error){setError(String(error));return}}
+    if(next>=children.length&&window.diskCollie&&index&&folder){try{const result=await window.diskCollie.storageChildren({generation:index.generation,id:folder.id,offset:children.length});setChildren((previous)=>[...previous,...result.items])}catch(error){setError(String(error));return}}
     setMapOffset(next)
   }
   const selectedLarge=large.filter((e)=>selected.has(e.id))
@@ -368,9 +368,9 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
 
       </>}
     </>}
-    {view==='health'&&<DeepCleanWorkspace scan={deepScan} selected={deepSelected} bytes={bytes} loading={busy} onScan={()=>void loadDeep()} onCancel={()=>void cancel()} onToggle={(ids,checked)=>setDeepSelected((previous)=>{const next=new Set(previous);for(const id of ids)if(checked)next.add(id);else next.delete(id);return next})} onClear={()=>setDeepSelected(new Set())} onReview={confirmDeep} preview={async(id,offset)=>window.memento?window.memento.storageDeepPreview({id,offset}):demoDeepCleanPreview(id,offset)} reveal={async(id,path)=>{if(window.memento)await window.memento.storageDeepReveal({id,path});else setNotice(t('common.reveal'))}} icon={async(id)=>window.memento?window.memento.storageDeepIcon(id):null} onPermissions={()=>{if(window.memento)return window.memento.storagePrivacyPermissions().catch((error)=>setError(readableTaskError(error)));setNotice(t('privacy.permissionsDemo'))}} progress={taskProgress}/>}
+    {view==='health'&&<DeepCleanWorkspace scan={deepScan} selected={deepSelected} bytes={bytes} loading={busy} onScan={()=>void loadDeep()} onCancel={()=>void cancel()} onToggle={(ids,checked)=>setDeepSelected((previous)=>{const next=new Set(previous);for(const id of ids)if(checked)next.add(id);else next.delete(id);return next})} onClear={()=>setDeepSelected(new Set())} onReview={confirmDeep} preview={async(id,offset)=>window.diskCollie?window.diskCollie.storageDeepPreview({id,offset}):demoDeepCleanPreview(id,offset)} reveal={async(id,path)=>{if(window.diskCollie)await window.diskCollie.storageDeepReveal({id,path});else setNotice(t('common.reveal'))}} icon={async(id)=>window.diskCollie?window.diskCollie.storageDeepIcon(id):null} onPermissions={()=>{if(window.diskCollie)return window.diskCollie.storagePrivacyPermissions().catch((error)=>setError(readableTaskError(error)));setNotice(t('privacy.permissionsDemo'))}} progress={taskProgress}/>}
 
-    {view==='privacy'&&<PrivacyWorkspace rules={privacy||[]} selected={ruleSelected} onToggle={(ids,checked)=>setRuleSelected((previous)=>{const next=new Set(previous);for(const id of ids)if(checked)next.add(id);else next.delete(id);return next})} bytes={bytes} loading={busy} range={privacyRange} onRangeChange={(range)=>{setPrivacyRange(range);void loadCleanup(true,range)}} onRefresh={()=>void loadCleanup(true)} onReview={confirmClean} onClear={()=>setRuleSelected(new Set())} preview={async(id,offset)=>window.memento?window.memento.storagePrivacyPreview({id,offset}):demoPrivacyPreview(id,privacyRange,offset)} onPermissions={()=>{if(window.memento)void window.memento.storagePrivacyPermissions().catch((error)=>setError(readableTaskError(error)));else setNotice(t('privacy.permissionsDemo'))}} progress={taskProgress}/>}
+    {view==='privacy'&&<PrivacyWorkspace rules={privacy||[]} selected={ruleSelected} onToggle={(ids,checked)=>setRuleSelected((previous)=>{const next=new Set(previous);for(const id of ids)if(checked)next.add(id);else next.delete(id);return next})} bytes={bytes} loading={busy} range={privacyRange} onRangeChange={(range)=>{setPrivacyRange(range);void loadCleanup(true,range)}} onRefresh={()=>void loadCleanup(true)} onReview={confirmClean} onClear={()=>setRuleSelected(new Set())} preview={async(id,offset)=>window.diskCollie?window.diskCollie.storagePrivacyPreview({id,offset}):demoPrivacyPreview(id,privacyRange,offset)} onPermissions={()=>{if(window.diskCollie)void window.diskCollie.storagePrivacyPermissions().catch((error)=>setError(readableTaskError(error)));else setNotice(t('privacy.permissionsDemo'))}} progress={taskProgress}/>}
 
     {view==='apps'&&<ApplicationManager inventory={inventory} applications={applications} onApplications={setApplications} busy={busy} loadingFiles={task==='related'} application={application} files={related} selected={relatedSelected} onSelect={setRelatedSelected} onFiles={(next)=>setRelated((prev)=>[...new Map([...prev,...next].map((f)=>[f.id,f])).values()])} onInspect={(app)=>app?void inspect(app):setApplication(null)} onRefresh={()=>void loadApps()} onConfirm={confirmUninstall} actions={fileActions} bytes={bytes} onNotice={setNotice} onError={(error)=>setError(readableTaskError(error))}/>}
 
@@ -411,7 +411,7 @@ function DirectoryTree({index,selected,activeTrail,bytes,onOpen,onReveal,actions
     const generation=index.generation
     setLoading((s)=>new Set([...s,entry.id]))
     try{
-      const result=window.memento?await window.memento.storageChildren({generation,id:entry.id,offset}):{items:demoChildren(entry)}
+      const result=window.diskCollie?await window.diskCollie.storageChildren({generation,id:entry.id,offset}):{items:demoChildren(entry)}
       if(current.current===generation){setNodes((s)=>new Map(s).set(entry.id,offset?[...(s.get(entry.id)||[]),...result.items]:result.items));setMore((s)=>new Map(s).set(entry.id,result.items.length===200))}
     }catch(e){if(current.current===generation)onError(readableTaskError(e))}finally{if(current.current===generation)setLoading((s)=>{const next=new Set(s);next.delete(entry.id);return next})}
   },[index.generation])

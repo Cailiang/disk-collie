@@ -7,7 +7,7 @@ import {deepFileSnapshot} from './deep-clean-resource'
 import {PrivacyCleanupError} from './privacy-resource'
 let home:string
 const NOW=Date.now(),OLD=NOW-10*86400000
-beforeEach(async()=>{home=await realpath(await mkdtemp(path.join(os.tmpdir(),'memento-deep-files-')))})
+beforeEach(async()=>{home=await realpath(await mkdtemp(path.join(os.tmpdir(),'diskcollie-deep-files-')))})
 afterEach(async()=>{await rm(home,{recursive:true,force:true})})
 async function file(relative:string,contents='owned cache',time=OLD):Promise<string>{const target=path.join(home,relative);await mkdir(path.dirname(target),{recursive:true});await writeFile(target,contents);await utimes(target,new Date(time),new Date(time));return target}
 describe('deep cleanup file snapshots',()=>{

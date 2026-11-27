@@ -339,7 +339,7 @@ export function SettingsPage({
     : updateState?.phase==='installing'?text('settings.updateInstalling')
     : updateState?.phase==='error'?updateState.error||text('legacy.could_not_check_for_updates_try_again_late.7be665')
     : updateState?.phase==='unsupported'?text('settings.updateUnsupported')
-    : updateState?.checkedAt?text('legacy.memento_is_up_to_date.5ae588'):''
+    : updateState?.checkedAt?text('legacy.diskcollie_is_up_to_date.5ae588'):''
   const updateCheckDisabled = updateBusy || Boolean(updateState && [
     'checking',
     'available',

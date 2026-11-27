@@ -30,7 +30,7 @@ import {PrivacyCleanupError} from './privacy-resource'
 let home:string
 const context=(platform:NodeJS.Platform='linux'):PrivacyContext=>({home,platform,applications:[],env:{}})
 const fixture=async(relative:string,content:string):Promise<string>=>{const target=path.join(home,relative);await mkdir(path.dirname(target),{recursive:true});await writeFile(target,content);return target}
-beforeEach(async()=>{home=await realpath(await mkdtemp(path.join(os.tmpdir(),'memento-privacy-system-')));clipboard.change=7;clipboard.count=1;clipboard.scripts=[];clipboard.denied=false;clipboard.nativeBookmarks=false})
+beforeEach(async()=>{home=await realpath(await mkdtemp(path.join(os.tmpdir(),'diskcollie-privacy-system-')));clipboard.change=7;clipboard.count=1;clipboard.scripts=[];clipboard.denied=false;clipboard.nativeBookmarks=false})
 afterEach(async()=>{await rm(home,{recursive:true,force:true})})
 
 describe('real shell and desktop activity records',()=>{

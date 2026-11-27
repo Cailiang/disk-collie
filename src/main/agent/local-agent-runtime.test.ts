@@ -22,7 +22,7 @@ const TRUST = {
 }
 
 function temporaryDirectory(): string {
-  const directory = mkdtempSync(path.join(tmpdir(), 'memento-agent-runtime-'))
+  const directory = mkdtempSync(path.join(tmpdir(), 'diskcollie-agent-runtime-'))
   temporaryDirectories.push(directory)
   return directory
 }

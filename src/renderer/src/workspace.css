@@ -1,4 +1,4 @@
-/* Memento's product language: warm paper, forest ink, useful space. */
+/* DiskCollie's product language: warm paper, forest ink, useful space. */
 :root, :root[data-theme="mars"] {
   --canvas:#f7f8f5; --sidebar:#eff1eb; --surface:#fff; --surface-subtle:#f5f7f2; --surface-strong:#e8ede4;
   --text:#24352c; --text-secondary:#58665b; --text-tertiary:#67736b; --line:#e2e7dd; --line-strong:#c7d0c4;
@@ -17,7 +17,7 @@ button { transition:background-color .16s,color .16s,border-color .16s; }
 .sidebar::before { position:fixed; width:220px; z-index:10; }
 .brand { display:flex; padding:0 10px; gap:10px; margin-bottom:25px; }
 .brand-mark { width:37px; height:37px; flex-basis:37px; border-radius:12px; background:var(--accent); }
-.brand-copy>strong { font-size:21px; letter-spacing:-.7px; font-weight:650; }
+.brand-copy>strong { font-size:20px; letter-spacing:-.7px; font-weight:650; white-space:nowrap; }
 .brand-copy { display:block; min-width:0; }
 .brand-copy>strong { display:block; }
 .brand-meta { display:flex; align-items:center; gap:5px; }

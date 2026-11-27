@@ -264,14 +264,14 @@ export const demoResult: ScanResult = {
       section: 'storage',
       cleanupCategory: 'developer',
       name: 'node_modules',
-      subtitle: 'memento-client · Node.js 依赖目录',
-      location: '~/src/xdd/memento/memento-client/node_modules',
+      subtitle: 'disk-collie · Node.js 依赖目录',
+      location: '~/src/xdd/diskcollie/disk-collie/node_modules',
       description: '项目中的可重建依赖目录。移到废纸篓后，npm install 会在需要时重新生成；项目源码不会处理。',
       sizeBytes: 2.1 * GB,
       ageDays: 9,
       risk: 'review',
       status: '开发者产物',
-      evidence: ['项目：~/src/xdd/memento/memento-client', '占用 2.1 GB', '最近修改于 9 天前'],
+      evidence: ['项目：~/src/xdd/diskcollie/disk-collie', '占用 2.1 GB', '最近修改于 9 天前'],
       action: {
         kind: 'trash-project-artifact',
         label: '移到废纸篓',
@@ -823,10 +823,10 @@ export function localizedDemoResult(language: AppLanguage): ScanResult {
     },
     'demo-project-node-modules': {
       name: 'node_modules',
-      subtitle: 'memento-client · Node.js dependencies',
+      subtitle: 'disk-collie · Node.js dependencies',
       description: 'Rebuildable project dependencies. The source remains intact and npm can recreate this directory when needed.',
       status: 'Developer artifact',
-      evidence: ['Project: ~/src/xdd/memento/memento-client', 'Uses 2.1 GB', 'Last modified 9 days ago']
+      evidence: ['Project: ~/src/xdd/diskcollie/disk-collie', 'Uses 2.1 GB', 'Last modified 9 days ago']
     },
     'demo-claude-cache': {
       name: 'Claude rebuildable caches',

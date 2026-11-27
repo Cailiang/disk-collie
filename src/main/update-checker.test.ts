@@ -15,6 +15,11 @@ describe('update checker', () => {
     expect(isNewerVersion('not-a-version', '0.6.56')).toBe(false)
   })
 
+  it('reports the current version while the new repository has no release and still surfaces other failures',async()=>{
+    await expect(fetchLatestReleaseVersion('1.0.24',async()=>new Response('',{status:404}))).resolves.toBe('1.0.24')
+    await expect(fetchLatestReleaseVersion('1.0.24',async()=>new Response('',{status:403}))).rejects.toThrow('HTTP 403')
+  })
+
   it('reads the latest stable release version before invoking the native updater', async () => {
     const fetchProvider = vi.fn(async () => new Response(JSON.stringify({
       tag_name: 'v0.6.54',
@@ -24,9 +29,9 @@ describe('update checker', () => {
 
     await expect(fetchLatestReleaseVersion('0.6.56', fetchProvider)).resolves.toBe('0.6.54')
     expect(fetchProvider).toHaveBeenCalledWith(
-      'https://api.github.com/repos/Cailiang/memento-client/releases/latest',
+      'https://api.github.com/repos/Cailiang/disk-collie/releases/latest',
       expect.objectContaining({
-        headers: expect.objectContaining({ 'User-Agent': 'Memento/0.6.56' })
+        headers: expect.objectContaining({ 'User-Agent': 'DiskCollie/0.6.56' })
       })
     )
   })

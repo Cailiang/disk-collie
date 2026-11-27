@@ -11,7 +11,7 @@ const sorted=(values)=>[...values].sort()
 export function createDeepFixture(root){
   mkdirSync(root,{recursive:true});root=realpathSync(root)
   assert(root!==path.parse(root).root&&root!==realpathSync(homedir()),'A real user home must never be used for the deep-clean fixture')
-  const marker=path.join(root,'.memento-deep-clean-smoke-owned')
+  const marker=path.join(root,'.diskcollie-deep-clean-smoke-owned')
   assert(!existsSync(marker),'Use a new empty deep-clean fixture home')
   writeFileSync(marker,'Owned deep-clean smoke fixture\n')
   const old=new Date(Date.now()-14*86400000),files=[]
@@ -22,7 +22,7 @@ export function createDeepFixture(root){
   const pipFiles=Array.from({length:128},(_,index)=>write(path.join(pip,`deep-smoke-cache-${String(index).padStart(3,'0')}.bin`),Buffer.alloc(1024+index,17)))
   const keptUv=write(path.join(uv,'unselected-wheel.bin'),'unselected cached wheel')
   const pipCredentials=write(path.join(pip,'auth.json'),'{"token":"OWNED_AUTH_TOKEN"}')
-  const unknownRoot=path.join(cache,'dev.memento.unrecognized-cleanup')
+  const unknownRoot=path.join(cache,'dev.diskcollie.unrecognized-cleanup')
   const unknownCache=write(path.join(unknownRoot,'unrecognized-cache.bin'),'explicitly reviewed cache')
   const unknownCredentials=write(path.join(unknownRoot,'credentials.json'),'{"token":"OWNED_UNKNOWN_CACHE_TOKEN"}')
   // The macOS scanner has generic user-cache discovery; other platforms use an explicit manual-review store.
@@ -80,7 +80,7 @@ export async function verifyDeepFixture(page,fixture){
   else await page.locator('.deep-heading-actions').getByRole('button',{name:'重新扫描',exact:true}).click()
   await waitDeep(page)
   assert.equal(await page.locator('.deep-source input:checked').count(),0,'Deep cleanup must start with no selected source')
-  const scan=await page.evaluate(()=>window.memento.storageDeepScan())
+  const scan=await page.evaluate(()=>window.diskCollie.storageDeepScan())
   const pairs=scan.items.flatMap((item)=>item.sources.map((source)=>({item,source})))
   assert(pairs.length>0)
   for(const {source} of pairs)assert(within(fixture.root,source.path),`A fixture scan must not register a source outside its owned home: ${source.path}`)
@@ -93,22 +93,22 @@ export async function verifyDeepFixture(page,fixture){
   assert.equal(manual.item.risk,'review');assert.equal(manual.item.recommended,false);assert.equal(manual.source.status,'ready')
   assert.equal(project.item.risk,'review');assert.equal(project.source.cleanupMethod,'trash')
   assert(!find(path.dirname(fixture.protectedArtifact)),'A project build directory containing key material must not be a cleanup candidate')
-  const first=await page.evaluate(id=>window.memento.storageDeepPreview({id,offset:0}),pip.source.id)
-  const second=await page.evaluate(id=>window.memento.storageDeepPreview({id,offset:100}),pip.source.id)
+  const first=await page.evaluate(id=>window.diskCollie.storageDeepPreview({id,offset:0}),pip.source.id)
+  const second=await page.evaluate(id=>window.diskCollie.storageDeepPreview({id,offset:100}),pip.source.id)
   assert.equal(first.files.length,100);assert.equal(first.total,128);assert.equal(first.nextOffset,100);assert.equal(second.files.length,28);assert.equal(second.nextOffset,null)
   const previewed=[...first.files,...second.files]
   assert.deepEqual(sorted(previewed.map((file)=>file.path)),sorted(fixture.pipFiles));assert(previewed.every((file)=>within(fixture.root,file.path)))
   const invalid=await page.evaluate(async({cleanId,unregisteredId})=>{
-    const unknown=await window.memento.storageDeepPreview({id:crypto.randomUUID(),offset:0}).then(()=>false,()=>true)
-    const unregisteredSelection=await window.memento.storageDeepClean({ids:[cleanId,unregisteredId],skipRunning:false}).then(()=>false,()=>true)
+    const unknown=await window.diskCollie.storageDeepPreview({id:crypto.randomUUID(),offset:0}).then(()=>false,()=>true)
+    const unregisteredSelection=await window.diskCollie.storageDeepClean({ids:[cleanId,unregisteredId],skipRunning:false}).then(()=>false,()=>true)
     return {unknown,unregisteredSelection}
   },{cleanId:pip.source.id,unregisteredId:crypto.randomUUID()})
   assert(invalid.unknown&&invalid.unregisteredSelection,'IPC must reject unknown preview IDs and reject mixed selections containing unregistered IDs')
   assert(fixture.pipFiles.every(existsSync),'An unregistered mixed selection must leave every valid source intact')
   // Build a real retained index that contains these same files, then verify cleanup reconciles it.
-  const index=await page.evaluate(()=>window.memento.storageScan({mode:'analysis',includeHidden:true}))
-  assert(index?.root&&(index.root.path===fixture.root||within(index.root.path,fixture.root)),'Set MEMENTO_TEST_STORAGE_ROOT to contain the owned deep-clean home')
-  const before=await page.evaluate(generation=>window.memento.storageLarge({generation,minimum:1,search:'deep-smoke-cache-',offset:0}),index.generation)
+  const index=await page.evaluate(()=>window.diskCollie.storageScan({mode:'analysis',includeHidden:true}))
+  assert(index?.root&&(index.root.path===fixture.root||within(index.root.path,fixture.root)),'Set DISKCOLLIE_TEST_STORAGE_ROOT to contain the owned deep-clean home')
+  const before=await page.evaluate(generation=>window.diskCollie.storageLarge({generation,minimum:1,search:'deep-smoke-cache-',offset:0}),index.generation)
   assert.equal(before.count,128)
   let source=await showSource(page,pip);await source.locator('.deep-source-details').click()
   const preview=page.getByRole('dialog');await page.locator('.deep-preview-file').first().waitFor();assert.equal(await page.locator('.deep-preview-file').count(),100)
@@ -118,7 +118,7 @@ export async function verifyDeepFixture(page,fixture){
   source=await showSource(page,project);await source.locator('input').check()
   const projectSkipped=project.source.status==='requires-close'
   if(projectSkipped){
-    const blocked=await page.evaluate(id=>window.memento.storageDeepClean({ids:[id],skipRunning:false}).then(()=>false,()=>true),project.source.id)
+    const blocked=await page.evaluate(id=>window.diskCollie.storageDeepClean({ids:[id],skipRunning:false}).then(()=>false,()=>true),project.source.id)
     assert(blocked,'Running build tools must block project removal before changes')
   }else assert.equal(project.source.status,'ready')
   const batch=page.locator('.deep-batch-actions');await batch.getByRole('button',{name:'清理所选项目',exact:true}).click()
@@ -127,7 +127,7 @@ export async function verifyDeepFixture(page,fixture){
   await batch.getByRole('button',{name:'清理所选项目',exact:true}).click()
   if(projectSkipped)await page.getByRole('dialog').getByRole('checkbox',{name:'跳过正在使用的应用',exact:true}).check()
   await page.getByRole('dialog').getByRole('button',{name:'清理所选项目',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'完成',exact:true}).click()
-  const state=await page.evaluate(()=>window.memento.storageState()),activity=state.history.find((record)=>record.deepCleanIds?.includes(pip.source.id))
+  const state=await page.evaluate(()=>window.diskCollie.storageState()),activity=state.history.find((record)=>record.deepCleanIds?.includes(pip.source.id))
   assert(activity,'Deep-clean activity must be persisted')
   const cleaned=projectSkipped?[pip,manual]:[pip,manual,project],sourceIds=cleaned.map(({source})=>source.id)
   assert.equal(activity.kind,'cleanup');assert.equal(activity.items,cleaned.length);assert.equal(activity.failures,0);assert.equal(activity.skipped,projectSkipped?1:0)
@@ -138,10 +138,10 @@ export async function verifyDeepFixture(page,fixture){
   assert(fixture.pipFiles.every((target)=>!existsSync(target)));assert(!existsSync(fixture.manualFile));readPreserved(fixture)
   if(projectSkipped)assert(existsSync(fixture.output),'Skipped project output must stay in place')
   else {assert(!existsSync(fixture.projectArtifact),'Owned project output must move to the actual OS Trash');assert(existsSync(fixture.projectRoot))}
-  const after=await page.evaluate(generation=>window.memento.storageLarge({generation,minimum:1,search:'deep-smoke-cache-',offset:0}),index.generation)
+  const after=await page.evaluate(generation=>window.diskCollie.storageLarge({generation,minimum:1,search:'deep-smoke-cache-',offset:0}),index.generation)
   assert.equal(after.count,0,'Confirmed cleanup must reconcile a retained analysis index without rescanning')
   assert.equal(await page.locator('.deep-clean-page .deep-first-scan').count(),0,'Cleanup must retain its result workspace')
-  const refreshed=await page.evaluate(()=>window.memento.storageDeepScan())
+  const refreshed=await page.evaluate(()=>window.diskCollie.storageDeepScan())
   for(const target of [fixture.pipRoot,fixture.manualRoot])assert.equal(refreshed.items.flatMap((item)=>item.sources).find((entry)=>entry.path===target)?.count||0,0)
   return {activityId:activity.id,sourceIds,removedCount:removed.length,projectSkipped}
 }

@@ -38,15 +38,15 @@ import {StorageService} from './storage-service'
 import {StorageLedger} from './storage-ledger'
 import {PrivacyService} from './privacy-service'
 import {PrivacyCleanupError,type PrivacyResource} from './privacy-resource'
-const call=(name:string,input?:unknown)=>state.handlers.get(`memento:storage:${name}`)!(null,input)
+const call=(name:string,input?:unknown)=>state.handlers.get(`diskcollie:storage:${name}`)!(null,input)
 describe('storage scan sessions and partial cleanup',()=>{
   let fixture:string
   beforeEach(async()=>{
-    fixture=await mkdtemp(path.join(os.homedir(),'memento-service-test-'))
+    fixture=await mkdtemp(path.join(os.homedir(),'diskcollie-service-test-'))
     state.root=path.join(fixture,'files');state.profile=path.join(fixture,'profile')
     await mkdir(state.root);for(const name of ['a.mov','b.mov','c.mov'])await writeFile(path.join(state.root,name),Buffer.alloc(2048))
     state.fail='';state.processCommands=[];state.scanGate=null;state.hashGate=null;state.hashes.clear();state.engines=[];state.progress=[];state.handlers.clear()
-    vi.stubEnv('MEMENTO_TEST_RUN','1');vi.stubEnv('MEMENTO_TEST_STORAGE_ROOT',state.root)
+    vi.stubEnv('DISKCOLLIE_TEST_RUN','1');vi.stubEnv('DISKCOLLIE_TEST_STORAGE_ROOT',state.root)
   })
   afterEach(async()=>{vi.unstubAllEnvs();await rm(fixture,{recursive:true,force:true})})
   it('retains independent generations, removes only successful files from every session, and journals progress',async()=>{
@@ -192,7 +192,7 @@ describe('storage scan sessions and partial cleanup',()=>{
   })
   it('keeps the app removable when related file measurement fails, but rejects system applications',async()=>{
     const service=new StorageService();service.register();const id=crypto.randomUUID()
-    const applicationPath=path.join(state.root,'UnreadableData.app'),bundle='test.memento.'+crypto.randomUUID(),cache=path.join(os.homedir(),'Library/Caches',bundle)
+    const applicationPath=path.join(state.root,'UnreadableData.app'),bundle='test.diskcollie.'+crypto.randomUUID(),cache=path.join(os.homedir(),'Library/Caches',bundle)
     await mkdir(applicationPath);await mkdir(cache,{recursive:true});await writeFile(path.join(cache,'fixture.log'),'fixture')
     const application={id,name:'Fixture',version:'1',location:applicationPath,bundleId:bundle,size:2048,protected:false,method:'trash' as const,system:false}
     ;(service as any).applications.set(id,application)

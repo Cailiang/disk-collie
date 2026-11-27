@@ -7,7 +7,7 @@ import {deepCleanDefinitions,type DeepCleanDefinition} from './deep-clean-rules'
 import type {DeepCleanContext} from './deep-clean-context'
 import {deepFileSnapshot} from './deep-clean-resource'
 let home:string,context:DeepCleanContext
-beforeEach(async()=>{home=await realpath(await mkdtemp(path.join(os.tmpdir(),'memento-deep-service-')));context={home,platform:'darwin',env:{},applications:[]}})
+beforeEach(async()=>{home=await realpath(await mkdtemp(path.join(os.tmpdir(),'diskcollie-deep-service-')));context={home,platform:'darwin',env:{},applications:[]}})
 afterEach(async()=>{await rm(home,{recursive:true,force:true})})
 async function file(relative:string,contents='owned cache'):Promise<string>{const target=path.join(home,relative);await mkdir(path.dirname(target),{recursive:true});await writeFile(target,contents);await utimes(target,new Date(Date.now()-10000),new Date(Date.now()-10000));return target}
 function definition(key:string,target:string,applications:string[]=[]):DeepCleanDefinition{return {key,group:'application',name:{zh:key,en:key},description:{zh:'可重建',en:'Regenerable'},risk:'safe',recommended:true,paths:[target],applications}}

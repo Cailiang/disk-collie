@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import {currentDatabasePath} from '../profile-migration'
 import type {
   AgentFocus,
   AgentPlanItem,
@@ -197,8 +198,9 @@ export class AgentStore {
 
   constructor(userDataDirectory: string) {
     mkdirSync(userDataDirectory, { recursive: true, mode: 0o700 })
+    const databasePath=currentDatabasePath(userDataDirectory)
     this.masterKey = this.loadMasterKey(path.join(userDataDirectory, 'agent-master.key'))
-    this.database = new DatabaseSync(path.join(userDataDirectory, 'memento.sqlite'))
+    this.database = new DatabaseSync(databasePath)
     this.database.exec('PRAGMA journal_mode = WAL')
     this.database.exec('PRAGMA foreign_keys = ON')
     this.migrate()
@@ -411,7 +413,7 @@ export class AgentStore {
         this.saveProvider(normalized)
         imported += 1
       } catch {
-        // One malformed external row must not block Memento startup or other imports.
+        // One malformed external row must not block DiskCollie startup or other imports.
       }
     }
     return imported
@@ -425,7 +427,7 @@ export class AgentStore {
     // CC Switch is a one-time source of credentials. Keep the deterministic
     // imported id so an explicit re-import can update the copied row, but do
     // not prune rows that disappeared from CC Switch or re-sync them in the
-    // background. Once copied, the provider belongs to Memento and can be
+    // background. Once copied, the provider belongs to DiskCollie and can be
     // edited freely here.
     return { imported: this.syncImportedProviders(inputs), removed: 0 }
   }
@@ -912,7 +914,7 @@ export class AgentStore {
       this.database.prepare(`
         UPDATE maintenance_operations
         SET status = 'failed', error_code = 'operation.interrupted',
-            message = 'Memento closed before the operation result was recorded', completed_at = ?
+            message = 'DiskCollie closed before the operation result was recorded', completed_at = ?
         WHERE status = 'pending'
       `).run(timestamp)
       this.database.prepare(`

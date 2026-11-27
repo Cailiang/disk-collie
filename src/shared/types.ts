@@ -1,8 +1,8 @@
 import type { StorageApi } from './storage-types'
 export type ScanSection = 'services' | 'storage' | 'applications' | 'terminal'
 
-import type { MementoAgentApi } from './agent-types'
-import type { MementoSettingsApi } from './app-settings'
+import type { DiskCollieAgentApi } from './agent-types'
+import type { DiskCollieSettingsApi } from './app-settings'
 import type { MaintenanceRunRecord } from './maintenance-types'
 
 export type RiskLevel = 'safe' | 'review' | 'protected'
@@ -369,7 +369,7 @@ export interface AppUpdateState {
   error: string | null
 }
 
-export interface MementoApi extends MementoAgentApi, MementoSettingsApi, StorageApi {
+export interface DiskCollieApi extends DiskCollieAgentApi, DiskCollieSettingsApi, StorageApi {
   getVersion: () => Promise<string>
   getUpdateState: () => Promise<AppUpdateState>
   checkForUpdates: () => Promise<AppUpdateState>

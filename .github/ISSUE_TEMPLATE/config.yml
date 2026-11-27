@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability
-    url: https://github.com/Cailiang/memento-client/security/advisories/new
+    url: https://github.com/Cailiang/disk-collie/security/advisories/new
     about: Report vulnerabilities privately. Do not include secrets or private paths in public issues.
   - name: General discussion
-    url: https://github.com/Cailiang/memento-client/discussions
+    url: https://github.com/Cailiang/disk-collie/discussions
     about: Ask usage and product questions that are not bug reports.

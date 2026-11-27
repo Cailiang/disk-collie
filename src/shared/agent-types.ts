@@ -259,7 +259,7 @@ export interface AddAgentPlanItemsInput {
   itemIds: string[]
 }
 
-export interface MementoAgentApi {
+export interface DiskCollieAgentApi {
   listAgentProviders: () => Promise<AgentProvider[]>
   discoverAgentProviderModels: (
     input: DiscoverAgentModelsInput

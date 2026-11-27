@@ -50,7 +50,7 @@ function parseManifest(contents: string, source: string, version: string): Updat
   }
   const manifest = parsed as Partial<UpdateManifest>
   if (manifest.version !== version || !Array.isArray(manifest.files) || manifest.files.length === 0) {
-    throw new Error(`${source} does not describe Memento ${version}`)
+    throw new Error(`${source} does not describe DiskCollie ${version}`)
   }
   for (const file of manifest.files) {
     if (!file || typeof file.url !== 'string' || typeof file.sha512 !== 'string') {
@@ -110,22 +110,22 @@ export async function collectReleaseArtifacts(
   }
 
   const installers: ArtifactSource[] = [
-    { runner: 'macos-x64', name: `Memento-${version}-x64.dmg` },
-    { runner: 'macos-arm64', name: `Memento-${version}-arm64.dmg` },
-    { runner: 'windows-x64', name: `Memento-${version}-x64.exe` },
-    { runner: 'windows-arm64', name: `Memento-${version}-arm64.exe` },
-    { runner: 'linux-x64', name: `Memento-${version}-x64.AppImage` },
-    { runner: 'linux-arm64', name: `Memento-${version}-arm64.AppImage` },
-    { runner: 'linux-x64', name: `Memento-${version}-x64.deb` },
-    { runner: 'linux-arm64', name: `Memento-${version}-arm64.deb` }
+    { runner: 'macos-x64', name: `DiskCollie-${version}-x64.dmg` },
+    { runner: 'macos-arm64', name: `DiskCollie-${version}-arm64.dmg` },
+    { runner: 'windows-x64', name: `DiskCollie-${version}-x64.exe` },
+    { runner: 'windows-arm64', name: `DiskCollie-${version}-arm64.exe` },
+    { runner: 'linux-x64', name: `DiskCollie-${version}-x64.AppImage` },
+    { runner: 'linux-arm64', name: `DiskCollie-${version}-arm64.AppImage` },
+    { runner: 'linux-x64', name: `DiskCollie-${version}-x64.deb` },
+    { runner: 'linux-arm64', name: `DiskCollie-${version}-arm64.deb` }
   ]
   const updaterPayloads: ArtifactSource[] = [
-    { runner: 'macos-x64', name: `Memento-${version}-x64.zip` },
-    { runner: 'macos-x64', name: `Memento-${version}-x64.zip.blockmap` },
-    { runner: 'macos-arm64', name: `Memento-${version}-arm64.zip` },
-    { runner: 'macos-arm64', name: `Memento-${version}-arm64.zip.blockmap` },
-    { runner: 'windows-x64', name: `Memento-${version}-x64.exe.blockmap` },
-    { runner: 'windows-arm64', name: `Memento-${version}-arm64.exe.blockmap` }
+    { runner: 'macos-x64', name: `DiskCollie-${version}-x64.zip` },
+    { runner: 'macos-x64', name: `DiskCollie-${version}-x64.zip.blockmap` },
+    { runner: 'macos-arm64', name: `DiskCollie-${version}-arm64.zip` },
+    { runner: 'macos-arm64', name: `DiskCollie-${version}-arm64.zip.blockmap` },
+    { runner: 'windows-x64', name: `DiskCollie-${version}-x64.exe.blockmap` },
+    { runner: 'windows-arm64', name: `DiskCollie-${version}-arm64.exe.blockmap` }
   ]
 
   for (const source of [...installers, ...updaterPayloads]) {
@@ -145,7 +145,7 @@ export async function collectReleaseArtifacts(
     { runner: 'macos-arm64', name: 'latest-mac.yml' },
     version
   )
-  const macNames = [`Memento-${version}-x64.zip`, `Memento-${version}-arm64.zip`]
+  const macNames = [`DiskCollie-${version}-x64.zip`, `DiskCollie-${version}-arm64.zip`]
 
   await writeFile(
     path.join(outputDirectory, 'latest-mac.yml'),
@@ -153,7 +153,7 @@ export async function collectReleaseArtifacts(
   )
   const winX64 = await readManifest(artifactsDirectory, { runner: 'windows-x64', name: 'latest.yml' }, version)
   const winArm64 = await readManifest(artifactsDirectory, { runner: 'windows-arm64', name: 'latest.yml' }, version)
-  await writeFile(path.join(outputDirectory, 'latest.yml'), dump(mergedManifest(winX64, winArm64, [`Memento-${version}-x64.exe`, `Memento-${version}-arm64.exe`]), { lineWidth: -1, noRefs: true }))
+  await writeFile(path.join(outputDirectory, 'latest.yml'), dump(mergedManifest(winX64, winArm64, [`DiskCollie-${version}-x64.exe`, `DiskCollie-${version}-arm64.exe`]), { lineWidth: -1, noRefs: true }))
   for (const [runner, name] of [['linux-x64', 'latest-linux.yml'], ['linux-arm64', 'latest-linux-arm64.yml']]) {
     const manifest = await readManifest(artifactsDirectory, { runner, name }, version)
     await writeFile(path.join(outputDirectory, name), dump(manifest, { lineWidth: -1, noRefs: true }))

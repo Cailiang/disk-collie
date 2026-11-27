@@ -1,8 +1,8 @@
-import type { MementoApi } from '../shared/types'
+import type { DiskCollieApi } from '../shared/types'
 
 declare global {
   interface Window {
-    memento?: MementoApi
+    diskCollie?: DiskCollieApi
   }
 }
 

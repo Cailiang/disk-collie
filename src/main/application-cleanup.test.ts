@@ -88,10 +88,10 @@ describe('application cleanup threshold', () => {
 
   it('extracts Sparkle package URLs from enclosure metadata', () => {
     expect(sparkleUpdateItemsFromFeed(`<rss><channel><item>
-      <enclosure url="https://updates.example.test/Memento%204.5.0.dmg" sparkle:shortVersionString="4.5.0" />
+      <enclosure url="https://updates.example.test/DiskCollie%204.5.0.dmg" sparkle:shortVersionString="4.5.0" />
     </item></channel></rss>`)).toEqual([{
       version: '4.5.0',
-      downloadUrl: 'https://updates.example.test/Memento%204.5.0.dmg'
+      downloadUrl: 'https://updates.example.test/DiskCollie%204.5.0.dmg'
     }])
   })
 

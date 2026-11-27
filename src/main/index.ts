@@ -1,4 +1,5 @@
 import {normalizeScanExcludedDirectories} from '../shared/scan-exclusions'
+import {migrateLegacyProfile} from './profile-migration'
 import {readApplicationIcon,clearApplicationIconCache} from './application-icon'
 import { applicationProcessBundle, terminateUserProcess } from './process-control'
 import { translate as processText } from '../shared/localization'
@@ -112,6 +113,10 @@ import {
 import { shouldKeepWindowInTray } from './window-lifecycle'
 
 const execFileAsync = promisify(execFile)
+app.setName('DiskCollie')
+app.setAppUserModelId('com.fcl.diskcollie')
+const customProfile=app.commandLine.hasSwitch('user-data-dir')
+if(!customProfile)app.setPath('userData',path.join(app.getPath('appData'),'DiskCollie'))
 let registeredActions = new Map<string, RegisteredAction>()
 let storageService: StorageService
 let registeredRevealTargets = new Map<string, string>()
@@ -156,7 +161,7 @@ function applicationBundleFromProcessCommand(command: string): string | null {
     ? (match[1].startsWith('~/')
     ? path.join(os.homedir(), match[1].slice(2))
     : path.normalize(match[1]))
-    : /^memento(?: helper)?$/i.test(path.basename(command.trim()))
+    : /^diskcollie(?: helper)?$/i.test(path.basename(command.trim()))
       ? ownBundle
       : null
   if (!candidate) return null
@@ -294,7 +299,7 @@ async function inspectOverviewProcess(pid: number): Promise<{ user: string; comm
 async function terminateOverviewProcess(pidInput: unknown, forceInput: unknown): Promise<void> {
   const pid = validateOverviewProcessPid(pidInput)
   if (pid <= 1 || pid === process.pid) {
-    throw new Error(mainText('不能退出 Memento 自身', 'Memento cannot terminate itself.'))
+    throw new Error(mainText('不能退出 DiskCollie 自身', 'DiskCollie cannot terminate itself.'))
   }
   if (process.platform !== 'darwin') return terminatePortableProcess(pid, forceInput === true)
   try {
@@ -320,7 +325,7 @@ async function prepareOverviewProcessAgentActions(input: unknown): Promise<Agent
   }
   const pid = validateOverviewProcessPid(input.pid)
   if (pid <= 1 || pid === process.pid) {
-    throw new Error(mainText('不能操作 Memento 自身', 'Memento cannot operate on itself.'))
+    throw new Error(mainText('不能操作 DiskCollie 自身', 'DiskCollie cannot operate on itself.'))
   }
   const processInfo = await inspectOverviewProcess(pid)
   const currentUser = (() => {
@@ -546,7 +551,7 @@ async function importCcSwitchProviders(): Promise<CcSwitchImportResult> {
 }
 
 async function offerCcSwitchImportOnce(): Promise<void> {
-  if (process.env.MEMENTO_TEST_RUN === '1') return
+  if (process.env.DISKCOLLIE_TEST_RUN === '1') return
   if (agentStore!.hasCompletedCcSwitchImportPrompt()) return
   // Older builds already imported CC Switch rows without a prompt. Treat
   // those existing rows as an earlier consent so upgrading does not ask again.
@@ -568,11 +573,11 @@ async function offerCcSwitchImportOnce(): Promise<void> {
     type: 'question',
     title: mainText('发现 CC Switch 配置', 'CC Switch configuration found'),
     message: language === 'en-US'
-      ? `Memento found ${candidates.length} CC Switch provider${candidates.length === 1 ? '' : 's'}. Import a copy into Memento?`
-      : `检测到 ${candidates.length} 个 CC Switch 供应商配置，要复制到 Memento 吗？`,
+      ? `DiskCollie found ${candidates.length} CC Switch provider${candidates.length === 1 ? '' : 's'}. Import a copy into DiskCollie?`
+      : `检测到 ${candidates.length} 个 CC Switch 供应商配置，要复制到 DiskCollie 吗？`,
     detail: mainText(
-      '导入后会保存为 Memento 自己的配置。之后修改 Memento 中的名称、地址、模型或密钥，不会回写或跟随 CC Switch。',
-      'Memento saves an independent copy. Later edits to its name, URL, model, or key stay in Memento and are not written back to or synchronized with CC Switch.'
+      '导入后会保存为 DiskCollie 自己的配置。之后修改 DiskCollie 中的名称、地址、模型或密钥，不会回写或跟随 CC Switch。',
+      'DiskCollie saves an independent copy. Later edits to its name, URL, model, or key stay in DiskCollie and are not written back to or synchronized with CC Switch.'
     ),
     buttons: [
       mainText('导入配置', 'Import configuration'),
@@ -585,7 +590,7 @@ async function offerCcSwitchImportOnce(): Promise<void> {
   if (response.response === 0) {
     await importCcSwitchProviders()
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('memento:agent-providers-changed')
+      mainWindow.webContents.send('diskcollie:agent-providers-changed')
     }
   }
 }
@@ -614,7 +619,7 @@ function updaterSupported(): boolean {
 function publishUpdateState(state: AppUpdateState): AppUpdateState {
   updateState = state
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('memento:update-state', state)
+    mainWindow.webContents.send('diskcollie:update-state', state)
   }
   return state
 }
@@ -961,8 +966,8 @@ async function trashApplication(target: string): Promise<void> {
 
 function trayCopy(language: AppLanguage): { open: string; quit: string; tooltip: string } {
   return language === 'en-US'
-    ? { open: 'Open Memento', quit: 'Quit Memento', tooltip: 'Memento is running' }
-    : { open: '打开 Memento', quit: '退出 Memento', tooltip: 'Memento 正在后台运行' }
+    ? { open: 'Open DiskCollie', quit: 'Quit DiskCollie', tooltip: 'DiskCollie is running' }
+    : { open: '打开 DiskCollie', quit: '退出 DiskCollie', tooltip: 'DiskCollie 正在后台运行' }
 }
 
 function showMainWindow(): void {
@@ -991,7 +996,7 @@ function refreshTray(): boolean {
       : path.join(process.cwd(), 'build', iconFilename)
     const sourceImage = nativeImage.createFromPath(iconPath)
     if (sourceImage.isEmpty()) {
-      console.error(`Memento tray icon is missing: ${iconPath}`)
+      console.error(`DiskCollie tray icon is missing: ${iconPath}`)
       return false
     }
     tray = new Tray(sourceImage.resize({ width: 18, height: 18 }))
@@ -1028,13 +1033,13 @@ function createWindow(): void {
     minWidth: 1080,
     minHeight: 680,
     show: false,
-    title: `Memento ${app.getVersion()}`,
+    title: `DiskCollie ${app.getVersion()}`,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 17 },
     backgroundColor: themeBackground(appSettings.theme),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
-      additionalArguments: [`--memento-theme=${appSettings.theme}`],
+      additionalArguments: [`--diskcollie-theme=${appSettings.theme}`],
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
@@ -1141,7 +1146,7 @@ async function executeRegisteredAction(action: RegisteredAction): Promise<void> 
     }
     await trashDiskUsageTarget(target)
     discardDiskUsageTarget(target)
-    mainWindow?.webContents.send('memento:disk-usage-node-removed', action.nodeId)
+    mainWindow?.webContents.send('diskcollie:disk-usage-node-removed', action.nodeId)
     return
   }
 
@@ -1560,6 +1565,9 @@ async function performScan(
 }
 
 app.whenReady().then(async () => {
+  if(!customProfile&&process.env.DISKCOLLIE_TEST_RUN!=='1'){
+    migrateLegacyProfile(app.getPath('userData'),['Memento','memento'].map(name=>path.join(app.getPath('appData'),name)))
+  }
   agentStore = new AgentStore(app.getPath('userData'))
   if (!agentStore.hasCompletedLocalAiConfigImport()) {
     try {
@@ -1580,22 +1588,22 @@ app.whenReady().then(async () => {
   storageService.startApplicationInventory()
   app.on('before-quit', stopPortableOverview)
 
-  ipcMain.handle('memento:get-version', () => app.getVersion())
-  ipcMain.handle('memento:update:get', () => updateState ?? emptyUpdateState())
-  ipcMain.handle('memento:update:check', () => checkForAppUpdate())
-  ipcMain.handle('memento:update:install', () => installAppUpdate())
-  ipcMain.handle('memento:overview:get', () => process.platform === 'darwin' ? overviewMonitor.collect() : collectPortableOverview())
-  ipcMain.handle('memento:overview:process-copy-name', (_event, name: unknown) => {
+  ipcMain.handle('diskcollie:get-version', () => app.getVersion())
+  ipcMain.handle('diskcollie:update:get', () => updateState ?? emptyUpdateState())
+  ipcMain.handle('diskcollie:update:check', () => checkForAppUpdate())
+  ipcMain.handle('diskcollie:update:install', () => installAppUpdate())
+  ipcMain.handle('diskcollie:overview:get', () => process.platform === 'darwin' ? overviewMonitor.collect() : collectPortableOverview())
+  ipcMain.handle('diskcollie:overview:process-copy-name', (_event, name: unknown) => {
     clipboard.writeText(validateOverviewProcessName(name))
   })
-  ipcMain.handle('memento:overview:process-copy-pid', (_event, pid: unknown) => {
+  ipcMain.handle('diskcollie:overview:process-copy-pid', (_event, pid: unknown) => {
     clipboard.writeText(String(validateOverviewProcessPid(pid)))
   })
-  ipcMain.handle('memento:overview:process-terminate', (_event, input: unknown) => {
+  ipcMain.handle('diskcollie:overview:process-terminate', (_event, input: unknown) => {
     const record = input && typeof input === 'object' ? input as { pid?: unknown; force?: unknown } : {}
     return terminateOverviewProcess(record.pid, record.force)
   })
-  ipcMain.handle('memento:get-application-icon', async (_event, id: string) => {
+  ipcMain.handle('diskcollie:get-application-icon', async (_event, id: string) => {
     if (typeof id !== 'string' || id.length > 100) return null
     const application = [
       ...(currentScanResult?.applications ?? []),
@@ -1605,7 +1613,7 @@ app.whenReady().then(async () => {
     if (!application || !target || !existsSync(target)) return null
     return readApplicationIcon(target)
   })
-  ipcMain.handle('memento:get-process-icon', async (_event, command: string) => {
+  ipcMain.handle('diskcollie:get-process-icon', async (_event, command: string) => {
     const target = applicationBundleFromProcessCommand(command)
     if (target) {
       const source = await readApplicationIcon(target)
@@ -1621,7 +1629,7 @@ app.whenReady().then(async () => {
       return icon.isEmpty() ? null : icon.toDataURL()
     } catch { return null }
   })
-  ipcMain.handle('memento:open-application', async (_event, id: string) => {
+  ipcMain.handle('diskcollie:open-application', async (_event, id: string) => {
     if (typeof id !== 'string' || id.length > 100) {
       throw new Error(mainText('应用入口无效，请重新扫描', 'The application is invalid. Scan again.'))
     }
@@ -1641,7 +1649,7 @@ app.whenReady().then(async () => {
       throw new Error(mainText(`无法打开应用：${error}`, `Could not open the application: ${error}`))
     }
   })
-  ipcMain.handle('memento:update-application', async (_event, id: string): Promise<ApplicationUpdateResult> => {
+  ipcMain.handle('diskcollie:update-application', async (_event, id: string): Promise<ApplicationUpdateResult> => {
     if (typeof id !== 'string' || id.length > 100) {
       throw new Error(mainText('应用入口无效，请重新扫描', 'The application is invalid. Scan again.'))
     }
@@ -1692,13 +1700,13 @@ app.whenReady().then(async () => {
     const updaterMenuSelected = await openSparkleUpdater(target)
     if (!updaterMenuSelected) {
       throw new Error(mainText(
-        '应用已打开。若要自动点击“检查更新”，请在“系统设置 → 隐私与安全性 → 辅助功能”中允许 Memento；此权限仅用于控制更新菜单。',
-        'The application is open. To click “Check for Updates” automatically, allow Memento in System Settings → Privacy & Security → Accessibility. This permission is only used to control the updater menu.'
+        '应用已打开。若要自动点击“检查更新”，请在“系统设置 → 隐私与安全性 → 辅助功能”中允许 DiskCollie；此权限仅用于控制更新菜单。',
+        'The application is open. To click “Check for Updates” automatically, allow DiskCollie in System Settings → Privacy & Security → Accessibility. This permission is only used to control the updater menu.'
       ))
     }
     return { status: 'opened', destination: 'application' }
   })
-  ipcMain.handle('memento:open-system-settings', async (_event, section: string) => {
+  ipcMain.handle('diskcollie:open-system-settings', async (_event, section: string) => {
     const urls: Record<string, string> = {
       battery: 'x-apple.systempreferences:com.apple.Battery-Settings.extension',
       network: 'x-apple.systempreferences:com.apple.Network-Settings.extension'
@@ -1711,7 +1719,7 @@ app.whenReady().then(async () => {
       await execFileAsync('/usr/bin/open', ['-a', 'System Settings'])
     }
   })
-  ipcMain.handle('memento:open-activity-monitor-network', () => openActivityMonitorNetwork())
+  ipcMain.handle('diskcollie:open-activity-monitor-network', () => openActivityMonitorNetwork())
   const invalidateScanScope=():void=>{
     storageService!.invalidateScanScope()
     currentScanResult=null
@@ -1729,7 +1737,7 @@ app.whenReady().then(async () => {
     if(previous!==JSON.stringify(appSettings.scanExcludedDirectories))invalidateScanScope()
     return appSettings
   }
-  ipcMain.handle('memento:settings:exclude-directory-add',async()=>{
+  ipcMain.handle('diskcollie:settings:exclude-directory-add',async()=>{
     const selected=await dialog.showOpenDialog({properties:['openDirectory','multiSelections']})
     if(selected.canceled)return appSettings
     const directories:string[]=[]
@@ -1740,12 +1748,12 @@ app.whenReady().then(async () => {
     }
     return saveScanDirectories(normalizeScanExcludedDirectories([...appSettings.scanExcludedDirectories,...directories]))
   })
-  ipcMain.handle('memento:settings:exclude-directory-remove',(_event,directory:unknown)=>{
+  ipcMain.handle('diskcollie:settings:exclude-directory-remove',(_event,directory:unknown)=>{
     if(typeof directory!=='string'||!appSettings.scanExcludedDirectories.includes(directory))return appSettings
     return saveScanDirectories(appSettings.scanExcludedDirectories.filter((entry)=>entry!==directory))
   })
-  ipcMain.handle('memento:settings:get', () => appSettings)
-  ipcMain.handle('memento:settings:update', (_event, input: UpdateAppSettingsInput) => {
+  ipcMain.handle('diskcollie:settings:get', () => appSettings)
+  ipcMain.handle('diskcollie:settings:update', (_event, input: UpdateAppSettingsInput) => {
     const previousLanguage = appSettings.language
     const previousDirectories=JSON.stringify(appSettings.scanExcludedDirectories)
     appSettings = agentStore!.updateAppSettings(input)
@@ -1783,13 +1791,13 @@ app.whenReady().then(async () => {
     return appSettings
   })
 
-  ipcMain.handle('memento:scan', (event, language?: AppLanguage) =>
+  ipcMain.handle('diskcollie:scan', (event, language?: AppLanguage) =>
     performScan(language ?? appSettings.language, (progress) => {
-      if (!event.sender.isDestroyed()) event.sender.send('memento:scan-progress', progress)
+      if (!event.sender.isDestroyed()) event.sender.send('diskcollie:scan-progress', progress)
     })
   )
 
-  ipcMain.handle('memento:disk-usage:scan', async (event) => {
+  ipcMain.handle('diskcollie:disk-usage:scan', async (event) => {
     if (diskUsageScanner) {
       throw new Error(mainText('磁盘扫描已经在进行中', 'A disk scan is already running.'))
     }
@@ -1797,7 +1805,7 @@ app.whenReady().then(async () => {
     diskUsageScanner = scanner
     try {
       const bundle = await scanner.scan(appSettings.language, (progress: DiskUsageProgress) => {
-        if (!event.sender.isDestroyed()) event.sender.send('memento:disk-usage-progress', progress)
+        if (!event.sender.isDestroyed()) event.sender.send('diskcollie:disk-usage-progress', progress)
       })
       registeredDiskUsageTargets = bundle.targets
       registeredDiskUsageNodes = indexDiskUsageNodes(bundle.result.root)
@@ -1807,11 +1815,11 @@ app.whenReady().then(async () => {
     }
   })
 
-  ipcMain.handle('memento:disk-usage:cancel', () => {
+  ipcMain.handle('diskcollie:disk-usage:cancel', () => {
     diskUsageScanner?.cancel()
   })
 
-  ipcMain.handle('memento:disk-usage:reveal', async (_event, id: string) => {
+  ipcMain.handle('diskcollie:disk-usage:reveal', async (_event, id: string) => {
     if (typeof id !== 'string' || id.length > 100) {
       throw new Error(mainText('磁盘项目入口无效，请重新扫描', 'The disk item is invalid. Scan again.'))
     }
@@ -1827,7 +1835,7 @@ app.whenReady().then(async () => {
     shell.showItemInFolder(target)
   })
 
-  ipcMain.handle('memento:disk-usage:trash', async (_event, id: string) => {
+  ipcMain.handle('diskcollie:disk-usage:trash', async (_event, id: string) => {
     if (typeof id !== 'string' || id.length > 100) {
       throw new Error(mainText('磁盘项目入口无效，请重新扫描', 'The disk item is invalid. Scan again.'))
     }
@@ -1855,10 +1863,10 @@ app.whenReady().then(async () => {
     if (failure) throw new Error(failure.message)
   })
 
-  ipcMain.handle('memento:agent:providers:list', () => agentStore!.listProviders())
-  ipcMain.handle('memento:agent:providers:import-local', () => importLocalAiConfigurations())
-  ipcMain.handle('memento:agent:providers:import-cc-switch', () => importCcSwitchProviders())
-  ipcMain.handle('memento:agent:providers:models', async (_event, input: DiscoverAgentModelsInput) => {
+  ipcMain.handle('diskcollie:agent:providers:list', () => agentStore!.listProviders())
+  ipcMain.handle('diskcollie:agent:providers:import-local', () => importLocalAiConfigurations())
+  ipcMain.handle('diskcollie:agent:providers:import-cc-switch', () => importCcSwitchProviders())
+  ipcMain.handle('diskcollie:agent:providers:models', async (_event, input: DiscoverAgentModelsInput) => {
     const provider = agentStore!.resolveModelDiscoveryInput(input)
     try {
       return await discoverProviderModels(provider)
@@ -1866,16 +1874,16 @@ app.whenReady().then(async () => {
       throw new Error(providerErrorMessage(error, provider.apiKey, appSettings.language))
     }
   })
-  ipcMain.handle('memento:agent:providers:save', (_event, input: SaveAgentProviderInput) =>
+  ipcMain.handle('diskcollie:agent:providers:save', (_event, input: SaveAgentProviderInput) =>
     agentStore!.saveProvider(input)
   )
-  ipcMain.handle('memento:agent:providers:delete', (_event, id: string) => {
+  ipcMain.handle('diskcollie:agent:providers:delete', (_event, id: string) => {
     agentStore!.deleteProvider(id)
   })
-  ipcMain.handle('memento:agent:providers:set-default', (_event, id: string) =>
+  ipcMain.handle('diskcollie:agent:providers:set-default', (_event, id: string) =>
     agentStore!.setDefaultProvider(id)
   )
-  ipcMain.handle('memento:agent:providers:test', async (_event, input: SaveAgentProviderInput) => {
+  ipcMain.handle('diskcollie:agent:providers:test', async (_event, input: SaveAgentProviderInput) => {
     const provider = agentStore!.resolvePrivateProviderInput(input)
     try {
       const result = await testProviderConnection(provider, undefined, appSettings.language)
@@ -1886,16 +1894,16 @@ app.whenReady().then(async () => {
       throw new Error(providerErrorMessage(error, provider.apiKey, appSettings.language))
     }
   })
-  ipcMain.handle('memento:agent:runs:list', () => agentStore!.listRuns())
-  ipcMain.handle('memento:agent:runs:get', (_event, runId: string) => agentStore!.getRun(runId))
-  ipcMain.handle('memento:agent:runs:delete', (_event, runId: string) => {
+  ipcMain.handle('diskcollie:agent:runs:list', () => agentStore!.listRuns())
+  ipcMain.handle('diskcollie:agent:runs:get', (_event, runId: string) => agentStore!.getRun(runId))
+  ipcMain.handle('diskcollie:agent:runs:delete', (_event, runId: string) => {
     const run = agentStore!.getRun(typeof runId === 'string' ? runId : '')
     if (run && ['preparing', 'analyzing', 'plan-ready', 'executing', 'verifying'].includes(run.status)) {
       throw new Error(mainText('任务仍在运行，完成后才能删除记录', 'The task is still running. Delete it after it finishes.'))
     }
     agentStore!.deleteRun(runId)
   })
-  ipcMain.handle('memento:agent:runs:delete-many', (_event, runIds: string[]) => {
+  ipcMain.handle('diskcollie:agent:runs:delete-many', (_event, runIds: string[]) => {
     if (!Array.isArray(runIds) || runIds.length === 0 || runIds.length > 500) {
       throw new Error(mainText('请选择有效的任务记录', 'Select valid task history records.'))
     }
@@ -1909,14 +1917,14 @@ app.whenReady().then(async () => {
     }
     agentStore!.deleteRuns(uniqueIds)
   })
-  ipcMain.handle('memento:maintenance:runs:list', () => agentStore!.listMaintenanceRuns())
-  ipcMain.handle('memento:maintenance:runs:delete-many', (_event, runIds: string[]) => {
+  ipcMain.handle('diskcollie:maintenance:runs:list', () => agentStore!.listMaintenanceRuns())
+  ipcMain.handle('diskcollie:maintenance:runs:delete-many', (_event, runIds: string[]) => {
     if (!Array.isArray(runIds)) {
       throw new Error(mainText('请选择有效的维护记录', 'Select valid maintenance records.'))
     }
     agentStore!.deleteMaintenanceRuns(runIds)
   })
-  ipcMain.handle('memento:maintenance:recovery:reveal', async (_event, operationRecordId: string) => {
+  ipcMain.handle('diskcollie:maintenance:recovery:reveal', async (_event, operationRecordId: string) => {
     if (typeof operationRecordId !== 'string' || operationRecordId.length > 100) {
       throw new Error(mainText('恢复入口无效', 'The recovery location is invalid.'))
     }
@@ -1931,7 +1939,7 @@ app.whenReady().then(async () => {
     }
     shell.showItemInFolder(recovery.reference)
   })
-  ipcMain.handle('memento:agent:runs:start', async (event, input: StartAgentRunInput) => {
+  ipcMain.handle('diskcollie:agent:runs:start', async (event, input: StartAgentRunInput) => {
     if (!currentScanResult) {
       throw new Error(mainText('请先完成一次电脑体检', 'Complete a computer health scan first.'))
     }
@@ -1949,20 +1957,20 @@ app.whenReady().then(async () => {
       ? [await prepareDiskUsageAgentFocus(input.diskUsageNodeId)]
       : []
     return agentRuntime!.start(agentInput, currentScanResult, appSettings.language, (agentEvent) => {
-      if (!event.sender.isDestroyed()) event.sender.send('memento:agent-run-event', agentEvent)
+      if (!event.sender.isDestroyed()) event.sender.send('diskcollie:agent-run-event', agentEvent)
     }, explicitFocusIds)
   })
-  ipcMain.handle('memento:agent:runs:cancel', (_event, runId: string) => {
+  ipcMain.handle('diskcollie:agent:runs:cancel', (_event, runId: string) => {
     agentRuntime!.cancel(runId)
   })
-  ipcMain.handle('memento:agent:plans:add', (_event, input: AddAgentPlanItemsInput) => {
+  ipcMain.handle('diskcollie:agent:plans:add', (_event, input: AddAgentPlanItemsInput) => {
     if (!currentScanResult) {
       throw new Error(mainText('请先完成一次电脑体检', 'Complete a computer health scan first.'))
     }
     return agentRuntime!.addPlanItems(input, currentScanResult)
   })
 
-  ipcMain.handle('memento:reveal-candidate-location', async (_event, id: string) => {
+  ipcMain.handle('diskcollie:reveal-candidate-location', async (_event, id: string) => {
     if (typeof id !== 'string' || id.length > 100) {
       throw new Error(mainText('目录入口无效，请重新扫描', 'The location is invalid. Scan again.'))
     }
@@ -1978,7 +1986,7 @@ app.whenReady().then(async () => {
     if (error) throw new Error(error)
   })
 
-  ipcMain.handle('memento:reveal-terminal-finding', async (_event, id: string) => {
+  ipcMain.handle('diskcollie:reveal-terminal-finding', async (_event, id: string) => {
     if (typeof id !== 'string' || id.length > 100) {
       throw new Error(mainText('终端诊断入口无效，请重新扫描', 'The terminal diagnostic is invalid. Scan again.'))
     }
@@ -1987,16 +1995,16 @@ app.whenReady().then(async () => {
     shell.showItemInFolder(terminalFindingConfigTarget(finding.source))
   })
 
-  ipcMain.handle('memento:run-terminal-fixes', async (_event, ids: string[]) => {
+  ipcMain.handle('diskcollie:run-terminal-fixes', async (_event, ids: string[]) => {
     if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string' || id.length > 100)) {
       throw new Error(mainText('终端优化请求无效', 'The terminal optimization request is invalid.'))
     }
     return executeTerminalFixBatch(ids)
   })
 
-  ipcMain.handle('memento:undo-terminal-fixes', () => undoLastTerminalFixes())
+  ipcMain.handle('diskcollie:undo-terminal-fixes', () => undoLastTerminalFixes())
 
-  ipcMain.handle('memento:agent:plans:execute', async (event, input: ExecuteAgentPlanInput) => {
+  ipcMain.handle('diskcollie:agent:plans:execute', async (event, input: ExecuteAgentPlanInput) => {
     const validated = selectExecutablePlanItems(
       agentStore!.getRun(typeof input?.runId === 'string' ? input.runId : ''),
       input,
@@ -2006,7 +2014,7 @@ app.whenReady().then(async () => {
     const sendStatus = (status: 'executing' | 'verifying', message: string): void => {
       agentStore!.updateRun(run.id, { status })
       if (!event.sender.isDestroyed()) {
-        event.sender.send('memento:agent-run-event', {
+        event.sender.send('diskcollie:agent-run-event', {
           type: 'status',
           runId: run.id,
           status,
@@ -2029,7 +2037,7 @@ app.whenReady().then(async () => {
       results = [...actionResults, ...terminalResult.results]
       sendStatus('verifying', mainText('正在重新体检并验证结果', 'Scanning again to verify results'))
       const scan = await performScan(appSettings.language, (progress) => {
-        if (!event.sender.isDestroyed()) event.sender.send('memento:scan-progress', progress)
+        if (!event.sender.isDestroyed()) event.sender.send('diskcollie:scan-progress', progress)
       })
       const combinedResults = new Map(run.results.map((result) => [result.id, result]))
       results.forEach((result) => combinedResults.set(result.id, result))
@@ -2041,7 +2049,7 @@ app.whenReady().then(async () => {
           : null
       })
       if (!event.sender.isDestroyed()) {
-        event.sender.send('memento:agent-run-event', { type: 'completed', run: completed })
+        event.sender.send('diskcollie:agent-run-event', { type: 'completed', run: completed })
       }
       return { run: completed, scan }
     } catch (error) {
@@ -2053,13 +2061,13 @@ app.whenReady().then(async () => {
           : mainText('执行后复检失败', 'The post-action verification scan failed.')
       })
       if (!event.sender.isDestroyed()) {
-        event.sender.send('memento:agent-run-event', { type: 'failed', run: failed })
+        event.sender.send('diskcollie:agent-run-event', { type: 'failed', run: failed })
       }
       throw error
     }
   })
 
-  ipcMain.handle('memento:run-actions', (_event, ids: string[]) => executeActionBatch(ids))
+  ipcMain.handle('diskcollie:run-actions', (_event, ids: string[]) => executeActionBatch(ids))
 
   createWindow()
   const promptForCcSwitchImport = (): void => {
@@ -2083,6 +2091,9 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     showMainWindow()
   })
+}).catch(error=>{
+  dialog.showErrorBox('DiskCollie',error instanceof Error?error.message:String(error))
+  app.quit()
 })
 
 app.on('before-quit', () => {

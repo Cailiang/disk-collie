@@ -8,7 +8,7 @@ const appVersion = (JSON.parse(readFileSync(resolve('package.json'), 'utf8')) as
 export default defineConfig({
   root: resolve('src/renderer'),
   define: {
-    __MEMENTO_VERSION__: JSON.stringify(appVersion)
+    __DISKCOLLIE_VERSION__: JSON.stringify(appVersion)
   },
   resolve: {
     alias: {

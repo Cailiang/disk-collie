@@ -405,7 +405,7 @@ async function waitUntilElapsed(startedAt: number, milliseconds: number): Promis
 }
 
 function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSettings['language']) => void }): React.JSX.Element {
-  const [appVersion, setAppVersion] = useState(__MEMENTO_VERSION__)
+  const [appVersion, setAppVersion] = useState(__DISKCOLLIE_VERSION__)
   const [updateState, setUpdateState] = useState<AppUpdateState | null>(null)
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS)
   const [providers, setProviders] = useState<AgentProvider[]>([])
@@ -483,8 +483,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     overviewRequestInFlight.current = true
     if (showBusy || !overviewMetricsRef.current) setOverviewBusy(true)
     try {
-      const next = window.memento
-        ? await window.memento.getOverviewMetrics()
+      const next = window.diskCollie
+        ? await window.diskCollie.getOverviewMetrics()
         : localizedDemoOverviewMetrics()
       overviewMetricsRef.current = next
       setOverviewMetrics(next)
@@ -515,20 +515,20 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   }, [result])
 
   const refreshProviders = useCallback(async (): Promise<AgentProvider[]> => {
-    const next = window.memento
-      ? await window.memento.listAgentProviders()
+    const next = window.diskCollie
+      ? await window.diskCollie.listAgentProviders()
       : new URLSearchParams(window.location.search).get('noProvider') === '1' ? [] : [DEMO_PROVIDER]
     setProviders(next)
     return next
   }, [])
 
   const refreshRuns = useCallback(async (): Promise<void> => {
-    setRuns(window.memento ? await window.memento.listAgentRuns() : [])
+    setRuns(window.diskCollie ? await window.diskCollie.listAgentRuns() : [])
   }, [])
 
   const refreshMaintenanceRuns = useCallback(async (): Promise<void> => {
-    setMaintenanceRuns(window.memento
-      ? await window.memento.listMaintenanceRuns()
+    setMaintenanceRuns(window.diskCollie
+      ? await window.diskCollie.listMaintenanceRuns()
       : localizedDemoMaintenanceRuns(settings.language))
   }, [settings.language])
 
@@ -540,7 +540,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     setScanError(null)
     try {
       const language = languageOverride ?? settings.language
-      const next = window.memento ? await window.memento.scan(language) : await runDemoScan(setProgress,language,Number(new URLSearchParams(location.search).get('demoScanMs'))||undefined)
+      const next = window.diskCollie ? await window.diskCollie.scan(language) : await runDemoScan(setProgress,language,Number(new URLSearchParams(location.search).get('demoScanMs'))||undefined)
       resultRef.current = next
       setResult(next)
       setCleanupSelectedIds(new Set(next.candidates.filter(isSafeCleanup).map((candidate) => candidate.id)))
@@ -562,7 +562,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   },[settings.language])
 
   useEffect(() => {
-    const unsubscribeProgress = window.memento?.onScanProgress((scanProgress) => {
+    const unsubscribeProgress = window.diskCollie?.onScanProgress((scanProgress) => {
       setProgress(scanProgress)
       setExecutionState((current) => current?.phase === 'verifying'
         ? {
@@ -572,15 +572,15 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
           }
         : current)
     })
-    const unsubscribeDiskUsage = window.memento?.onDiskUsageProgress(setDiskUsageProgress)
-    const unsubscribeDiskUsageRemoval = window.memento?.onDiskUsageNodeRemoved((id) => {
+    const unsubscribeDiskUsage = window.diskCollie?.onDiskUsageProgress(setDiskUsageProgress)
+    const unsubscribeDiskUsageRemoval = window.diskCollie?.onDiskUsageNodeRemoved((id) => {
       setDiskUsage((current) => current ? withoutDiskUsageNode(current, id) : current)
     })
-    const unsubscribeUpdate = window.memento?.onUpdateState(setUpdateState)
-    const unsubscribeProviders = window.memento?.onAgentProvidersChanged(() => {
+    const unsubscribeUpdate = window.diskCollie?.onUpdateState(setUpdateState)
+    const unsubscribeProviders = window.diskCollie?.onAgentProvidersChanged(() => {
       void refreshProviders()
     })
-    const unsubscribeAgent = window.memento?.onAgentRunEvent((event: AgentRunEvent) => {
+    const unsubscribeAgent = window.diskCollie?.onAgentRunEvent((event: AgentRunEvent) => {
       if (event.type === 'status') {
         if (event.runId === activeRunId.current) {
           setActiveRun((current) => current ? { ...current, status: event.status } : current)
@@ -652,8 +652,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       message: settings.language === 'en-US' ? 'Scanning the disk asynchronously' : '正在异步扫描磁盘'
     })
     try {
-      const next = window.memento
-        ? await window.memento.scanDiskUsage()
+      const next = window.diskCollie
+        ? await window.diskCollie.scanDiskUsage()
         : await new Promise<DiskUsageScanResult>((resolve) => window.setTimeout(
             () => resolve(localizedDemoDiskUsageResult(settings.language)),
             720
@@ -675,7 +675,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   const cancelDiskUsageScan = (): void => {
     if (!diskUsageBusy) return
     diskUsageCancelRequested.current = true
-    void window.memento?.cancelDiskUsageScan()
+    void window.diskCollie?.cancelDiskUsageScan()
   }
 
   const changeStorageMode = (mode: StorageMode): void => {
@@ -687,21 +687,21 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   }, [diskUsage, diskUsageBusy, scanDiskUsage, view])
 
   const revealDiskUsageNode = (id: string): void => {
-    if (!window.memento) {
+    if (!window.diskCollie) {
       setToast(appText("legacy.shown_in_finder.9e6532"))
       return
     }
-    void window.memento.revealDiskUsageNode(id).catch((error) => {
+    void window.diskCollie.revealDiskUsageNode(id).catch((error) => {
       setToast(error instanceof Error ? error.message : appText("legacy.could_not_reveal_the_disk_item.c9b1cc"))
     })
   }
 
   const revealCandidate = (candidate: ScanCandidate): void => {
-    if (!window.memento) {
+    if (!window.diskCollie) {
       setToast(appText("legacy.location_opened.66170e"))
       return
     }
-    void window.memento.revealCandidateLocation(candidate.id).catch((error) => {
+    void window.diskCollie.revealCandidateLocation(candidate.id).catch((error) => {
       setToast(error instanceof Error ? error.message : appText("legacy.could_not_open_the_item_location.2ac631"))
     })
   }
@@ -711,7 +711,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     const node = pendingDiskUsageTrash
     setDiskUsageTrashBusy(true)
     try {
-      if (window.memento) await window.memento.trashDiskUsageNode(node.id)
+      if (window.diskCollie) await window.diskCollie.trashDiskUsageNode(node.id)
       else await new Promise((resolve) => window.setTimeout(resolve, 420))
       setDiskUsage((current) => current ? withoutDiskUsageNode(current, node.id) : current)
       setPendingDiskUsageTrash(null)
@@ -729,11 +729,11 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     void (async () => {
       try {
         const [initialSettings, initialVersion, initialUpdateState] = await Promise.all([
-          window.memento ? window.memento.getAppSettings() : Promise.resolve(DEFAULT_APP_SETTINGS),
-          window.memento ? window.memento.getVersion() : Promise.resolve(__MEMENTO_VERSION__),
-          window.memento
-            ? window.memento.getUpdateState()
-            : Promise.resolve(demoUpdateState(__MEMENTO_VERSION__))
+          window.diskCollie ? window.diskCollie.getAppSettings() : Promise.resolve(DEFAULT_APP_SETTINGS),
+          window.diskCollie ? window.diskCollie.getVersion() : Promise.resolve(__DISKCOLLIE_VERSION__),
+          window.diskCollie
+            ? window.diskCollie.getUpdateState()
+            : Promise.resolve(demoUpdateState(__DISKCOLLIE_VERSION__))
         ])
         setAppVersion(initialVersion)
         setUpdateState(initialUpdateState)
@@ -742,7 +742,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         document.documentElement.dataset.theme = initialSettings.theme
         await Promise.all([refreshProviders(), refreshRuns(), refreshMaintenanceRuns()])
       } catch (error) {
-        setToast(error instanceof Error ? error.message : 'Memento 初始化失败')
+        setToast(error instanceof Error ? error.message : 'DiskCollie 初始化失败')
       }
     })()
   }, [onLanguageChange, refreshMaintenanceRuns, refreshProviders, refreshRuns])
@@ -766,8 +766,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const updateSettings = async (input: UpdateAppSettingsInput): Promise<void> => {
     const previousLanguage = settings.language
-    const next = window.memento
-      ? await window.memento.updateAppSettings(input)
+    const next = window.diskCollie
+      ? await window.diskCollie.updateAppSettings(input)
       : { ...settings, ...input }
     setSettings(next)
     onLanguageChange(next.language)
@@ -801,7 +801,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     setRunStatusMessage(uiText('正在准备设备信息', 'Preparing device information'))
     setSelectedPlanIds(new Set())
 
-    if (!window.memento) {
+    if (!window.diskCollie) {
       const timestamp = new Date().toISOString()
       const run: AgentRunRecord = {
         id: crypto.randomUUID(),
@@ -849,7 +849,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       return
     }
 
-    void window.memento.startAgentRun({
+    void window.diskCollie.startAgentRun({
       prompt,
       conversationId: options.isolated ? undefined : activeRun?.conversationId,
       diskUsageNodeId: options.diskUsageNodeId,
@@ -880,7 +880,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     const evidence=resultRef.current||await scanNow()
     signal.throwIfAborted()
     if(!evidence)throw new Error(appText('tasks.evidenceFailed'))
-    if(window.memento)return window.memento.startAgentRun({prompt:task.prompt,process:task.process})
+    if(window.diskCollie)return window.diskCollie.startAgentRun({prompt:task.prompt,process:task.process})
     if(!defaultProvider)throw new Error(appText('tasks.needs-provider'))
     const now=new Date().toISOString()
     const run:AgentRunRecord={id:crypto.randomUUID(),conversationId:crypto.randomUUID(),language:settings.language,prompt:task.prompt,status:'analyzing',providerId:defaultProvider.id,providerName:defaultProvider.name,model:defaultProvider.model,response:null,presentation:null,focus:[],plan:[],results:[],error:null,createdAt:now,updatedAt:now}
@@ -923,7 +923,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const copyOverviewProcessName = async (name: string): Promise<void> => {
     try {
-      if (window.memento) await window.memento.copyOverviewProcessName(name)
+      if (window.diskCollie) await window.diskCollie.copyOverviewProcessName(name)
       else await navigator.clipboard?.writeText(name)
       setToast(appText("legacy.process_name_copied.dd0e31"))
     } catch (error) {
@@ -933,7 +933,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const copyOverviewProcessPid = async (pid: number): Promise<void> => {
     try {
-      if (window.memento) await window.memento.copyOverviewProcessPid(pid)
+      if (window.diskCollie) await window.diskCollie.copyOverviewProcessPid(pid)
       else await navigator.clipboard?.writeText(String(pid))
       setToast(appText("legacy.process_pid_copied.467451"))
     } catch (error) {
@@ -943,7 +943,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const terminateOverviewProcess = async (process: OverviewProcess, force: boolean): Promise<boolean> => {
     try {
-      if (window.memento) await window.memento.terminateOverviewProcess({ pid: process.pid, force })
+      if (window.diskCollie) await window.diskCollie.terminateOverviewProcess({ pid: process.pid, force })
       setToast(appText(
         force ? `已强制退出 ${process.name}` : `已请求退出 ${process.name}`,
         force ? `${process.name} was force quit` : `Quit requested for ${process.name}`
@@ -985,7 +985,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     })
     await waitForNextPaint()
     try {
-      if (!window.memento) {
+      if (!window.diskCollie) {
         await new Promise<void>((resolve) => window.setTimeout(resolve, 520))
         setExecutionState((current) => current?.runId === runId ? {
           ...current,
@@ -1027,7 +1027,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
           : '计划执行完成并已重新体检')
         return
       }
-      const executed = await window.memento.executeAgentPlan({
+      const executed = await window.diskCollie.executeAgentPlan({
         runId: activeRun.id,
         itemIds
       })
@@ -1152,10 +1152,10 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     })
     await waitForNextPaint()
     try {
-      const results = window.memento
+      const results = window.diskCollie
         ? action.kind === 'terminal-fix'
-          ? (await window.memento.runTerminalFixes(actionIds)).results
-          : await window.memento.runActions(actionIds)
+          ? (await window.diskCollie.runTerminalFixes(actionIds)).results
+          : await window.diskCollie.runActions(actionIds)
         : await new Promise<Array<{ id: string; ok: boolean; message: string }>>((resolve) => {
             window.setTimeout(() => resolve(actionIds.map((id) => ({
               id,
@@ -1208,8 +1208,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         setCleanupSelectedIds((current) => new Set([...current].filter((id) => !completedCandidateIds.has(id))))
       } else {
         setScanBusy(true)
-        const verified = window.memento
-          ? await window.memento.scan(settings.language)
+        const verified = window.diskCollie
+          ? await window.diskCollie.scan(settings.language)
           : await new Promise<ScanResult>((resolve) => window.setTimeout(() => resolve(localizedDemoResult(settings.language)), 520))
         resultRef.current = verified
         setResult(verified)
@@ -1316,7 +1316,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const discardPlan = (): void => {
     if (!activeRun) return
-    if (window.memento) void window.memento.cancelAgentRun(activeRun.id)
+    if (window.diskCollie) void window.diskCollie.cancelAgentRun(activeRun.id)
     const cancelled: AgentRunRecord = {
       ...activeRun,
       status: 'cancelled',
@@ -1336,8 +1336,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     setAddingOperationId(id)
     try {
       let updated: AgentRunRecord
-      if (window.memento) {
-        updated = await window.memento.addAgentPlanItems({
+      if (window.diskCollie) {
+        updated = await window.diskCollie.addAgentPlanItems({
           runId: activeRun.id,
           itemIds: [id]
         })
@@ -1445,7 +1445,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   const openApplication = async (application: InstalledApplication): Promise<void> => {
     setOpeningApplicationId(application.id)
     try {
-      if (window.memento) await window.memento.openApplication(application.id)
+      if (window.diskCollie) await window.diskCollie.openApplication(application.id)
       setToast(appText("legacy.opened.c3d642", { p0: application.name }))
     } catch (error) {
       setToast(error instanceof Error ? error.message : appText("legacy.could_not_open_the_application.f7a0ec"))
@@ -1457,8 +1457,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   const updateApplication = async (application: InstalledApplication): Promise<void> => {
     setUpdatingApplicationId(application.id)
     try {
-      const outcome = window.memento
-        ? await window.memento.updateApplication(application.id)
+      const outcome = window.diskCollie
+        ? await window.diskCollie.updateApplication(application.id)
         : application.updateMode === 'external'
           ? { status: 'opened' as const, destination: application.updateSource === 'mac-app-store' ? 'app-store' as const : 'application' as const }
           : { status: 'updated' as const }
@@ -1479,7 +1479,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const openSystemSettings = async (section: 'battery' | 'network'): Promise<void> => {
     try {
-      if (window.memento) await window.memento.openSystemSettings(section)
+      if (window.diskCollie) await window.diskCollie.openSystemSettings(section)
       else setView('settings')
     } catch (error) {
       setToast(error instanceof Error ? error.message : appText("legacy.could_not_open_system_settings.12e03c"))
@@ -1489,7 +1489,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   const openActivityMonitorNetwork = async (): Promise<void> => {
     try {
       setToast(appText("legacy.opening_activity_monitor_accessibility_is_.e648fb"))
-      const selected = window.memento ? await window.memento.openActivityMonitorNetwork() : true
+      const selected = window.diskCollie ? await window.diskCollie.openActivityMonitorNetwork() : true
       if (!selected) {
         setToast(appText("legacy.activity_monitor_is_open_to_switch_to_the_.5f87e8"))
       }
@@ -1500,7 +1500,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const revealTerminalFinding = async (finding: TerminalFinding): Promise<void> => {
     try {
-      if (window.memento) await window.memento.revealTerminalFinding(finding.id)
+      if (window.diskCollie) await window.diskCollie.revealTerminalFinding(finding.id)
     } catch (error) {
       setToast(error instanceof Error ? error.message : appText("legacy.could_not_open_the_terminal_configuration.78bcbe"))
     }
@@ -1512,9 +1512,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     const selectedIds = new Set(selectedRuns.map((run) => run.id))
     setHistoryDeleteBusy(true)
     try {
-      if (window.memento) await window.memento.deleteAgentRuns([...selectedIds])
-      const remainingRuns = window.memento
-        ? await window.memento.listAgentRuns()
+      if (window.diskCollie) await window.diskCollie.deleteAgentRuns([...selectedIds])
+      const remainingRuns = window.diskCollie
+        ? await window.diskCollie.listAgentRuns()
         : runs.filter((item) => !selectedIds.has(item.id))
       setRuns(remainingRuns)
       const remainingConversationIds = new Set(remainingRuns.map((run) => run.conversationId))
@@ -1539,7 +1539,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     const selectedIds = new Set(pendingMaintenanceDelete.map((run) => run.id))
     setHistoryDeleteBusy(true)
     try {
-      if (window.memento) await window.memento.deleteMaintenanceRuns([...selectedIds])
+      if (window.diskCollie) await window.diskCollie.deleteMaintenanceRuns([...selectedIds])
       setMaintenanceRuns((current) => current.filter((run) => !selectedIds.has(run.id)))
       setPendingMaintenanceDelete(null)
       setToast(appText("legacy.maintenance_audit_records_deleted.ae52d1", { p0: selectedIds.size }))
@@ -1551,11 +1551,11 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   }
 
   const revealMaintenanceRecovery = (operationRecordId: string): void => {
-    if (!window.memento) {
+    if (!window.diskCollie) {
       setToast(appText("legacy.recovery_location_opened.437d64"))
       return
     }
-    void window.memento.revealMaintenanceRecovery(operationRecordId).catch((error) => {
+    void window.diskCollie.revealMaintenanceRecovery(operationRecordId).catch((error) => {
       setToast(error instanceof Error ? error.message : appText("legacy.could_not_open_the_recovery_location.ea570c"))
     })
   }
@@ -1566,8 +1566,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     const actionId = pendingUninstall.action.id
     setUninstallBusy(true)
     try {
-      const results = window.memento
-        ? await window.memento.runActions([actionId])
+      const results = window.diskCollie
+        ? await window.diskCollie.runActions([actionId])
         : await new Promise<Array<{ id: string; ok: boolean; message: string }>>((resolve) => {
             window.setTimeout(() => resolve([{
               id: actionId,
@@ -1587,7 +1587,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         applications: current.applications.filter((item) => item.id !== application.id)
       } : current)
       setRemovingApplicationId(null)
-      if (window.memento) void scanNow()
+      if (window.diskCollie) void scanNow()
     } catch (error) {
       setToast(error instanceof Error ? error.message : appText("legacy.could_not_uninstall_the_application.da57bc"))
     } finally {
@@ -1598,7 +1598,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   const discoverProviderModels = useCallback(async (
     input: DiscoverAgentModelsInput
   ): Promise<AgentProviderModelsResult> => {
-    if (window.memento) return window.memento.discoverAgentProviderModels(input)
+    if (window.diskCollie) return window.diskCollie.discoverAgentProviderModels(input)
     await new Promise<void>((resolve) => window.setTimeout(resolve, 520))
     const models = input.type === 'anthropic'
       ? ['claude-opus-4-6', 'claude-sonnet-4-5']
@@ -1619,7 +1619,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const saveProvider = async (input: SaveAgentProviderInput): Promise<AgentProvider> => {
     try {
-      if (!window.memento) {
+      if (!window.diskCollie) {
         const timestamp = new Date().toISOString()
         const existing = providers.find((provider) => provider.id === input.id)
         const provider: AgentProvider = {
@@ -1639,7 +1639,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         ])
         return provider
       }
-      const provider = await window.memento.saveAgentProvider(input)
+      const provider = await window.diskCollie.saveAgentProvider(input)
       await refreshProviders()
       return provider
     } catch (error) {
@@ -1650,15 +1650,15 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const testProvider = async (input: SaveAgentProviderInput): Promise<AgentProviderTestResult> => {
     try {
-      const tested = window.memento
-        ? await window.memento.testAgentProvider(input)
+      const tested = window.diskCollie
+        ? await window.diskCollie.testAgentProvider(input)
         : {
             ok: true,
             message: appText("legacy.connected_the_model_supports_tool_calling.27451d"),
             toolCalling: true,
             testedAt: new Date().toISOString()
           }
-      if (window.memento) await refreshProviders()
+      if (window.diskCollie) await refreshProviders()
       return tested
     } catch (error) {
       setToast(error instanceof Error ? error.message : appText("legacy.connection_test_failed.e28922"))
@@ -1668,7 +1668,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const deleteProvider = async (id: string): Promise<void> => {
     try {
-      if (window.memento) await window.memento.deleteAgentProvider(id)
+      if (window.diskCollie) await window.diskCollie.deleteAgentProvider(id)
       setProviders((current) => current.filter((provider) => provider.id !== id))
       setToast(appText("legacy.provider_configuration_deleted.3da99c"))
     } catch (error) {
@@ -1679,8 +1679,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const setDefaultProvider = async (id: string): Promise<void> => {
     try {
-      const next = window.memento
-        ? await window.memento.setDefaultAgentProvider(id)
+      const next = window.diskCollie
+        ? await window.diskCollie.setDefaultAgentProvider(id)
         : providers.map((provider) => ({ ...provider, isDefault: provider.id === id }))
       setProviders(next)
       const provider = next.find((item) => item.id === id)
@@ -1695,8 +1695,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const importLocalAiConfigurations = async (): Promise<LocalAiImportResult> => {
     try {
-      const imported = window.memento
-        ? await window.memento.importLocalAiConfigurations()
+      const imported = window.diskCollie
+        ? await window.diskCollie.importLocalAiConfigurations()
         : { sourcesFound: 4, detected: 4, imported: 2, rejected: 2, removed: 0 }
       await refreshProviders()
       const removedText = imported.removed > 0
@@ -1716,8 +1716,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const importCcSwitchProviders = async (): Promise<CcSwitchImportResult> => {
     try {
-      const imported = window.memento
-        ? await window.memento.importCcSwitchProviders()
+      const imported = window.diskCollie
+        ? await window.diskCollie.importCcSwitchProviders()
         : { databaseFound: true, detected: 2, imported: 1, rejected: 1, removed: 0 }
       await refreshProviders()
       setToast(!imported.databaseFound
@@ -1736,8 +1736,8 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
 
   const checkForUpdates = async (): Promise<void> => {
     try {
-      const next = window.memento
-        ? await window.memento.checkForUpdates()
+      const next = window.diskCollie
+        ? await window.diskCollie.checkForUpdates()
         : {
             currentVersion: appVersion,
             latestVersion: null,
@@ -1762,11 +1762,11 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   }
 
   const installUpdate = (): void => {
-    if (!window.memento) {
+    if (!window.diskCollie) {
       setUpdateState((current) => current ? { ...current, phase: 'installing' } : current)
       return
     }
-    void window.memento?.installUpdate().catch((error) => {
+    void window.diskCollie?.installUpdate().catch((error) => {
       setUpdateState((current) => current ? {
         ...current,
         phase: 'error',
@@ -1904,7 +1904,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
       </div>)}
       {view==='settings'&&aiSetupOrigin&&<div className="ai-setup-return"><button className="space-button" onClick={()=>{viewScroll.current.set(aiSetupOrigin.source,aiSetupOrigin.scrollTop);setView(aiSetupOrigin.source);setAiSetupOrigin(null)}}><ArrowLeft size={15}/>{appText('tasks.return',{page:appText(`nav.${aiSetupOrigin.source==='overview'?'home':aiSetupOrigin.source==='health'?'cleanup':aiSetupOrigin.source}`)})}</button><span>{appText(aiSetupOrigin.source==='agent'?'advisor.setupReturn':'tasks.resumeAfterSetup')}</span></div>}
       {view==='history'&&<div className="space-workspace space-agent-history"><header className="space-heading"><h1>{appText('history.ai')}</h1><button className="space-button" onClick={()=>setView('agent')}>{appText('common.back')}</button></header><HistoryPage runs={runs} maintenanceRuns={maintenanceRuns} onOpenRun={(run) => { setActiveRun(run); activeRunId.current = run.id; setSelectedPlanIds(new Set()); setView('agent') }} onDeleteRuns={setPendingHistoryDelete} onDeleteMaintenanceRuns={setPendingMaintenanceDelete} onRevealRecovery={revealMaintenanceRecovery} /></div>}
-      {view === 'settings' && <SettingsPage settings={settings} providers={providers} appVersion={appVersion} updateState={updateState} onUpdateSettings={updateSettings} onDiscoverModels={discoverProviderModels} onSaveProvider={saveProvider} onTestProvider={testProvider} onDeleteProvider={deleteProvider} onSetDefaultProvider={setDefaultProvider} onImportLocalAi={importLocalAiConfigurations} onImportCcSwitch={importCcSwitchProviders} onCheckUpdates={checkForUpdates} onAddScanDirectory={async()=>{if(window.memento)setSettings(await window.memento.addScanExcludedDirectory());else await updateSettings({scanExcludedDirectories:[...new Set([...settings.scanExcludedDirectories,'/Users/alex/Private'])]})}} onRemoveScanDirectory={async(directory)=>{if(window.memento)setSettings(await window.memento.removeScanExcludedDirectory(directory));else await updateSettings({scanExcludedDirectories:settings.scanExcludedDirectories.filter((entry)=>entry!==directory)})}} onToast={setToast} />}
+      {view === 'settings' && <SettingsPage settings={settings} providers={providers} appVersion={appVersion} updateState={updateState} onUpdateSettings={updateSettings} onDiscoverModels={discoverProviderModels} onSaveProvider={saveProvider} onTestProvider={testProvider} onDeleteProvider={deleteProvider} onSetDefaultProvider={setDefaultProvider} onImportLocalAi={importLocalAiConfigurations} onImportCcSwitch={importCcSwitchProviders} onCheckUpdates={checkForUpdates} onAddScanDirectory={async()=>{if(window.diskCollie)setSettings(await window.diskCollie.addScanExcludedDirectory());else await updateSettings({scanExcludedDirectories:[...new Set([...settings.scanExcludedDirectories,'/Users/alex/Private'])]})}} onRemoveScanDirectory={async(directory)=>{if(window.diskCollie)setSettings(await window.diskCollie.removeScanExcludedDirectory(directory));else await updateSettings({scanExcludedDirectories:settings.scanExcludedDirectories.filter((entry)=>entry!==directory)})}} onToast={setToast} />}
 
       {pendingDirectAction && <DirectActionConfirmDialog action={pendingDirectAction} onClose={() => setPendingDirectAction(null)} onConfirm={() => void executeDirectAction()} />}
       {executionState && <ExecutionProgressDialog phase={executionState.phase} verificationMode={executionState.verificationMode} progress={executionState.progress} itemCount={executionState.itemCount} completedCount={executionState.completedCount} detail={executionState.detail} items={executionState.items} onRetry={executionState.retryAction ? () => void executeDirectAction(executionState.retryAction) : undefined} onClose={() => setExecutionState(null)} />}

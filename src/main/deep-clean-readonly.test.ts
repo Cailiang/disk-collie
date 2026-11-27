@@ -6,7 +6,7 @@ import {DeepCleanService} from './deep-clean-service'
 import type {DeepCleanContext} from './deep-clean-context'
 import type {StorageApplication} from '../shared/storage-types'
 let home:string
-beforeEach(async()=>{home=await realpath(await mkdtemp(path.join(os.tmpdir(),'memento-deep-readonly-')))})
+beforeEach(async()=>{home=await realpath(await mkdtemp(path.join(os.tmpdir(),'diskcollie-deep-readonly-')))})
 afterEach(async()=>{await rm(home,{recursive:true,force:true})})
 async function file(relative:string,content:string|Buffer):Promise<string>{const target=path.join(home,relative);await mkdir(path.dirname(target),{recursive:true});await writeFile(target,content);await utimes(target,new Date(Date.now()-10000),new Date(Date.now()-10000));return target}
 const context=(applications:StorageApplication[]=[]):DeepCleanContext=>({home,platform:'darwin',env:{},applications})

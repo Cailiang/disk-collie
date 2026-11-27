@@ -5,7 +5,7 @@ import path from 'node:path'
 import {isStorageDirectoryCandidate,prepareStorageDirectoryTrash} from './storage-directory-trash'
 
 let home:string,root:string
-beforeEach(async()=>{home=await mkdtemp(path.join(os.homedir(),'memento-directory-trash-'));root=path.join(home,'Downloads');await mkdir(root)})
+beforeEach(async()=>{home=await mkdtemp(path.join(os.homedir(),'diskcollie-directory-trash-'));root=path.join(home,'Downloads');await mkdir(root)})
 afterEach(async()=>{await rm(home,{recursive:true,force:true})})
 async function file(relative:string,contents:string):Promise<string>{const target=path.join(root,relative);await mkdir(path.dirname(target),{recursive:true});await writeFile(target,contents);return target}
 const options=()=>({home})

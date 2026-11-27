@@ -1,6 +1,6 @@
 import type { AppUpdateState } from '../shared/types'
 
-const LATEST_RELEASE_ENDPOINT = 'https://api.github.com/repos/Cailiang/memento-client/releases/latest'
+const LATEST_RELEASE_ENDPOINT = 'https://api.github.com/repos/Cailiang/disk-collie/releases/latest'
 
 interface GitHubRelease {
   tag_name?: unknown
@@ -75,11 +75,13 @@ export async function fetchLatestReleaseVersion(
     const response = await fetchProvider(LATEST_RELEASE_ENDPOINT, {
       headers: {
         Accept: 'application/vnd.github+json',
-        'User-Agent': `Memento/${currentVersion}`,
+        'User-Agent': `DiskCollie/${currentVersion}`,
         'X-GitHub-Api-Version': '2022-11-28'
       },
       signal: controller.signal
     })
+    // A newly created repository has no published version yet.
+    if(response.status===404)return currentVersion
     if (!response.ok) throw new Error(`GitHub Releases HTTP ${response.status}`)
     const release = await response.json() as GitHubRelease
     const latestVersion = typeof release.tag_name === 'string'

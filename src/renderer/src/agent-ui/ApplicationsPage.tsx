@@ -26,7 +26,7 @@ function updateSourceLabel(source: InstalledApplication['updateSource'], languag
 }
 
 function updateModeLabel(application: Pick<InstalledApplication, 'updateMode' | 'updateSource'>, language: 'zh-CN' | 'en-US'): string {
-  if (application.updateMode === 'direct') return language === 'en-US' ? 'Can update in Memento' : '可在 Memento 内更新'
+  if (application.updateMode === 'direct') return language === 'en-US' ? 'Can update in DiskCollie' : '可在 DiskCollie 内更新'
   if (application.updateSource === 'mac-app-store') return language === 'en-US' ? 'Open App Store to update' : '需打开 App Store 更新'
   return language === 'en-US' ? 'Open the app to update' : '需打开应用更新'
 }
@@ -80,8 +80,8 @@ export function ApplicationIcon({ application }: { application: Pick<InstalledAp
 
   useEffect(() => {
     let active = true
-    if (!visible || !window.memento) return
-    void window.memento.getApplicationIcon(application.id).then((value) => {
+    if (!visible || !window.diskCollie) return
+    void window.diskCollie.getApplicationIcon(application.id).then((value) => {
       if (active) setSource(value)
     })
     return () => { active = false }
@@ -215,7 +215,7 @@ export function ApplicationsPage({
           <option value="recent">{text("legacy.recently_used.cefaa6")}</option>
           <option value="unused">{text("legacy.unused_for_3_months.e3dfc7")}</option>
           <option value="updates">{text("legacy.updates_available.ccebb0")}</option>
-          <option value="direct-updates">{text("legacy.update_in_memento.7723e5")}</option>
+          <option value="direct-updates">{text("legacy.update_in_diskcollie.7723e5")}</option>
           <option value="external-updates">{text("legacy.open_to_update.38d4b9")}</option>
           <option value="system">{text("legacy.system_applications.7ae717")}</option>
         </select>

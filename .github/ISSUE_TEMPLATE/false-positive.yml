@@ -11,7 +11,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Memento version
+      label: DiskCollie version
       placeholder: 0.7.0
     validations:
       required: true
@@ -44,7 +44,7 @@ body:
   - type: textarea
     id: finding
     attributes:
-      label: What Memento reported
+      label: What DiskCollie reported
       description: Include the confidence, risk, estimate quality, normalized path category, and proposed operation.
     validations:
       required: true

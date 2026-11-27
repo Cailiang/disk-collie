@@ -69,11 +69,11 @@ export class StorageService {
     this.sessions.clear();this.latest=null
     this.cleanupEngines.cleanup.stop();this.cleanupEngines.privacy.stop()
     this.rules.clear();this.privacyService=new PrivacyService();this.deepCleanService=new DeepCleanService()
-    for(const window of BrowserWindow.getAllWindows())window.webContents.send('memento:storage:scope-changed')
+    for(const window of BrowserWindow.getAllWindows())window.webContents.send('diskcollie:storage:scope-changed')
   }
   private metadata=new Map<string,ApplicationMetadata>()
   private updates=new Map<string,ApplicationUpdate>()
-  private engine = new NativeEngine((progress) => { for (const window of BrowserWindow.getAllWindows()) window.webContents.send('memento:storage:progress', progress) })
+  private engine = new NativeEngine((progress) => { for (const window of BrowserWindow.getAllWindows()) window.webContents.send('diskcollie:storage:progress', progress) })
   private sessions = new Map<StorageMode,{index:StorageIndex;engine:NativeEngine;groups:Map<string,DuplicateGroup>;removed:Set<string>}>()
   private latest: StorageMode | null = null
   private activeEngines=new Map<import('../shared/storage-types').StorageMode,NativeEngine>()
@@ -87,7 +87,7 @@ export class StorageService {
   private directoryTrashPlan:{plan:StorageDirectoryPlan;snapshot:DirectoryTrashSnapshot}|null=null
   private queue=new StorageTaskQueue((scope,queued,blockedBy)=>this.progress({scope,phase:queued?'queued':'indexing',blockedBy:blockedBy||undefined,entries:0,elapsedMs:0}))
   private progress(progress: import('../shared/storage-types').StorageProgress):void {
-    for (const window of BrowserWindow.getAllWindows()) window.webContents.send('memento:storage:progress',{...progress,scope:progress.scope})
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.send('diskcollie:storage:progress',{...progress,scope:progress.scope})
   }
   private history: StorageActivity[] = []
   private rules = new Map<string, { item: CleanupItem; snapshots: Snapshot[]; browser?: string;source?:import('./storage-rules').StorageRule['source'] }>()
@@ -108,7 +108,7 @@ export class StorageService {
   private inventoryStopped=false
   private readonly applicationRoots=process.platform==='darwin'?['/Applications',path.join(home,'Applications'),'/System/Applications']:process.platform==='linux'?['/usr/share/applications',path.join(home,'.local/share/applications')]:[]
   applicationState():ApplicationInventoryState {return {applications:[...this.applications.values()].sort((a,b)=>a.name.localeCompare(b.name)),refreshing:this.applicationsRefreshing,measuringSizes:this.applicationsSizing,updatedAt:this.applicationsUpdatedAt,error:this.applicationsError}}
-  private publishApplications():void {for(const window of BrowserWindow.getAllWindows())window.webContents.send('memento:storage:applications-changed',this.applicationState())}
+  private publishApplications():void {for(const window of BrowserWindow.getAllWindows())window.webContents.send('diskcollie:storage:applications-changed',this.applicationState())}
   private persistApplications():Promise<void> {return this.applicationCache.write([...this.applications.values()].map((application)=>({application,fingerprint:this.measuredApplicationFingerprints.get(application.id)||''})),this.applicationsUpdatedAt||new Date().toISOString())}
   startApplicationInventory():void {
     if(this.applicationTimer)return
@@ -227,7 +227,7 @@ export class StorageService {
   async scan(options: StorageScanOptions): Promise<StorageIndex | null> {
     return this.exclusive(options.mode||'analysis',async () => {
       const epoch=this.scopeEpoch
-      const root = process.env.MEMENTO_TEST_RUN === '1' && process.env.MEMENTO_TEST_STORAGE_ROOT ? process.env.MEMENTO_TEST_STORAGE_ROOT : path.parse(home).root
+      const root = process.env.DISKCOLLIE_TEST_RUN === '1' && process.env.DISKCOLLIE_TEST_STORAGE_ROOT ? process.env.DISKCOLLIE_TEST_STORAGE_ROOT : path.parse(home).root
       const mode=options.mode||'analysis'
       const scanScope=storageScanScope(home,options.includeHidden??false,process.platform,process.env,mode);scanScope.excludePaths.push(...this.getScanExclusions())
       const engine=new NativeEngine((p)=>this.progress({...p,scope:mode}))
@@ -316,7 +316,7 @@ export class StorageService {
       try{
         if(this.applicationRefresh)await this.applicationRefresh.catch(()=>undefined)
         if(cancellation.signal.aborted)throw new Error('deep.cancelled')
-        const fixtureHome=process.env.MEMENTO_TEST_RUN==='1'?process.env.MEMENTO_TEST_DEEP_HOME:undefined,selectedHome=fixtureHome||home
+        const fixtureHome=process.env.DISKCOLLIE_TEST_RUN==='1'?process.env.DISKCOLLIE_TEST_DEEP_HOME:undefined,selectedHome=fixtureHome||home
         const env=fixtureHome?{...process.env,LOCALAPPDATA:path.join(fixtureHome,'AppData/Local'),APPDATA:path.join(fixtureHome,'AppData/Roaming'),XDG_CONFIG_HOME:path.join(fixtureHome,'.config'),XDG_DATA_HOME:path.join(fixtureHome,'.local/share'),XDG_CACHE_HOME:path.join(fixtureHome,'.cache')}:process.env
         return await this.deepCleanService.scan({platform:process.platform,home:selectedHome,env,excludedPaths:this.getScanExclusions(),applications:fixtureHome?[]:[...this.applications.values()],trash:(target:string)=>shell.trashItem(target),signal:cancellation.signal},await this.deepProcesses(),(done,total,target)=>{if(cancellation.signal.aborted)throw new Error('deep.cancelled');this.progress({scope:'cleanup',phase:'indexing',entries:done,total,elapsedMs:Date.now()-started,path:target})})
       }finally{if(this.deepScanCancellation===cancellation)this.deepScanCancellation=null}
@@ -332,7 +332,7 @@ export class StorageService {
     return this.exclusive('privacy',async()=>{
       if(this.applicationRefresh)await this.applicationRefresh.catch(()=>undefined)
       const running=await this.privacyProcesses()
-      const fixtureHome=process.env.MEMENTO_TEST_RUN==='1'?process.env.MEMENTO_TEST_PRIVACY_HOME:undefined
+      const fixtureHome=process.env.DISKCOLLIE_TEST_RUN==='1'?process.env.DISKCOLLIE_TEST_PRIVACY_HOME:undefined
       return this.privacyService.scan({platform:process.platform,home:fixtureHome||home,excludedPaths:this.getScanExclusions(),env:fixtureHome?{...process.env,LOCALAPPDATA:path.join(fixtureHome,'AppData/Local'),APPDATA:path.join(fixtureHome,'AppData/Roaming'),XDG_CONFIG_HOME:path.join(fixtureHome,'.config'),XDG_DATA_HOME:path.join(fixtureHome,'.local/share'),XDG_CACHE_HOME:path.join(fixtureHome,'.cache')}:process.env,applications:fixtureHome?[]:[...this.applications.values()]},range,running)
     })
   }
@@ -405,7 +405,7 @@ export class StorageService {
           await Promise.all(locations.slice(offset,offset+8).map(async(location)=>{
             try{
               const stat=await snapshot(location),info=await inspectApplication(location,this.language(),false,false)
-              if(!info||info.bundleId==='com.fcl.memento')return
+              if(!info||info.bundleId==='com.fcl.diskcollie')return
               let infoModified=0;try{infoModified=(await lstat(path.join(location,'Contents/Info.plist'))).mtimeMs}catch{/* Metadata fallback remains usable. */}
               const id=this.applicationId(location,info.name),previous=this.applications.get(id),system=location.startsWith('/System/')
               if(this.applicationOperations.has(id)){seen.add(id);return}
@@ -585,7 +585,7 @@ export class StorageService {
     return null
   }
   register(): void {
-    const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`memento:storage:${name}`,async(_event,input)=>{try{return await fn(input)}catch(error){const message=error instanceof Error?error.message:String(error);if(message.startsWith('privacy.')||message.startsWith('deep.')||message.startsWith('storage.')||message==='apps.operationInProgress')throw new Error(translate(this.language(),message));if(/Item changed since scan|item changed since it was inspected|Path changed or became a link/.test(message))throw new Error(translate(this.language(),'storage.changed'));throw error}})}
+    const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`diskcollie:storage:${name}`,async(_event,input)=>{try{return await fn(input)}catch(error){const message=error instanceof Error?error.message:String(error);if(message.startsWith('privacy.')||message.startsWith('deep.')||message.startsWith('storage.')||message==='apps.operationInProgress')throw new Error(translate(this.language(),message));if(/Item changed since scan|item changed since it was inspected|Path changed or became a link/.test(message))throw new Error(translate(this.language(),'storage.changed'));throw error}})}
     handle('state',()=>({index:this.latest?this.sessions.get(this.latest)?.index||null:null,indexes:Object.fromEntries([...this.sessions].map(([mode,s])=>[mode,s.index])),history:this.history,home}))
     handle('scan',(v)=>this.scan(z.object({mode:z.enum(['analysis','large','duplicates']).default('analysis'),minimum:z.number().int().min(10*1024**2).optional(),includeHidden:z.boolean().optional()}).parse(v||{})))
     handle('cancel',(v)=>{const scope=z.enum(['analysis','large','duplicates','cleanup','privacy','apps']).optional().parse(v)||this.queue.activeScopes[0];if(!scope)return false;this.queue.cancelPending(scope);if(scope==='cleanup'&&this.deepScanCancellation){this.deepScanCancellation.abort();return true}const engine=this.activeEngines.get(scope as StorageMode);if(!engine)return false;engine.stop();for(const [mode,session] of this.sessions)if(session.engine===engine)this.sessions.delete(mode);return true})

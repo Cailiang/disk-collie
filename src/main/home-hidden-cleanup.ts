@@ -38,6 +38,8 @@ const PROTECTED_HOME_NAMES = new Set([
   '.lesshst',
   '.local',
   '.m2',
+  '.diskcollie',
+  '.disk-collie',
   '.memento',
   '.gem',
   '.mysql_history',

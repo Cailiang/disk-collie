@@ -1,4 +1,4 @@
-# Memento border collie and scan games
+# DiskCollie border collie and scan games
 
 The approved identity is a left-facing, upright-eared border collie with a confident eye and mischievous smile. `docs/assets/collie-approved.png` preserves the user-selected image. Its clean traced silhouette lives in `src/renderer/src/assets/mascot/collie-mark.svg`, using `currentColor` so all UI branding follows the active theme. The game dog uses the same head; its in-game head faces its travel direction.
 
@@ -32,7 +32,7 @@ Since 1.0.23, scene and lighting selectors override their respective automatic c
 
 A ResizeObserver measures the canvas and adjusts the SVG camera continuously to its aspect ratio, with a minimum 480-unit forward view. Window resizing pauses a running round and retains its state; new groups spawn beyond the visible edge and existing hazards with safe spacing. Scenery tiles cover the full measured width. Terminal optimization uses a compact canvas (up to 250 px) in normal page flow, with compact counters, results and footer, no horizontal section borders, and no empty-result claim during the initial scan.
 
-Space starts a round, jumps, resumes a paused round or retries after a loss. Click/tap does the same. Holding Space does not repeat jumps. Switching games starts a fresh ready state, with separate best scores retained locally under `memento.scan-games.best.v1`. The current score is saved when a round ends, the mode changes or the scan view unmounts.
+Space starts a round, jumps, resumes a paused round or retries after a loss. Click/tap does the same. Holding Space does not repeat jumps. Switching games starts a fresh ready state, with separate best scores retained locally under `diskcollie.scan-games.best.v1`. The current score is saved when a round ends, the mode changes or the scan view unmounts.
 
 Games are opt-in and do not autoplay. Offscreen workspaces, hidden documents and window blur pause a running round; Space resumes it. Editable controls, other buttons and modal dialogs retain their normal keyboard behavior. Reduced motion removes decorative scrolling/gait motion; manually started play remains available. A smaller viewBox keeps the character readable in narrow windows.
 

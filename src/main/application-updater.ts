@@ -115,8 +115,8 @@ async function copyApplication(source: string, destination: string): Promise<voi
 async function installApplication(source: string, target: string): Promise<void> {
   const parent = path.dirname(target)
   const basename = path.basename(target, '.app')
-  const incoming = path.join(parent, `.${basename}.memento-update.app`)
-  const backup = path.join(parent, `.${basename}.memento-backup.app`)
+  const incoming = path.join(parent, `.${basename}.diskcollie-update.app`)
+  const backup = path.join(parent, `.${basename}.diskcollie-backup.app`)
   await fs.rm(incoming, { recursive: true, force: true })
   await fs.rm(backup, { recursive: true, force: true })
   await copyApplication(source, incoming)
@@ -142,7 +142,7 @@ export async function installSparkleUpdate({ target, downloadUrl, expectedVersio
     throw new Error('应用不在受支持的安装目录中')
   }
 
-  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-sparkle-update-'))
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-sparkle-update-'))
   let mounted: MountedImage | null = null
   try {
     const archive = await downloadSparkleArchive(downloadUrl, workspace)
@@ -189,5 +189,5 @@ export function sparkleUpdaterCommand(target: string, pathValue = process.env.PA
 }
 
 export async function runSparkleUpdater(target: string, command: string): Promise<void> {
-  await execFileAsync(command, ['--check-immediately', '--interactive', '--user-agent-name', 'Memento', target], { timeout: 15 * 60_000, maxBuffer: 2 * 1024 * 1024 })
+  await execFileAsync(command, ['--check-immediately', '--interactive', '--user-agent-name', 'DiskCollie', target], { timeout: 15 * 60_000, maxBuffer: 2 * 1024 * 1024 })
 }

@@ -6,10 +6,10 @@ import {advanceGame,createGame,gameAction,gameEnvironment,gameLights,gameModes,r
 import {GameScenery} from './GameScenery'
 import './ScanGame.css'
 
-const bestKey='memento.scan-games.best.v1'
+const bestKey='diskcollie.scan-games.best.v1'
 type Best=Partial<Record<GameMode,number>>
 function readBest():Best {
-  try{const value=JSON.parse(localStorage.getItem(bestKey)||'{}');return Object.fromEntries(gameModes.map(mode=>[mode,Number.isSafeInteger(value?.[mode])&&value[mode]>=0?value[mode]:0]))}catch{return {}}
+  try{const value=JSON.parse(localStorage.getItem(bestKey)||localStorage.getItem('memento.scan-games.best.v1')||'{}');return Object.fromEntries(gameModes.map(mode=>[mode,Number.isSafeInteger(value?.[mode])&&value[mode]>=0?value[mode]:0]))}catch{return {}}
 }
 function saveBest(state:GameState,best:Best):Best {
   const stored=readBest(),next=Object.fromEntries(gameModes.map(mode=>[mode,Math.max(best[mode]||0,stored[mode]||0,mode===state.mode?state.score:0)])) as Best

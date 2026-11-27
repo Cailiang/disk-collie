@@ -79,9 +79,9 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          certificate_path="$RUNNER_TEMP/memento-signing.p12"
+          certificate_path="$RUNNER_TEMP/diskcollie-signing.p12"
           intermediate_path="$RUNNER_TEMP/DeveloperIDG2CA.cer"
-          keychain_path="$RUNNER_TEMP/memento-signing.keychain-db"
+          keychain_path="$RUNNER_TEMP/diskcollie-signing.keychain-db"
 
           for required in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY KEYCHAIN_PASSWORD; do
             test -n "${!required}"
@@ -131,7 +131,7 @@ jobs:
           done
           version="$(node -p "require('./package.json').version")"
           arch="${{ matrix.id == 'macos-arm64' && 'arm64' || 'x64' }}"
-          dmg_path="release/Memento-${version}-${arch}.dmg"
+          dmg_path="release/DiskCollie-${version}-${arch}.dmg"
           codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$dmg_path"
           xcrun notarytool submit "$dmg_path" \
             --apple-id "$APPLE_ID" \
@@ -144,7 +144,7 @@ jobs:
         if: always() && startsWith(matrix.id, 'macos-')
         shell: bash
         run: |
-          keychain_path="$RUNNER_TEMP/memento-signing.keychain-db"
+          keychain_path="$RUNNER_TEMP/diskcollie-signing.keychain-db"
           security default-keychain -d user -s "$HOME/Library/Keychains/login.keychain-db"
           if [[ -f "$keychain_path" ]]; then
             security delete-keychain "$keychain_path"
@@ -189,14 +189,14 @@ jobs:
           if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release edit "${GITHUB_REF_NAME}" \
               --repo "${GITHUB_REPOSITORY}" \
-              --title "Memento ${GITHUB_REF_NAME#v}" \
+              --title "DiskCollie ${GITHUB_REF_NAME#v}" \
               --notes-file RELEASE_NOTES.md \
               --latest
           else
             gh release create "${GITHUB_REF_NAME}" \
               --repo "${GITHUB_REPOSITORY}" \
               --verify-tag \
-              --title "Memento ${GITHUB_REF_NAME#v}" \
+              --title "DiskCollie ${GITHUB_REF_NAME#v}" \
               --notes-file RELEASE_NOTES.md \
               --latest
           fi

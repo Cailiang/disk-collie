@@ -1,12 +1,12 @@
 {
-  "name": "memento",
-  "version": "1.0.23",
+  "name": "disk-collie",
+  "version": "1.0.24",
   "private": true,
   "author": {
     "name": "Cailiang",
     "email": "1006980793@qq.com"
   },
-  "description": "A local desktop maintenance Agent with user-configured models and confirmed actions.",
+  "description": "DiskCollie — local disk cleanup, app management and optional AI guidance.",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "npm run native:build && electron-vite dev",
@@ -72,12 +72,12 @@
     "node": ">=22.13.0"
   },
   "build": {
-    "appId": "com.fcl.memento",
-    "productName": "Memento",
+    "appId": "com.fcl.diskcollie",
+    "productName": "DiskCollie",
     "publish": {
       "provider": "github",
       "owner": "Cailiang",
-      "repo": "memento-client"
+      "repo": "disk-collie"
     },
     "artifactName": "${productName}-${version}-${arch}.${ext}",
     "asar": true,
@@ -137,5 +137,14 @@
       "artifactName": "${productName}-${version}-${arch}.deb"
     },
     "beforePack": "scripts/prepare-native.cjs"
+  },
+  "productName": "DiskCollie",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Cailiang/disk-collie.git"
+  },
+  "homepage": "https://github.com/Cailiang/disk-collie#readme",
+  "bugs": {
+    "url": "https://github.com/Cailiang/disk-collie/issues"
   }
 }

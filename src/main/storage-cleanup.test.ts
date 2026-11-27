@@ -10,7 +10,7 @@ import {
 
 describe('storage cleanup', () => {
   it('permanently removes a scanned application cache', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-storage-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-storage-'))
     try {
       const target = path.join(home, 'Library', 'Caches', 'com.example.cache')
       await fs.mkdir(target, { recursive: true })
@@ -25,7 +25,7 @@ describe('storage cleanup', () => {
   })
 
   it('rejects broad directories and symbolic links', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-storage-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-storage-'))
     try {
       const cacheRoot = path.join(home, 'Library', 'Caches')
       const target = path.join(cacheRoot, 'linked-cache')
@@ -40,7 +40,7 @@ describe('storage cleanup', () => {
   })
 
   it('removes only the allowlisted cache folders in an AI client group', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-storage-ai-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-storage-ai-'))
     try {
       const cache = path.join(home, 'Library', 'Application Support', 'Claude', 'Cache')
       const settings = path.join(home, 'Library', 'Application Support', 'Claude', 'config.json')
@@ -58,8 +58,8 @@ describe('storage cleanup', () => {
   })
 
   it('rejects targets reached through a linked parent directory', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-storage-home-'))
-    const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-storage-outside-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-storage-home-'))
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-storage-outside-'))
     try {
       const outsideCache = path.join(outside, 'Caches', 'com.example.cache')
       await fs.mkdir(outsideCache, { recursive: true })
@@ -79,7 +79,7 @@ describe('storage cleanup', () => {
   })
 
   it('removes only a validated sandbox cache and preserves sibling app data', async () => {
-    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'memento-storage-container-'))
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), 'diskcollie-storage-container-'))
     try {
       const data = path.join(home, 'Library', 'Containers', 'com.example.Editor', 'Data')
       const cache = path.join(data, 'Library', 'Caches')

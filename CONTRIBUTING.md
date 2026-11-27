@@ -1,6 +1,6 @@
-# Contributing to Memento
+# Contributing to DiskCollie
 
-Memento accepts focused fixes to its deterministic macOS scanner, operation safety boundaries, local Agent experience, documentation, and tests. Read [SECURITY.md](SECURITY.md) before reporting a vulnerability and use the false-positive issue template for incorrect findings.
+DiskCollie accepts focused fixes to its deterministic macOS scanner, operation safety boundaries, local Agent experience, documentation, and tests. Read [SECURITY.md](SECURITY.md) before reporting a vulnerability and use the false-positive issue template for incorrect findings.
 
 ## Development
 

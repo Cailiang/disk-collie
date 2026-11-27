@@ -5,7 +5,7 @@ import { buildPrivilegedMoves, privilegedMoveArguments } from './privileged-clea
 
 describe('privileged cleanup staging', () => {
   it('keeps every destination inside the application staging directory', () => {
-    const stagingDirectory = '/Users/test/Library/Application Support/memento/Privileged Cleanup/pending-1'
+    const stagingDirectory = '/Users/test/Library/Application Support/diskcollie/Privileged Cleanup/pending-1'
     const moves = buildPrivilegedMoves(stagingDirectory, [
       '/Library/LaunchAgents/com.example.worker.plist',
       '/Applications/Example.app'
@@ -25,7 +25,7 @@ describe('privileged cleanup staging', () => {
   })
 
   it('encodes service targets before source and staging destination pairs', () => {
-    const moves = buildPrivilegedMoves('/tmp/memento-stage', [
+    const moves = buildPrivilegedMoves('/tmp/diskcollie-stage', [
       '/Library/LaunchAgents/com.example.worker.plist'
     ])
 
@@ -35,7 +35,7 @@ describe('privileged cleanup staging', () => {
         '1',
         '/Library/LaunchAgents/com.example.worker.plist',
         '/Library/LaunchAgents/com.example.worker.plist',
-        '/tmp/memento-stage/001-com.example.worker.plist'
+        '/tmp/diskcollie-stage/001-com.example.worker.plist'
       ])
   })
 

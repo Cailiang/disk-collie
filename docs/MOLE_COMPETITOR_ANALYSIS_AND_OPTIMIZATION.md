@@ -1,8 +1,8 @@
-# Mole 竞品分析与 Memento 优化建议
+# Mole 竞品分析与 DiskCollie 优化建议
 
 > 分析日期：2026-08-04
 >
-> Memento 基线：`v0.6.60` / `7bec52e`
+> DiskCollie 基线：`v0.6.60` / `7bec52e`
 >
 > Mole 基线：`V1.49.2` / `ad82a47b157c289a0feb52a414d4515a83ea7aaf`
 
@@ -10,11 +10,11 @@
 
 ## 1. 执行摘要
 
-Memento 不应该把目标设为“做一个功能更多的 Mole”。Mole 已经在终端清理工具、规则覆盖、低门槛安装和社区反馈上形成明显优势；逐项追赶它的 `clean`、`status`、`optimize` 和大量清理规则，会让 Memento 陷入高风险、低差异化的长期维护战。
+DiskCollie 不应该把目标设为“做一个功能更多的 Mole”。Mole 已经在终端清理工具、规则覆盖、低门槛安装和社区反馈上形成明显优势；逐项追赶它的 `clean`、`status`、`optimize` 和大量清理规则，会让 DiskCollie 陷入高风险、低差异化的长期维护战。
 
 更有胜算的定位是：
 
-> **Memento 是一个本地、可解释、确认后执行的 Mac 维护 Agent。它先用确定性扫描建立证据，再让用户理解、选择和验证操作；AI 是解释与编排层，不是扫描和清理的前置条件。**
+> **DiskCollie 是一个本地、可解释、确认后执行的 Mac 维护 Agent。它先用确定性扫描建立证据，再让用户理解、选择和验证操作；AI 是解释与编排层，不是扫描和清理的前置条件。**
 
 建议立即做出五个产品决策：
 
@@ -24,7 +24,7 @@ Memento 不应该把目标设为“做一个功能更多的 Mole”。Mole 已�
 4. **公开发行先只承诺 macOS。** Windows/Linux 目前只是桌面壳验证，却以正式安装包形式发布，增加用户误解、CI 成本和支持面。
 5. **避免与 Mole 正面复制。** 优先做完整卸载解释、启动项诊断、终端问题、磁盘目录归属和 Agent 证据关联；暂不追逐风扇控制、常驻监控、应用商店式更新管理等功能。
 
-当前最紧急的问题不是功能缺失，而是信号质量。2026-08-04 在当前开发机执行 `npm run scan:smoke`，Memento 用时 `8.679s`，发现 108 个候选项，其中 97 个为存储项，78 个是“待确认”的隐藏目录线索。现有健康分公式会因为存储项数量直接降到最低值 45，即使大部分项目并不能证明是问题。这会损害用户对整个安全模型的信任，应作为 `0.7` 的第一修复目标。
+当前最紧急的问题不是功能缺失，而是信号质量。2026-08-04 在当前开发机执行 `npm run scan:smoke`，DiskCollie 用时 `8.679s`，发现 108 个候选项，其中 97 个为存储项，78 个是“待确认”的隐藏目录线索。现有健康分公式会因为存储项数量直接降到最低值 45，即使大部分项目并不能证明是问题。这会损害用户对整个安全模型的信任，应作为 `0.7` 的第一修复目标。
 
 ## 2. 分析范围与限制
 
@@ -32,15 +32,15 @@ Memento 不应该把目标设为“做一个功能更多的 Mole”。Mole 已�
 
 - Mole 开源仓库的产品文档、Shell/Go 架构、安全边界、测试、CI、发布流程和近期 Issues。
 - Mole 官网公开描述的原生 Mac App 功能、定价、内容与转化路径。
-- Memento 当前代码、架构文档、真实扫描输出、发布资产和 GitHub 公开数据。
+- DiskCollie 当前代码、架构文档、真实扫描输出、发布资产和 GitHub 公开数据。
 
 本次没有接触 Mole 专有 Mac App 的源代码，因此对其 GUI 架构、内部安全实现和真实商业转化不做推断。GitHub Star、Release 下载数和官网自报数据只用作分发与社区成熟度信号，不等同于真实活跃用户或收入。
 
 ### 2.1 数据快照
 
-| 指标 | Memento | Mole CLI | 解读 |
+| 指标 | DiskCollie | Mole CLI | 解读 |
 | --- | ---: | ---: | --- |
-| GitHub 创建时间 | 2026-07-24 | 2025-09-23 | Memento 仍处于极早期，不能只按绝对规模判断 |
+| GitHub 创建时间 | 2026-07-24 | 2025-09-23 | DiskCollie 仍处于极早期，不能只按绝对规模判断 |
 | Star | 0 | 61,671 | Mole 已建立强分发与品牌心智 |
 | Fork | 0 | 2,177 | Mole 有可观的社区参与基础 |
 | 当前公开 Issues | 0 | 7 | Mole 的低开放问题数同时受快速响应和维护策略影响 |
@@ -48,8 +48,8 @@ Memento 不应该把目标设为“做一个功能更多的 Mole”。Mole 已�
 | 最近 20 个 Mole 版本跨度 | 不适用 | 2026-05-04 至 2026-08-03 | 约 3 个月发布 20 个版本，反馈闭环很快 |
 | 源码规模 | 约 16,966 行 TS/TSX | 约 40,491 行 Shell + 21,466 行 Go | Mole 的功能覆盖更深，但 Shell 维护面也更大 |
 | 自动化测试 | 31 个文件、约 123 个测试 | 61 个 Bats 文件、约 1,526 个用例 + 310 个 Go 测试函数 | 不是质量的直接等价比较，但能反映边界案例积累 |
-| 许可证 | MIT | GPL-3.0 | Memento 不可直接复制 Mole 代码或规则表 |
-| 公开平台承诺 | macOS 完整；Windows/Linux 壳验证 | CLI 主体仅 macOS | Memento 当前发行范围大于真实能力范围 |
+| 许可证 | MIT | GPL-3.0 | DiskCollie 不可直接复制 Mole 代码或规则表 |
+| 公开平台承诺 | macOS 完整；Windows/Linux 壳验证 | CLI 主体仅 macOS | DiskCollie 当前发行范围大于真实能力范围 |
 
 ## 3. Mole 的产品分析
 
@@ -113,27 +113,27 @@ Mole 没有把大量规则直接展示成产品结构。用户先选择“清理
 
 仓库具备贡献指南、安全文档、Issue 模板、PR 模板、CodeQL、依赖更新和月度 Bundle 审计。官网同时维护多语言产品页、帮助中心、发布记录、博客、Markdown/LLM 索引和 Agent Skill。这些表面上不是“清理功能”，实际上持续降低发现、理解、购买和反馈成本。
 
-### 3.3 Mole 的弱点与 Memento 的机会
+### 3.3 Mole 的弱点与 DiskCollie 的机会
 
 #### Shell 规则规模带来长期复杂度
 
-Mole 约 4 万行 Shell，需要同时处理 Bash 3.2、TTY、sudo、AppleScript、BSD 命令、超时、子进程和不同 macOS 行为。仓库契约中大量篇幅用于防止已经踩过的边界再次回归。Memento 的 TypeScript 类型、窄 IPC 和不透明操作 ID 更适合构建结构化 Agent，不应为了追求规则数量退回脚本堆叠。
+Mole 约 4 万行 Shell，需要同时处理 Bash 3.2、TTY、sudo、AppleScript、BSD 命令、超时、子进程和不同 macOS 行为。仓库契约中大量篇幅用于防止已经踩过的边界再次回归。DiskCollie 的 TypeScript 类型、窄 IPC 和不透明操作 ID 更适合构建结构化 Agent，不应为了追求规则数量退回脚本堆叠。
 
 #### dry-run 不等于可恢复
 
-dry-run 能展示计划，但用户一旦执行永久缓存清理，通常没有统一撤销。Memento 可以把“预览、可恢复级别、执行后验证、废纸篓入口和历史记录”做成一套更完整的信任体验。
+dry-run 能展示计划，但用户一旦执行永久缓存清理，通常没有统一撤销。DiskCollie 可以把“预览、可恢复级别、执行后验证、废纸篓入口和历史记录”做成一套更完整的信任体验。
 
 #### 复杂判断仍主要由用户承担
 
-Mole 可以告诉用户路径、大小和类别，但对“这个目录属于谁、是否还在使用、为什么建议处理”主要依赖规则和用户知识。Memento 已有本机证据关联和模型解释能力，这是更有价值的差异点。
+Mole 可以告诉用户路径、大小和类别，但对“这个目录属于谁、是否还在使用、为什么建议处理”主要依赖规则和用户知识。DiskCollie 已有本机证据关联和模型解释能力，这是更有价值的差异点。
 
 #### 功能面很宽
 
-状态监控、优化、卸载、清理、磁盘分析和开发者工具同时维护，容易产生功能膨胀。Memento 应把 Mole 的广度当作选择压力，而不是待办清单。
+状态监控、优化、卸载、清理、磁盘分析和开发者工具同时维护，容易产生功能膨胀。DiskCollie 应把 Mole 的广度当作选择压力，而不是待办清单。
 
 #### 开源 CLI 与专有 App 是两个实现面
 
-公开 CLI 的安全成熟度不能自动证明专有 App 使用完全相同的执行路径。Memento 可以用同一仓库、同一操作注册表和同一测试合同，把 UI、Agent 与执行器的关系做得更透明。
+公开 CLI 的安全成熟度不能自动证明专有 App 使用完全相同的执行路径。DiskCollie 可以用同一仓库、同一操作注册表和同一测试合同，把 UI、Agent 与执行器的关系做得更透明。
 
 ## 4. Mole 的技术分析
 
@@ -162,11 +162,11 @@ Mole 采用 Shell 与 Go 混合架构：
 
 #### 单一删除漏斗
 
-`lib/core/file_ops.sh` 集中处理路径规范化、关键目录、符号链接、sudo、废纸篓、日志和 dry-run。业务规则不应各自实现删除。这与 Memento 的不透明操作注册表方向一致，但 Memento 还需要进一步统一直接清理、应用卸载、服务清理、磁盘删除和管理员操作的最后执行层。
+`lib/core/file_ops.sh` 集中处理路径规范化、关键目录、符号链接、sudo、废纸篓、日志和 dry-run。业务规则不应各自实现删除。这与 DiskCollie 的不透明操作注册表方向一致，但 DiskCollie 还需要进一步统一直接清理、应用卸载、服务清理、磁盘删除和管理员操作的最后执行层。
 
 #### 执行前再次检查
 
-Mole 的规则反复检查运行进程、Bundle 身份、文件类型、路径归属和系统状态。扫描时成立不代表执行时仍成立。Memento 已经对操作 ID 和部分目标做二次校验，应将该模式提升为所有操作的统一前置条件合同。
+Mole 的规则反复检查运行进程、Bundle 身份、文件类型、路径归属和系统状态。扫描时成立不代表执行时仍成立。DiskCollie 已经对操作 ID 和部分目标做二次校验，应将该模式提升为所有操作的统一前置条件合同。
 
 #### 扫描性能分层
 
@@ -174,7 +174,7 @@ Go 分析器使用多类独立并发预算、Spotlight 补充大文件发现、�
 
 #### 人机共用的数据接口
 
-`analyze --json`、`status --json`、`status --watch` 和 `history --json` 让第三方工具、脚本和 coding agent 可以安全消费只读数据，而不必解析 TUI。这种稳定数据合同比开放通用 Shell 更值得 Memento 借鉴。
+`analyze --json`、`status --json`、`status --watch` 和 `history --json` 让第三方工具、脚本和 coding agent 可以安全消费只读数据，而不必解析 TUI。这种稳定数据合同比开放通用 Shell 更值得 DiskCollie 借鉴。
 
 #### 测试围绕风险而不是文件数量
 
@@ -184,17 +184,17 @@ Mole 的测试重点覆盖危险路径、符号链接、同 Bundle ID、超时�
 
 - 不应把 Mole 的 Shell 脚本嵌入 Electron 后直接调用。
 - 不应复制其 GPL-3.0 代码、路径列表、应用保护表、测试夹具或规则表到 MIT 项目。
-- 不应因为 Mole 使用 Go 就立即重写 Memento 扫描器。先测量瓶颈，再只下沉热点。
+- 不应因为 Mole 使用 Go 就立即重写 DiskCollie 扫描器。先测量瓶颈，再只下沉热点。
 - 不应开放任意命令执行给模型来复刻 CLI 灵活性。
 - 不应把大量系统优化动作标为“安全一键执行”，除非每个动作都有可解释前置条件、非目标清单和独立回归测试。
 
-## 5. Memento 当前评估
+## 5. DiskCollie 当前评估
 
 ### 5.1 已形成的优势
 
 #### Agent 执行安全模型更适合长期差异化
 
-Memento 的模型只看到精简扫描结果和不透明操作 ID，只能从当前扫描注册的操作中准备计划；用户确认后，主进程再次校验并执行，随后重新扫描验证。这个架构比让模型生成 Shell 命令更容易建立产品级信任。
+DiskCollie 的模型只看到精简扫描结果和不透明操作 ID，只能从当前扫描注册的操作中准备计划；用户确认后，主进程再次校验并执行，随后重新扫描验证。这个架构比让模型生成 Shell 命令更容易建立产品级信任。
 
 #### Electron 权限边界明确
 
@@ -206,7 +206,7 @@ SQLite、WAL、AES-256-GCM、主进程密钥隔离、本机 AI 配置发现、�
 
 #### 证据关联是有效差异点
 
-Memento 会把存储、服务、应用、包收据、目录浅层内容和 Shell 引用关联起来，并区分本机确认、明确签名和未确认。这正好补足传统清理器只给路径和大小、不解释归属的弱点。
+DiskCollie 会把存储、服务、应用、包收据、目录浅层内容和 Shell 引用关联起来，并区分本机确认、明确签名和未确认。这正好补足传统清理器只给路径和大小、不解释归属的弱点。
 
 #### 发布链路已经具备商业软件基础
 
@@ -220,7 +220,7 @@ macOS 包使用 Developer ID 签名、公证和票据装订，并具备自动更
 
 影响：
 
-- 用户会认为 Memento 用夸大的红灯制造清理焦虑。
+- 用户会认为 DiskCollie 用夸大的红灯制造清理焦虑。
 - 真正重要的高 CPU 服务、磁盘不足或终端错误被大量低置信线索淹没。
 - Agent 的“需要证据”原则与首页评分逻辑发生冲突。
 
@@ -238,7 +238,7 @@ macOS 包使用 Developer ID 签名、公证和票据装订，并具备自动更
 
 #### P1：应用最后活跃时间需要明确数据边界
 
-Mole's uninstall index reads `mdls -name kMDItemLastUsedDate -raw <app>` for each bundle. When Spotlight returns `(null)` or an invalid date, its cache finalization uses the discovered `.app` directory mtime as the display epoch, then formats that epoch into day/week/month/year units. This is why Electron apps without a LaunchServices usage record can still show values such as “7 months ago” or “2 years ago”. Memento now follows the same primary/fallback order in `scanner.ts`, validates the date range, and renders the same compact units in the application cards. The fallback is explicitly an install/update activity estimate rather than a claim that macOS recorded a launch event.
+Mole's uninstall index reads `mdls -name kMDItemLastUsedDate -raw <app>` for each bundle. When Spotlight returns `(null)` or an invalid date, its cache finalization uses the discovered `.app` directory mtime as the display epoch, then formats that epoch into day/week/month/year units. This is why Electron apps without a LaunchServices usage record can still show values such as “7 months ago” or “2 years ago”. DiskCollie now follows the same primary/fallback order in `scanner.ts`, validates the date range, and renders the same compact units in the application cards. The fallback is explicitly an install/update activity estimate rather than a claim that macOS recorded a launch event.
 
 #### P1：应用管理不等于完整卸载
 
@@ -271,9 +271,9 @@ README 明确 Windows/Linux 仅用于桌面壳可移植性验证，但 Release �
 
 ### 5.3 能力对照
 
-| 维度 | Memento 分析基线 | Mole 分析基线 | 建议 |
+| 维度 | DiskCollie 分析基线 | Mole 分析基线 | 建议 |
 | --- | --- | --- | --- |
-| 首次价值 | 自动扫描，但默认页是未配置模型的 Agent | 安装后直接运行任务 | Memento 首次进入确定性体检摘要 |
+| 首次价值 | 自动扫描，但默认页是未配置模型的 Agent | 安装后直接运行任务 | DiskCollie 首次进入确定性体检摘要 |
 | AI | 多供应商、本地证据、计划确认 | 无通用 AI 解释层 | 保持为差异化，但改成可选增强 |
 | 安全执行 | 不透明 ID、快照、主进程复检 | dry-run、路径保护、日志、执行前检查 | 合并两者优点，增加统一预览与操作账本 |
 | 清理规则 | AI/开发缓存、应用缓存日志、Homebrew、隐藏目录 | 覆盖面明显更广 | 先提高信噪比，再按真实回收价值扩展 |
@@ -289,7 +289,7 @@ README 明确 Windows/Linux 仅用于桌面壳可移植性验证，但 Release �
 
 ### 应用更新实现边界（后续补充）
 
-Mole 公开仓库是免费 CLI；其中的 `mo update` 只负责更新 Mole 自身。Mole for Mac 原生应用是单独发布的闭源产品，公开仓库没有它的软件管理器实现可直接复用。Memento 因此按可验证来源执行更新，并明确区分“可以在 Memento 内完成”和“需要打开外部更新器”：Homebrew Cask 与安装了 `mas` 的 Mac App Store 应用可直接更新；没有 `mas` 时，带 App Store 收据的应用通过 Apple lookup 检查版本并打开 App Store；Sparkle appcast 有 HTTPS 安装包时，在替换前校验 Bundle ID、签名团队和严格代码签名，无法安全取得安装包时打开应用自带更新器。Sparkle 的外部命令行接口也保留为兼容路径，参考 [Sparkle CLI 文档](https://sparkle-project.org/documentation/sparkle-cli/)。
+Mole 公开仓库是免费 CLI；其中的 `mo update` 只负责更新 Mole 自身。Mole for Mac 原生应用是单独发布的闭源产品，公开仓库没有它的软件管理器实现可直接复用。DiskCollie 因此按可验证来源执行更新，并明确区分“可以在 DiskCollie 内完成”和“需要打开外部更新器”：Homebrew Cask 与安装了 `mas` 的 Mac App Store 应用可直接更新；没有 `mas` 时，带 App Store 收据的应用通过 Apple lookup 检查版本并打开 App Store；Sparkle appcast 有 HTTPS 安装包时，在替换前校验 Bundle ID、签名团队和严格代码签名，无法安全取得安装包时打开应用自带更新器。Sparkle 的外部命令行接口也保留为兼容路径，参考 [Sparkle CLI 文档](https://sparkle-project.org/documentation/sparkle-cli/)。
 
 截至 `1.0.5`，带 App Store 收据的应用也可以在没有有效商店更新结果时使用 Sparkle；DuckDuckGo 的 appcast 没有更新结果或不可用时，还会使用官方 GitHub macOS 发布标签检测更新，并交给应用自带更新器安装。完整来源选择规则见[应用更新检测](LOCAL_AGENT_DEVELOPMENT.md#43-application-update-discovery)。
 
@@ -310,7 +310,7 @@ Mole 公开仓库是免费 CLI；其中的 `mo update` 只负责更新 Mole 自�
 
 1. 扫描由本地确定性工具完成，不依赖 AI。
 2. 每条建议都展示来源、证据、风险和预计空间。
-3. Memento 只执行当前扫描注册、用户明确选择的操作。
+3. DiskCollie 只执行当前扫描注册、用户明确选择的操作。
 4. 执行后复检；可恢复操作提供废纸篓或恢复入口。
 
 ### 6.3 产品范围排序
@@ -484,9 +484,9 @@ Mole 公开仓库是免费 CLI；其中的 `mo update` 只负责更新 Mole 自�
 先提供用户主动导出的脱敏诊断 JSON，再评估只读 CLI：
 
 ```text
-memento diagnose --json
-memento scan --json --category storage
-memento history --json
+diskcollie diagnose --json
+diskcollie scan --json --category storage
+diskcollie history --json
 ```
 
 初期不要提供执行命令。只有当鉴权、操作快照、确认语义和稳定 Schema 都成熟后，才考虑让 CLI 提交已注册操作 ID。
@@ -685,7 +685,7 @@ Renderer 和模型只接触摘要，不接触真实 target payload。
 
 ### 11.1 GPL 洁净室边界
 
-Mole 使用 GPL-3.0，Memento 使用 MIT。可以研究产品行为、公开接口和安全思想，但不能复制 Mole 的实现代码、注释、规则数组、路径表或测试数据。建议执行：
+Mole 使用 GPL-3.0，DiskCollie 使用 MIT。可以研究产品行为、公开接口和安全思想，但不能复制 Mole 的实现代码、注释、规则数组、路径表或测试数据。建议执行：
 
 1. 先把需求写成独立行为规格和非目标。
 2. 由未复制源码的实现者依据 macOS 官方资料和实机测量重新实现。
@@ -712,19 +712,19 @@ Mole 使用 GPL-3.0，Memento 使用 MIT。可以研究产品行为、公开接�
 
 ### 12.1 `0.7.1` 第一版落地
 
-本轮没有复制 Mole 的 GPL 清理脚本或规则表，而是独立实现了与 Memento 安全模型一致的规则层。`cleanup-rules.ts` 现在同时约束扫描与执行，把确定性目标分为系统、应用、浏览器、开发工具、日志和设备六类；扫描器不再只测量 `~/Library/Caches` 中排序靠前的 80 项，并新增对第三方 Sandbox 与 Group Container 内固定层级 `Caches`/`tmp` 的发现。Apple 和凭据类容器、文件、符号链接及包含符号链接的祖先路径均不进入执行范围。
+本轮没有复制 Mole 的 GPL 清理脚本或规则表，而是独立实现了与 DiskCollie 安全模型一致的规则层。`cleanup-rules.ts` 现在同时约束扫描与执行，把确定性目标分为系统、应用、浏览器、开发工具、日志和设备六类；扫描器不再只测量 `~/Library/Caches` 中排序靠前的 80 项，并新增对第三方 Sandbox 与 Group Container 内固定层级 `Caches`/`tmp` 的发现。Apple 和凭据类容器、文件、符号链接及包含符号链接的祖先路径均不进入执行范围。
 
 产品层已将清理从旧体检混合页中独立出来。安全项默认选择但仍需确认；需要确认项主动选择；有已注册目标的规则外线索可以在明确确认后移到废纸篓，仍然保留弱证据标签和 AI 解释入口。AI 不参与分类、空间统计、默认选择或操作授权。项目构建产物现在按项目展示，并复用同一套操作注册与执行前复核边界。
 
 Mole 最值得学习的不是某个缓存目录或 Go TUI，而是四件事：任务模型清楚、安全预览默认存在、真实问题快速沉淀为规则、分发与反馈形成闭环。
 
-Memento 最值得保留的也不是“接入了多少模型”，而是确定性扫描、不透明操作 ID、用户确认、主进程复检和本机证据关联。下一阶段应把这些底层优势变成普通用户可以直接感受到的产品体验：**先看见可靠结果，再理解原因，然后选择操作，最后验证并能追溯。**
+DiskCollie 最值得保留的也不是“接入了多少模型”，而是确定性扫描、不透明操作 ID、用户确认、主进程复检和本机证据关联。下一阶段应把这些底层优势变成普通用户可以直接感受到的产品体验：**先看见可靠结果，再理解原因，然后选择操作，最后验证并能追溯。**
 
-只要 `0.7` 先修正健康分、首次入口和操作审计，Memento 就能从“带 AI 的 Mac 清理器”转向更难被复制的“可信 Mac 维护 Agent”。
+只要 `0.7` 先修正健康分、首次入口和操作审计，DiskCollie 就能从“带 AI 的 Mac 清理器”转向更难被复制的“可信 Mac 维护 Agent”。
 
 ## 13. 本轮实现记录
 
-本轮复核了 Mole 当前 README 的 `clean`、`uninstall`、`analyze` 和 `purge` 任务边界。Mole 将开发者清理单独组织为 `purge`，重点识别 `node_modules`、`target`、`.build`、`build` 和 `dist` 等可重建项目产物；最近 7 天活动、无法确认活动状态、包含部署密钥或嵌套 Git 仓库的目录不会默认选择。Memento 没有复制 Mole 的 GPL 实现或规则表，而是按相同的安全目标独立实现了有边界的项目扫描，并将每个目标注册为可追踪的废纸篓操作。
+本轮复核了 Mole 当前 README 的 `clean`、`uninstall`、`analyze` 和 `purge` 任务边界。Mole 将开发者清理单独组织为 `purge`，重点识别 `node_modules`、`target`、`.build`、`build` 和 `dist` 等可重建项目产物；最近 7 天活动、无法确认活动状态、包含部署密钥或嵌套 Git 仓库的目录不会默认选择。DiskCollie 没有复制 Mole 的 GPL 实现或规则表，而是按相同的安全目标独立实现了有边界的项目扫描，并将每个目标注册为可追踪的废纸篓操作。
 
 本版本新增 `project-artifacts.ts`：扫描 `~/Projects`、`~/GitHub`、`~/src`、`~/Code`、`~/dev`、`~/workspace` 等有限根目录，在发现项目清单或 `.git` 后识别 `node_modules`、`target`、`.build`、`build`、`dist`、`out`、`.next`、`.nuxt`、`.turbo`、`.parcel-cache`、`coverage`、`.dart_tool` 和 `DerivedData`。产物按项目名、路径、大小和最近修改时间展示；符号链接、包含嵌套仓库或部署密钥的目录被跳过，执行前还会重新验证项目根、直接子目录边界、目录类型和修改时间。
 
@@ -734,7 +734,7 @@ Memento 最值得保留的也不是“接入了多少模型”，而是确定性
 
 清理页现在把后台服务作为独立菜单类别展示；命令行启动优化已经提升为与应用管理、磁盘分析同一级的主模块。服务操作沿用扫描复检路径，shell 修复沿用带备份的终端修复注册表；从任意清理项目进入 AI 解释后返回，会保留原类别和已勾选项目。清理执行过程会逐项展示动画，失败项保留错误原因并支持仅重试失败项。
 
-概览页现在承担资源入口导航：应用分析显示安装、不常用和可更新数量，进入概览即启动应用扫描，并在扫描期间显示卡片内动画进度条；CPU/内存卡片将进程列表切换到对应降序排序，磁盘卡片进入磁盘分析，电池卡片打开系统设置，网络卡片打开活动监视器网络面板。进程采样扩展到最多 100 项，并提供用户/系统筛选与颜色区分；应用管理会合并 Homebrew Cask、App Store 收据/Apple lookup 和 Sparkle appcast 更新来源，通过更新能力标记筛选为 Memento 内更新或外部更新；应用卡片点击即可打开应用，更新状态用标题下方徽目标识，避免操作按钮挤压；进程图标支持扫描结果和 Memento 自身 Bundle。命令行启动优化列表自 `0.7.15` 起只显示有已注册修复的项目，这些项目仍可打开相关 shell 配置供检查。
+概览页现在承担资源入口导航：应用分析显示安装、不常用和可更新数量，进入概览即启动应用扫描，并在扫描期间显示卡片内动画进度条；CPU/内存卡片将进程列表切换到对应降序排序，磁盘卡片进入磁盘分析，电池卡片打开系统设置，网络卡片打开活动监视器网络面板。进程采样扩展到最多 100 项，并提供用户/系统筛选与颜色区分；应用管理会合并 Homebrew Cask、App Store 收据/Apple lookup 和 Sparkle appcast 更新来源，通过更新能力标记筛选为 DiskCollie 内更新或外部更新；应用卡片点击即可打开应用，更新状态用标题下方徽目标识，避免操作按钮挤压；进程图标支持扫描结果和 DiskCollie 自身 Bundle。命令行启动优化列表自 `0.7.15` 起只显示有已注册修复的项目，这些项目仍可打开相关 shell 配置供检查。
 
 ## 14. 参考资料
 
@@ -754,7 +754,7 @@ Memento 最值得保留的也不是“接入了多少模型”，而是确定性
 - [V1.49.2 Release](https://github.com/tw93/Mole/releases/tag/V1.49.2)
 - [Mole Mac 公开产品说明](https://mole.fit/index.md)
 
-### Memento
+### DiskCollie
 
 - [中文 README](../README_ZH.md)
 - [本地 Agent 架构](./LOCAL_AGENT_DEVELOPMENT.md)

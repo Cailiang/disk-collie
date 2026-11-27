@@ -2,7 +2,7 @@ import {execFile} from 'node:child_process'
 import {mkdir,readFile,rm,writeFile} from 'node:fs/promises'
 import {promisify} from 'node:util'
 import {chromium} from 'playwright-core'
-const run=promisify(execFile),iconset='.artifacts/Memento.iconset',source='.artifacts/Memento-1024.png'
+const run=promisify(execFile),iconset='.artifacts/DiskCollie.iconset',source='.artifacts/DiskCollie-1024.png'
 const mark=await readFile('src/renderer/src/assets/mascot/collie-mark.svg','utf8')
 await mkdir('.artifacts',{recursive:true});await mkdir('build',{recursive:true})
 await rm(iconset,{recursive:true,force:true});await mkdir(iconset,{recursive:true})

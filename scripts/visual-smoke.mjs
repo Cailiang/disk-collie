@@ -4,7 +4,7 @@ import { chromium } from 'playwright-core'
 import { existsSync, mkdirSync } from 'node:fs'
 import assert from 'node:assert/strict'
 const baseUrl=process.argv[2]||'http://127.0.0.1:4178'
-const directory='/tmp/memento-rebuild-ui'
+const directory='/tmp/diskcollie-rebuild-ui'
 mkdirSync(directory,{recursive:true})
 const executable=process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 const browser=await chromium.launch({headless:true,...(existsSync(executable)?{executablePath:executable}:{channel:'chrome'})})
@@ -14,6 +14,9 @@ const pages=['首页','深度清理','大文件','重复文件','空间分析','
 const viewports=[{width:1440,height:900},{width:1024,height:768},{width:820,height:1180},{width:390,height:844}]
 async function navigate(page,name){await page.locator('.nav-button').filter({hasText:name}).filter({visible:true}).click();await page.waitForTimeout(170)}
 async function verifyProfileLogo(page,selector='.brand-mascot svg'){
+  assert.equal(await page.title(),'DiskCollie')
+  assert.equal(await page.locator('.brand-copy>strong').innerText(),'DiskCollie')
+  assert(await page.locator('.brand').evaluate(element=>element.scrollWidth<=element.clientWidth+1),'DiskCollie branding must fit at every viewport')
   const logo=page.locator(selector)
   assert.equal(await logo.getAttribute('data-mascot-view'),'profile','Branding must show the collie side profile');assert.equal(await logo.getAttribute('data-facing'),'left','The approved logo faces left')
   assert(await logo.isVisible(),'The profile logo must remain visible')

@@ -14,7 +14,7 @@ function ProcessLogo({process}:{process:OverviewProcess}):React.JSX.Element {
   useEffect(()=>{
     let active=true
     setIcon(iconCache.get(process.command)||null)
-    const observer=new IntersectionObserver((entries)=>{if(!entries.some((e)=>e.isIntersecting))return;observer.disconnect();if(!window.memento||!process.command)return;if(iconCache.has(process.command))return;void window.memento.getProcessIcon(process.command).then((value)=>{iconCache.set(process.command,value);if(active)setIcon(value)}).catch(()=>undefined)})
+    const observer=new IntersectionObserver((entries)=>{if(!entries.some((e)=>e.isIntersecting))return;observer.disconnect();if(!window.diskCollie||!process.command)return;if(iconCache.has(process.command))return;void window.diskCollie.getProcessIcon(process.command).then((value)=>{iconCache.set(process.command,value);if(active)setIcon(value)}).catch(()=>undefined)})
     if(ref.current)observer.observe(ref.current)
     return()=>{active=false;observer.disconnect()}
   },[process.command])
