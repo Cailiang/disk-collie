@@ -4,6 +4,22 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.23 - 2026-11-27
+
+### English
+
+- Turn the scene and lighting labels into selectors with Auto and explicit choices. Change the panorama and game-local palette immediately, including a distinct dark night, while preserving the current round.
+- Fit the game camera and tiled scenery to actual canvas dimensions. Pause on window resize, preserve score and existing hazards, and keep new groups safely spaced after shrinking.
+- Compact Terminal optimization counters, scan/game panel, results and footer; remove horizontal section separators and prevent text overlap or premature empty results.
+- Add physics coverage for repeated resizing and browser checks for actual scene/light changes, state preservation and Terminal scanning/completion at four viewports.
+
+### 简体中文
+
+- 草地／白昼标签改为可操作的场景和光照选择，支持自动变化与手动切换，夜晚画面明显变暗，保留当前游戏进度。
+- 按画布实际尺寸适配视野和背景，窗口缩放自动暂停，保留得分及已有障碍，缩小后新障碍仍有安全间距。
+- 收紧终端优化摘要、扫描游戏、结果和底部操作区，去掉区块横线，修复文字遮挡，首次扫描时不再提前显示空结果。
+- 补充反复缩放的物理验证，以及场景／光照实际变化、进度保留和四种窗口下终端扫描／完成布局的界面覆盖。
+
 ## 1.0.22 - 2026-11-27
 
 ### English

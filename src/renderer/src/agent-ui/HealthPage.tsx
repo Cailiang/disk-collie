@@ -1,4 +1,5 @@
 import {ScanGame} from '../ScanGame'
+import './TerminalWorkspace.css'
 import {
   AppWindow,
   Boxes,
@@ -330,7 +331,7 @@ export function HealthPage({
   })
 
   return (
-    <section ref={pageRef} className="page content-page cleanup-page is-active">
+    <section ref={pageRef} className={`page content-page cleanup-page is-active ${standaloneTerminal?'terminal-cleanup':''} ${scanBusy?'is-scanning':''}`}>
       <div className="page-command-bar cleanup-command-bar">
         <div>
           <h1>{standaloneTerminal ? text("legacy.terminal_startup.54e632") : text("legacy.cleanup.6f8a1f")}</h1>
@@ -354,23 +355,11 @@ export function HealthPage({
         </button>
       </div>
 
-      {scanBusy && progress && (
-        <div className="cleanup-scan-progress"><ScanGame initialMode="pond"/>
-          <span><LoaderCircle className="spinner" size={15} />{progress.message}</span>
-          <div><i style={{ transform: `scaleX(${Math.max(0, Math.min(100, progress.progress)) / 100})` }} /></div>
-          <strong>{progress.progress}%</strong>
-        </div>
-      )}
-
       <div className="cleanup-summary-band">
         {standaloneTerminal ? <>
-          <div className="cleanup-reclaimable">
-            <span>{text("legacy.optimizable_startup_items.b3e86a")}</span>
-            <strong>{terminalSelectable.length}</strong>
-            <small><ShieldCheck size={13} />{text("legacy.shell_configuration_is_backed_up_before_ch.e3e875")}</small>
-          </div>
-          <div className="cleanup-summary-stat"><span>{text("legacy.selected.ad1734")}</span><strong>{selectedCount}</strong><small>{text("legacy.startup_items.47457a")}</small></div>
-          <div className="cleanup-summary-stat"><span>{text("legacy.optimizable.95c84f")}</span><strong>{terminalSelectable.length}</strong><small>{text("legacy.only_directly_actionable_startup_items_are.96298f")}</small></div>
+          <div className="cleanup-reclaimable"><span>{text("legacy.optimizable_startup_items.b3e86a")}</span><strong>{terminalSelectable.length}</strong></div>
+          <div className="cleanup-summary-stat"><span>{text("legacy.selected.ad1734")}</span><strong>{selectedCount}</strong></div>
+          <small className="terminal-backup-note"><ShieldCheck size={13}/>{text("legacy.shell_configuration_is_backed_up_before_ch.e3e875")}</small>
         </> : <>
           <div className="cleanup-reclaimable">
             <span>{text("legacy.safe_to_reclaim.1f276d")}</span>
@@ -382,7 +371,12 @@ export function HealthPage({
         </>}
       </div>
 
-      <div className={`cleanup-workspace ${standaloneTerminal ? 'is-standalone' : ''}`}>
+      {scanBusy&&<section className="terminal-scan-area" aria-label={text('game.terminalScan')}>
+        <div className="terminal-scan-status" role="status" aria-live="polite"><LoaderCircle className="spinner" size={14}/><span>{progress?.message||text('legacy.scanning.12a218')}</span><strong role="progressbar" aria-label={text('game.terminalScan')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress?.progress||0}>{progress?.progress||0}%</strong></div>
+        <ScanGame initialMode="pond" compact={standaloneTerminal}/>
+      </section>}
+
+      {(!standaloneTerminal || result || !scanBusy) && <><div className={`cleanup-workspace ${standaloneTerminal ? 'is-standalone' : ''}`}>
         {!standaloneTerminal && <aside className="cleanup-categories" aria-label={text("legacy.cleanup_categories.16c483")}>
           {categories.map((item) => {
             const Icon = item.icon
@@ -445,7 +439,7 @@ export function HealthPage({
       <footer className="cleanup-selection-bar">
         <div><strong>{selectedCount ? text("legacy.selected.8b32a5", { p0: selectedCount }) : text("legacy.no_cleanup_items_selected.738dd4")}</strong><span>{selectedCount ? text("legacy.estimated.319482", { p0: formatBytes(selectedBytes) }) : text("legacy.select_verified_items_before_cleanup.dee553")}</span></div>
         <button type="button" className="primary-button" disabled={!(category === 'terminal' ? selectedTerminalFindings.length : selectedSelections.length) || scanBusy} onClick={() => category === 'terminal' ? onDirectTerminalFixes(selectedTerminalFindings) : onDirectActions(selectedSelections)}>{category === 'terminal' ? <Wrench size={16} /> : <Trash2 size={16} />}{category === 'terminal' ? text("legacy.optimize_selected.013af8") : storageMode === 'safe' ? text("legacy.clean_selected.f5ecf7") : text("legacy.review_and_clean.cac520")}</button>
-      </footer>
+      </footer></>}
     </section>
   )
 }

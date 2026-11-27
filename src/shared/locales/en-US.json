@@ -1184,5 +1184,10 @@
   "game.light.dusk": "Dusk",
   "game.light.night": "Night",
   "game.light.dawn": "Dawn",
-  "game.combo": "Combo ×{count}"
+  "game.combo": "Combo ×{count}",
+  "game.sceneChoice": "Game scenery",
+  "game.lightChoice": "Game lighting",
+  "game.autoScene": "Auto · {name}",
+  "game.autoLight": "Auto · {name}",
+  "game.terminalScan": "Terminal scan progress"
 }

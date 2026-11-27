@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest'
-import {advanceGame,createGame,gameAction,gameEnvironment,gameModes,gameSpeed,GROUND,pauseGame,PLAYER_X,runnerVariants,type GameState} from './scan-game'
+import {advanceGame,createGame,gameAction,gameEnvironment,gameModes,gameSpeed,GROUND,pauseGame,PLAYER_X,resizeGame,resolveGameEnvironment,runnerVariants,type GameState} from './scan-game'
 
 // A player reacts to the visible geometry. No invincibility or state edits are used.
 function shouldJump(state:GameState):boolean {
@@ -94,5 +94,31 @@ describe('varied one-button scan games',()=>{
     const slow=simulate(30),fast=simulate(60)
     expect(slow.distance).toBeCloseTo(fast.distance,0);expect(slow.objects[0].x).toBeCloseTo(fast.objects[0].x,0)
     expect(advanceGame(start,NaN)).toBe(start);expect(advanceGame(start,-1)).toBe(start);expect(advanceGame(start,10).time).toBeCloseTo(.1)
+  })
+  it('applies manual scenery/light choices immediately while keeping automatic progression available',()=>{
+    for(const region of ['meadow','forest','river','village'] as const){
+      const chosen=resolveGameEnvironment(6500,region,'day')
+      expect(chosen.region).toBe(region);expect(chosen.next).toBe(region);expect(chosen.blend).toBe(0)
+      expect(chosen.light).toBe('day');expect(chosen.night).toBe(0);expect(chosen.level).toBe(gameEnvironment(6500).level)
+    }
+    expect(resolveGameEnvironment(0,'auto','night').night).toBe(1)
+    expect(resolveGameEnvironment(6500)).toEqual(gameEnvironment(6500))
+  })
+  it('preserves an active round on resize and keeps future groups playable after repeated size changes',()=>{
+    for(const mode of gameModes){
+      let state=gameAction(createGame(mode,42)),size=0
+      for(let frame=0;frame<90*120&&state.phase==='running';frame++){
+        if(frame>0&&frame%(8*120)===0){
+          const before=state;state=resizeGame(state,[480,1300,650,900][size++%4])
+          expect(state.phase).toBe('paused');expect(state.objects).toBe(before.objects)
+          expect(state.score).toBe(before.score);expect(state.time).toBe(before.time);expect(state.distance).toBe(before.distance)
+          state=gameAction(state)
+        }
+        if(shouldJump(state))state=gameAction(state)
+        state=advanceGame(state,1/120)
+      }
+      expect(state.phase,`${mode} at ${state.time}s after resize`).toBe('running');expect(state.time).toBeCloseTo(90,1)
+      expect(gameAction({...state,phase:'over'}).viewportWidth).toBe(state.viewportWidth)
+    }
   })
 })

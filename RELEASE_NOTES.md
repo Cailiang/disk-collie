@@ -1,3 +1,12 @@
+# Memento 1.0.23 — 游戏切换与窗口适配 / Game controls and window resizing
+
+- 草地、松林、溪谷、小镇及昼夜可手动切换，也可恢复自动变化；夜晚有清晰的深色效果。
+- 游戏随窗口实际宽高调整视野，缩放时暂停并保留得分与进度，按空格继续。
+- 终端优化收紧上下布局，游戏独立排版，去掉中间横线，修复文字被遮挡及扫描中提前显示空结果。
+- 新增场景、光照、反复缩放和终端页四种窗口布局的回归验证。
+
+English: scene and lighting selectors now change the panorama and game palette, including a distinct night. A measured camera adapts to window size, pauses during resizing and retains the round. Terminal optimization uses a compact game panel in normal page flow, with shorter counters/results/footer and no horizontal section separators. Regression coverage checks visual changes, repeated resizing and four-viewport scanning/completion layouts.
+
 # Memento 1.0.22 — 变化的障碍与场景 / Varied challenges and scenery
 
 - 快跑增加十种障碍与单／双／三连组合，高飞鸟可从下方通过；飞盘与荷塘也有不同轨迹和地形组合。

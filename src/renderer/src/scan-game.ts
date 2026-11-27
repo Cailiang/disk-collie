@@ -4,6 +4,8 @@ export type GamePhase='ready'|'running'|'paused'|'over'
 export const GAME_WIDTH=800,GROUND=244,PLAYER_X=160
 export const regions=['meadow','forest','river','village'] as const
 export type GameRegion=typeof regions[number]
+export const gameLights=['day','dusk','night','dawn'] as const
+export type GameLight=typeof gameLights[number]
 export type ObstacleVariant='stump'|'rocks'|'cones'|'hedge'|'hurdle'|'double-log'|'triple-log'|'ball'|'bird-low'|'bird-high'
 export type DiscVariant='flat'|'loft'|'skim'|'wave'|'pair'
 export type GapVariant='stream'|'wide'|'stones'|'islands'|'bridge'
@@ -13,11 +15,11 @@ export interface GameObject {
   resolved:boolean;collected:boolean;last:boolean;value:number;motion:number;born:number
 }
 export interface GameState {
-  mode:GameMode;phase:GamePhase;time:number;distance:number;y:number;velocity:number
+  mode:GameMode;phase:GamePhase;time:number;distance:number;y:number;velocity:number;viewportWidth:number
   score:number;points:number;caught:number;missed:number;combo:number;treats:number
   objects:GameObject[];spawnIn:number;seed:number;nextId:number;nextGroup:number;flash:number;lastReward:number;recent:string[];bag:string[];pool:string
 }
-export interface GameEnvironment {region:GameRegion;next:GameRegion;blend:number;night:number;light:'day'|'dusk'|'night'|'dawn';level:number}
+export interface GameEnvironment {region:GameRegion;next:GameRegion;blend:number;night:number;light:GameLight;level:number}
 const clamp=(value:number,min=0,max=1):number=>Math.max(min,Math.min(max,value))
 const smooth=(value:number):number=>{const x=clamp(value);return x*x*(3-2*x)}
 export function gameEnvironment(distance:number):GameEnvironment {
@@ -26,16 +28,28 @@ export function gameEnvironment(distance:number):GameEnvironment {
   const night=smooth((cycle-.29)/.16)*(1-smooth((cycle-.75)/.20))
   return {region:regions[index],next:regions[(index+1)%regions.length],blend:smooth((section%1-.82)/.18),night,light:cycle<.29?'day':cycle<.45?'dusk':cycle<.75?'night':'dawn',level:Math.min(6,1+Math.floor(route/1800))}
 }
-export function createGame(mode:GameMode,seed=20261127):GameState {
-  return {mode,phase:'ready',time:0,distance:0,y:0,velocity:0,score:0,points:0,caught:0,missed:0,combo:0,treats:0,objects:[],spawnIn:.35,seed:seed>>>0,nextId:0,nextGroup:0,flash:0,lastReward:0,recent:[],bag:[],pool:''}
+export function resolveGameEnvironment(distance:number,region:GameRegion|'auto'='auto',light:GameLight|'auto'='auto'):GameEnvironment {
+  const environment=gameEnvironment(distance)
+  if(region!=='auto'){environment.region=region;environment.next=region;environment.blend=0}
+  if(light!=='auto'){environment.light=light;environment.night={day:0,dusk:.48,night:1,dawn:.23}[light]}
+  return environment
+}
+export function createGame(mode:GameMode,seed=20261127,viewportWidth=GAME_WIDTH):GameState {
+  return {mode,phase:'ready',time:0,distance:0,y:0,velocity:0,viewportWidth:Math.max(480,viewportWidth),score:0,points:0,caught:0,missed:0,combo:0,treats:0,objects:[],spawnIn:.35,seed:seed>>>0,nextId:0,nextGroup:0,flash:0,lastReward:0,recent:[],bag:[],pool:''}
 }
 /** A single press starts, jumps, resumes or retries. Holding Space never queues a jump. */
 export function gameAction(state:GameState):GameState {
   if(state.phase==='paused')return {...state,phase:'running'}
-  if(state.phase==='ready'||state.phase==='over')return {...createGame(state.mode,state.seed),phase:'running'}
+  if(state.phase==='ready'||state.phase==='over')return {...createGame(state.mode,state.seed,state.viewportWidth),phase:'running'}
   return state.y===0?{...state,velocity:-610}:state
 }
 export function pauseGame(state:GameState):GameState {return state.phase==='running'?{...state,phase:'paused'}:state}
+/** Resizing changes the camera and future spawn boundary, retaining the current round. */
+export function resizeGame(state:GameState,width:number):GameState {
+  if(!Number.isFinite(width))return state
+  const viewportWidth=Math.max(480,width)
+  return Math.abs(viewportWidth-state.viewportWidth)<.5?state:{...pauseGame(state),viewportWidth}
+}
 export function gameSpeed(state:GameState):number {return 220+Math.min(110,state.time*1.65)}
 function random(state:GameState):number {state.seed=(Math.imul(state.seed,1664525)+1013904223)>>>0;return state.seed/4294967296}
 function choose<T extends string>(state:GameState,pool:T[]):T {
@@ -54,7 +68,10 @@ function addObject(state:GameState,group:number,kind:GameObject['kind'],variant:
 }
 /** Each group reserves its complete span plus a landing/reaction interval. */
 function spawnGroup(state:GameState):void {
-  const group=state.nextGroup++,speed=gameSpeed(state),level=gameEnvironment(state.distance).level,x=GAME_WIDTH+45
+  const group=state.nextGroup++,speed=gameSpeed(state),level=gameEnvironment(state.distance).level
+  // Shrinking the camera must never spawn a new group on top of an existing one.
+  const rightmost=Math.max(0,...state.objects.filter(object=>object.kind!=='bone').map(object=>object.x+object.width))
+  const x=Math.max(state.viewportWidth+45,rightmost+speed*.96)
   let span=0,recovery=.95+random(state)*.5
   if(state.mode==='runner'){
     const variant=choose(state,runnerVariants(state.distance))

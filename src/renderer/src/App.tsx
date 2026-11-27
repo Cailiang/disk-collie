@@ -67,7 +67,8 @@ import {
   localizedDemoDiskUsageResult,
   localizedDemoMaintenanceRuns,
   localizedDemoOverviewMetrics,
-  localizedDemoResult
+  localizedDemoResult,
+  runDemoScan
 } from './demo'
 import { withoutDiskUsageNode } from './disk-usage-tree'
 import { I18nProvider, useI18n } from './i18n'
@@ -535,10 +536,11 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     if(evidenceInFlight.current)return evidenceInFlight.current
     const work=(async()=>{
     setScanBusy(true)
+    setProgress(null)
     setScanError(null)
     try {
       const language = languageOverride ?? settings.language
-      const next = window.memento ? await window.memento.scan(language) : localizedDemoResult(language)
+      const next = window.memento ? await window.memento.scan(language) : await runDemoScan(setProgress,language,Number(new URLSearchParams(location.search).get('demoScanMs'))||undefined)
       resultRef.current = next
       setResult(next)
       setCleanupSelectedIds(new Set(next.candidates.filter(isSafeCleanup).map((candidate) => candidate.id)))

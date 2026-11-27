@@ -2,9 +2,21 @@ import assert from 'node:assert/strict'
 
 export async function readGame(game){
   return game.evaluate(element=>({
-    mode:element.dataset.gameMode,phase:element.dataset.gamePhase,time:Number(element.dataset.gameTime),y:Number(element.dataset.gameY),distance:Number(element.dataset.gameDistance),score:Number(element.dataset.gameScore),region:element.dataset.gameRegion,light:element.dataset.gameLight,
+    mode:element.dataset.gameMode,phase:element.dataset.gamePhase,time:Number(element.dataset.gameTime),y:Number(element.dataset.gameY),distance:Number(element.dataset.gameDistance),score:Number(element.dataset.gameScore),region:element.dataset.gameRegion,light:element.dataset.gameLight,viewport:Number(element.dataset.gameViewport),
     objects:Array.from(element.querySelectorAll('.game-obstacle,.game-gap,.game-disc')).map(object=>({kind:object.classList.contains('game-gap')?'gap':object.classList.contains('game-disc')?'disc':'obstacle',variant:object.dataset.variant,x:Number(object.dataset.x),width:Number(object.dataset.width||38),height:Number(object.dataset.height||0),altitude:Number(object.dataset.altitude||0),baseY:Number(object.dataset.baseY||0),motion:Number(object.dataset.motion||0),born:Number(object.dataset.born||0)}))
   }))
+}
+// ResizeObserver runs between browser frames; advance the controlled clock after it reports.
+export async function settleGameViewport(page,game){
+  for(let attempt=0;attempt<20;attempt++){
+    await page.waitForTimeout(20);await page.clock.runFor(100)
+    const size=await game.evaluate(element=>{
+      const canvas=element.querySelector('.scan-game-canvas').getBoundingClientRect(),svg=element.querySelector('.scan-game-stage'),box=svg.viewBox.baseVal
+      return {expected:Math.max(480,canvas.width/canvas.height*290),actual:box.width,paint:svg.getBoundingClientRect().width,width:canvas.width}
+    })
+    if(Math.abs(size.expected-size.actual)<1&&Math.abs(size.paint-size.width)<1)return size
+  }
+  assert.fail('The game camera must match its measured canvas after resizing')
 }
 // React to the displayed objects with normal keyboard input, without altering the game state.
 export function needsJump(state){
@@ -49,7 +61,7 @@ export async function verifyGameJourney(browser,baseUrl,directory){
     page.on('pageerror',error=>errors.push(error.message))
     try{
       await page.clock.install();await page.goto(baseUrl+'?demoScanMs=90000');await page.locator('.nav-button[title="大文件"]').click();await page.locator('.space-large .space-heading .space-button.primary').click()
-      const game=page.locator('.space-large .scan-game');await game.waitFor();await page.clock.pauseAt(await page.evaluate(()=>Date.now())+100);await game.getByRole('button',{name:label,exact:true}).click()
+      const game=page.locator('.space-large .scan-game');await game.waitFor();await page.clock.pauseAt(await page.evaluate(()=>Date.now())+100);await settleGameViewport(page,game);await game.getByRole('button',{name:label,exact:true}).click()
       const captured=new Set()
       const result=await playVisibleGame(page,game,duration,async state=>{
         const key=state.region+'-'+state.light
@@ -59,7 +71,7 @@ export async function verifyGameJourney(browser,baseUrl,directory){
       assert.equal(result.regions.size,4);assert(result.lights.has('night'));assert(result.lights.has('dusk'));assert(result.state.score>0)
       assert.deepEqual(errors,[])
       if(mode==='runner'){
-        await page.emulateMedia({reducedMotion:'reduce'});await page.clock.runFor(50);await page.setViewportSize({width:390,height:844});await page.clock.runFor(50);await page.screenshot({path:`directory/journey-mobile.png`.replace('directory',directory)});assert(await game.evaluate(element=>element.scrollWidth<=element.clientWidth+1))
+        await page.emulateMedia({reducedMotion:'reduce'});await page.clock.runFor(50);await page.setViewportSize({width:390,height:844});await settleGameViewport(page,game);assert.equal(await game.getAttribute('data-game-phase'),'paused');await page.screenshot({path:`${directory}/journey-mobile.png`});assert(await game.evaluate(element=>element.scrollWidth<=element.clientWidth+1))
       }
       console.log(`${mode} journey passed: ${duration}s, ${[...result.seen].join('/')}, ${result.regions.size} regions and ${[...result.lights].join('/')}`)
     }finally{await page.close()}

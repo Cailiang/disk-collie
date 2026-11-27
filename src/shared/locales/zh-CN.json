@@ -1184,5 +1184,10 @@
   "game.light.dusk": "黄昏",
   "game.light.night": "夜晚",
   "game.light.dawn": "黎明",
-  "game.combo": "连击 ×{count}"
+  "game.combo": "连击 ×{count}",
+  "game.sceneChoice": "游戏场景",
+  "game.lightChoice": "游戏光照",
+  "game.autoScene": "自动 · {name}",
+  "game.autoLight": "自动 · {name}",
+  "game.terminalScan": "终端检查进度"
 }

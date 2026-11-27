@@ -769,7 +769,8 @@ export const demoResult: ScanResult = {
 
 export async function runDemoScan(
   onProgress: (progress: ScanProgress) => void,
-  language: AppLanguage
+  language: AppLanguage,
+  duration=1120
 ): Promise<ScanResult> {
   const english = language === 'en-US'
   const sections: ScanSection[] = ['services', 'storage', 'applications', 'terminal']
@@ -794,7 +795,7 @@ export async function runDemoScan(
       ]
   for (const step of steps) {
     onProgress(step)
-    await new Promise((resolve) => window.setTimeout(resolve, 160))
+    await new Promise((resolve) => window.setTimeout(resolve, Math.min(90000,Math.max(1120,duration))/steps.length))
   }
   return {
     ...localizedDemoResult(language),
