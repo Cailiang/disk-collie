@@ -355,7 +355,7 @@ export function HealthPage({
         </button>
       </div>
 
-      <div className="cleanup-summary-band">
+      {(!standaloneTerminal || result || !scanBusy) && <div className="cleanup-summary-band">
         {standaloneTerminal ? <>
           <div className="cleanup-reclaimable"><span>{text("legacy.optimizable_startup_items.b3e86a")}</span><strong>{terminalSelectable.length}</strong></div>
           <div className="cleanup-summary-stat"><span>{text("legacy.selected.ad1734")}</span><strong>{selectedCount}</strong></div>
@@ -369,11 +369,11 @@ export function HealthPage({
           <div className="cleanup-summary-stat"><span>{text("legacy.selected.ad1734")}</span><strong>{formatBytes(selectedBytes)}</strong><small>{text("legacy.items.217ed7", { p0: selectedCount })}</small></div>
           <div className="cleanup-summary-stat"><span>{text("legacy.review_first.8bc441")}</span><strong>{reviewItems.length}</strong><small>{text("legacy.actionable_reference_only_clues.256775", { p0: reviewSelectable.length, p1: reviewItems.length - reviewSelectable.length })}</small></div>
         </>}
-      </div>
+      </div>}
 
-      {scanBusy&&<section className="terminal-scan-area" aria-label={text('game.terminalScan')}>
-        <div className="terminal-scan-status" role="status" aria-live="polite"><LoaderCircle className="spinner" size={14}/><span>{progress?.message||text('legacy.scanning.12a218')}</span><strong role="progressbar" aria-label={text('game.terminalScan')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress?.progress||0}>{progress?.progress||0}%</strong></div>
-        <ScanGame initialMode="pond" compact={standaloneTerminal}/>
+      {scanBusy&&<section className="space-progress space-progress-game terminal-scan-area" aria-label={text('game.terminalScan')}>
+        <div className="space-progress-heading terminal-scan-status" role="status" aria-live="polite"><LoaderCircle className="spinner" size={14}/><div className="space-progress-copy"><strong>{progress?.message||text('legacy.scanning.12a218')}</strong></div><strong role="progressbar" aria-label={text('game.terminalScan')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress?.progress||0}>{progress?.progress||0}%</strong></div>
+        <ScanGame/>
       </section>}
 
       {(!standaloneTerminal || result || !scanBusy) && <><div className={`cleanup-workspace ${standaloneTerminal ? 'is-standalone' : ''}`}>

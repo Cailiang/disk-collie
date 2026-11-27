@@ -4,6 +4,22 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.27 - 2026-11-27
+
+### English
+
+- Allow a fully reviewed project folder to move to Trash with uninstalled `.app` dependency runtimes and build outputs. Keep installed locations, selected app bundles, credential contents, excluded paths, changed trees and linked ancestors protected.
+- Keep Space explorer actions in directory rows. Selecting map tiles or tree entries only highlights the selected item, without a second action panel or automatic scrolling.
+- Give Terminal the shared three-game scan panel, omit empty counters during its first scan, and expand game canvases with the available window height, including 1080p and 1440p fullscreen sizes. Resizing still pauses and preserves the round.
+- Extend directory, production Electron, tree-action and four-viewport/fullscreen layout coverage.
+
+### 简体中文
+
+- 完整核对项目目录后，允许随父目录将依赖运行时与构建产物中的未安装 `.app` 移到废纸篓；继续保护已安装位置、单独选中的应用包、凭据内容、排除目录、发生变化的目录和符号链接祖先。
+- 空间分析的操作统一保留在目录树行内，选择图块或文件只高亮当前项，移除重复操作区和自动滚动。
+- 终端页使用统一的三款扫描小游戏，首次扫描不显示空计数；画布按窗口可用高度伸展，支持 1080p、1440p 全屏，缩放仍会暂停并保留本局进度。
+- 补充目录保护、真实 Electron、目录树操作、四种视口与全屏布局回归覆盖。
+
 ## 1.0.26 - 2026-11-27
 
 ### English

@@ -637,10 +637,7 @@ summary::-webkit-details-marker { display:none; }
 .file-trash:disabled { opacity:.4; }
 @media(max-width:700px) { .message-body { gap:11px; }.message-body>p { font-size:12px; }.message-backdrop .space-dialog { padding:22px; }.message-backdrop .space-dialog h2 { font-size:18px; } }
 
-/* Keep the selected file and its actions directly below the storage map. */
+/* Selection stays in the tree and map; actions belong to the directory rows. */
 .space-treemap-cell.is-current { outline:3px solid var(--text); outline-offset:-5px; filter:brightness(1.09); z-index:1; }
-.space-map-file-hint { margin:12px 0 0; color:var(--text-secondary); font-size:11px; line-height:1.7; }
-.space-map-column:has(.space-file-details)>.space-treemap { height:max(360px,calc(100dvh - 375px)); }
 .privacy-confirm-skip { display:flex; align-items:center; gap:8px; font-size:12px; line-height:1.7; margin:15px 0; }
 .space-dialog .space-result-error { color:var(--usage-danger); font-size:11px; overflow-wrap:anywhere; }
-@media(max-width:700px) { .space-map-column:has(.space-file-details)>.space-treemap { height:380px; }.space-map-file-hint { font-size:10px; } }

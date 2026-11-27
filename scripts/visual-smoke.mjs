@@ -1,9 +1,10 @@
 import {verifyScanGames} from './scan-games-smoke.mjs'
 import {acknowledgeMessage} from './message-smoke.mjs'
 import { chromium } from 'playwright-core'
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 const baseUrl=process.argv[2]||'http://127.0.0.1:4178'
+const expectedVersion=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8')).version
 const directory='/tmp/diskcollie-rebuild-ui'
 mkdirSync(directory,{recursive:true})
 const executable=process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
@@ -15,6 +16,7 @@ const viewports=[{width:1440,height:900},{width:1024,height:768},{width:820,heig
 async function navigate(page,name){await page.locator('.nav-button').filter({hasText:name}).filter({visible:true}).click();await page.waitForTimeout(170)}
 async function verifyProfileLogo(page,selector='.brand-mascot svg'){
   assert.equal(await page.title(),'DiskCollie')
+  assert.equal((await page.locator('.brand-version').innerText()).trim(),`v${expectedVersion}`,'UI smoke must use the current checkout version')
   assert.equal(await page.locator('.brand-copy>strong').innerText(),'DiskCollie')
   assert(await page.locator('.brand').evaluate(element=>element.scrollWidth<=element.clientWidth+1),'DiskCollie branding must fit at every viewport')
   const logo=page.locator(selector)
@@ -84,7 +86,23 @@ try{
       if(name==='应用管理'){await p.getByRole('button',{name:'打开应用 Figma',exact:true}).click();await acknowledgeMessage(p,/已打开/);const openSource=p.getByRole('button',{name:'打开应用 Figma',exact:true});await openSource.click();await p.getByRole('alertdialog').waitFor();await p.keyboard.press('Tab');assert(await p.getByRole('alertdialog').getByRole('button',{name:'知道了',exact:true}).evaluate(button=>button===document.activeElement));await p.keyboard.press('Escape');await p.getByRole('alertdialog').waitFor({state:'hidden'});assert(await openSource.evaluate(button=>button===document.activeElement),'Closing a notice must restore focus to its source');await p.locator('.space-app-row').first().click();await p.locator('.space-related-row').first().waitFor();await p.locator('.manager-logo img').first().waitFor();assert((await p.locator('.space-app-monogram').first().boundingBox()).width<=40)}
       if(name==='设置'){assert(await p.locator('.settings-page .settings-section,.settings-page .setting-row,.settings-page .provider-editor-header,.settings-page .provider-form-actions').evaluateAll(rows=>rows.every(row=>{const style=getComputedStyle(row);return parseFloat(style.borderTopWidth)===0&&parseFloat(style.borderBottomWidth)===0})), 'Settings separators must be removed')}
       if(name==='首页'){assert.equal(await p.locator('.health-dimensions,.health-method,.overview-recent').count(),0);assert(!/永久清理|移至废纸篓/.test(await p.locator('.overview-totals').innerText()));assert.equal(await p.locator('.overview-memory-chart,.overview-storage-chart').count(),2);assert(!/每一次整理/.test(await p.locator('.space-overview').innerText()));await p.getByRole('button',{name:'更多信息',exact:true}).click();await p.locator('.overview-device-details').waitFor();await overflow(p,`${viewport.width}/device details`);await p.screenshot({path:`${directory}/${viewport.width}-device-details.png`});await p.getByRole('button',{name:'更多信息',exact:true}).click()}
-      if(name==='空间分析'){const chart=p.getByRole('group',{name:'空间分布图'});for(const name of ['Users','alex','Music'])await chart.getByRole('button',{name:new RegExp(name)}).click();assert(await chart.getByRole('button').count()<=11);const labels=await chart.locator('.space-treemap-cell').evaluateAll(cells=>cells.every(cell=>['strong','small'].every(selector=>{const label=cell.querySelector(selector),style=getComputedStyle(label);return label.getBoundingClientRect().height>=parseFloat(style.fontSize)*1.1&&(selector!=='small'||label.scrollWidth<=label.clientWidth+1)})));assert(labels,'Every tile must display an uncropped name line and a complete size');await chart.scrollIntoViewIfNeeded();await p.screenshot({path:`${directory}/${viewport.width}-space-extreme.png`});await chart.getByRole('button',{name:/Session 1\.m4a/}).click();const actions=p.getByRole('region',{name:'所选项目',exact:true});await actions.waitFor();await p.waitForFunction(()=>{const bounds=document.querySelector('.space-file-details')?.getBoundingClientRect();return bounds&&bounds.top>=0&&bounds.bottom<=innerHeight+1});assert.match(await actions.innerText(),/Session 1\.m4a/);assert.equal(await actions.getByRole('button',{name:'移到废纸篓 Session 1.m4a',exact:true}).isEnabled(),true);assert.equal(await actions.getByRole('button',{name:'询问 AI Session 1.m4a',exact:true}).count(),1);await overflow(p,`${viewport.width}/file actions`);await p.screenshot({path:`${directory}/${viewport.width}-space-file-actions.png`});await actions.getByRole('button',{name:'关闭项目详情',exact:true}).click()}
+      if(name==='空间分析'){
+        const chart=p.getByRole('group',{name:'空间分布图'}),tree=p.getByRole('tree',{name:'文件夹内容'})
+        for(const name of ['Users','alex','Music'])await chart.getByRole('button',{name:new RegExp(name)}).click()
+        assert(await chart.getByRole('button').count()<=11)
+        const labels=await chart.locator('.space-treemap-cell').evaluateAll(cells=>cells.every(cell=>['strong','small'].every(selector=>{const label=cell.querySelector(selector),style=getComputedStyle(label);return label.getBoundingClientRect().height>=parseFloat(style.fontSize)*1.1&&(selector!=='small'||label.scrollWidth<=label.clientWidth+1)})))
+        assert(labels,'Every tile must display an uncropped name line and a complete size')
+        await chart.scrollIntoViewIfNeeded();await p.screenshot({path:`${directory}/${viewport.width}-space-extreme.png`})
+        await chart.getByRole('button',{name:/Session 1\.m4a/}).click()
+        const row=tree.locator('.space-folder-row').filter({hasText:'Session 1.m4a'})
+        await row.waitFor();assert.equal(await row.getAttribute('aria-selected'),'true')
+        assert.equal(await p.locator('.space-file-details,.space-map-file-hint').count(),0,'Selecting a tile must not add a duplicate action strip')
+        assert(await row.getByRole('button',{name:'移到废纸篓 Session 1.m4a',exact:true}).isEnabled())
+        assert.equal(await row.getByRole('button',{name:'询问 AI Session 1.m4a',exact:true}).count(),1)
+        await row.getByRole('button',{name:'移到废纸篓 Session 1.m4a',exact:true}).click();await p.getByRole('dialog').getByRole('button',{name:'取消',exact:true}).click()
+        assert.equal(await row.getAttribute('aria-selected'),'true','Cancelling review must retain the tree selection')
+        await overflow(p,`${viewport.width}/tree actions`);await p.screenshot({path:`${directory}/${viewport.width}-space-tree-actions.png`})
+      }
       if(name==='隐私清理'){
         const privacy=p.locator('.space-privacy');await privacy.locator('[data-privacy-id="browser-history"]').waitFor()
         assert.equal(await privacy.locator('.privacy-categories button').count(),4)
@@ -135,14 +153,22 @@ try{
   await map.getByRole('button',{name:/Users/}).click();await p.locator('.space-breadcrumbs button').last().filter({hasText:'Users'}).waitFor()
   await map.getByRole('button',{name:/alex/}).click();await p.locator('.space-breadcrumbs button').last().filter({hasText:'alex'}).waitFor()
   await map.getByRole('button',{name:/Documents/}).click();await p.locator('.space-breadcrumbs button').last().filter({hasText:'Documents'}).waitFor()
-  await p.getByRole('navigation',{name:'扫描起点'}).getByRole('button',{name:/Macintosh HD/}).click();await map.getByRole('button',{name:/Users/}).waitFor();await map.getByRole('button',{name:/System/}).click();const protectedAction=tree.locator('.file-trash:disabled').first();await protectedAction.waitFor();await p.mouse.move(0,0);await protectedAction.hover();await p.getByRole('tooltip').filter({hasText:/无法在此删除/}).waitFor();await map.getByRole('button',{name:/Field notes/}).click();const protectedDetails=p.getByRole('region',{name:'所选项目',exact:true});assert.equal(await protectedDetails.getByRole('button',{name:/移到废纸篓/}).isEnabled(),false);assert.match(await protectedDetails.innerText(),/无法在此删除/);await p.keyboard.press('Escape');assert.equal(await protectedDetails.count(),0);await p.getByRole('button',{name:'返回上一级',exact:true}).click()
+  await p.getByRole('navigation',{name:'扫描起点'}).getByRole('button',{name:/Macintosh HD/}).click();await map.getByRole('button',{name:/Users/}).waitFor();await map.getByRole('button',{name:/System/}).click()
+  const protectedAction=tree.locator('.file-trash:disabled').first();await protectedAction.waitFor();await p.mouse.move(0,0);await protectedAction.hover();await p.getByRole('tooltip').filter({hasText:/无法在此删除/}).waitFor()
+  await map.getByRole('button',{name:/Field notes/}).click()
+  const protectedRow=tree.locator('.space-folder-row').filter({hasText:'Field notes'}).filter({has:p.locator('.tree-folder-name[title^="/System/"]')})
+  assert.equal(await protectedRow.getAttribute('aria-selected'),'true');assert.equal(await protectedRow.locator('.file-trash').isEnabled(),false)
+  assert.equal(await p.locator('.space-file-details').count(),0);await p.getByRole('button',{name:'返回上一级',exact:true}).click()
   assert.equal(await p.locator(visible+' .space-heading').getByRole('button',{name:'帮助',exact:true}).count(),0)
   await map.getByRole('button',{name:/Users/}).click();await map.getByRole('button',{name:/alex/}).click();await map.getByRole('button',{name:/Music/}).click();await p.getByRole('button',{name:'返回上一级',exact:true}).waitFor();assert.equal(await p.locator('.space-small-entries').count(),0);assert(await map.getByRole('button').count()<=11);for(const cell of await p.locator('.space-treemap-cell').all()){assert(await cell.locator('strong').isVisible());assert(await cell.locator('small').isVisible())}for(let depth=0;depth<3&&!await map.getByRole('button',{name:/Notes.txt/}).count()&&await map.getByRole('button',{name:/其他/}).count();depth++)await map.getByRole('button',{name:/其他/}).click();assert(await map.getByRole('button',{name:/Notes.txt/}).count());await p.getByRole('button',{name:'返回上一级',exact:true}).click();await map.getByRole('button',{name:/Music/}).waitFor()
   await map.getByRole('button',{name:/Music/}).click()
   for(let depth=0;depth<3&&!await map.getByRole('button',{name:/Notes.txt/}).count()&&await map.getByRole('button',{name:/其他/}).count();depth++)await map.getByRole('button',{name:/其他/}).click()
-  await map.getByRole('button',{name:/Notes.txt/}).click();const notes=p.getByRole('region',{name:'所选项目',exact:true});await notes.waitFor();assert.match(await notes.innerText(),/Notes.txt/);assert.match(await notes.locator('code').innerText(),/Music\/Notes.txt/)
-  await notes.getByRole('button',{name:'移到废纸篓 Notes.txt',exact:true}).click();assert.match(await p.getByRole('dialog').innerText(),/Notes.txt/);await p.getByRole('dialog').getByRole('button',{name:'取消',exact:true}).click();assert.equal(await notes.isVisible(),true)
-  await notes.getByRole('button',{name:'移到废纸篓 Notes.txt',exact:true}).click();await p.getByRole('dialog').getByRole('button',{name:'移到废纸篓',exact:true}).click();await p.getByRole('dialog').getByRole('button',{name:'完成',exact:true}).click();assert.equal(await notes.count(),0);assert.equal(await tree.getByRole('button',{name:'移到废纸篓 Notes.txt',exact:true}).count(),0)
+  await map.getByRole('button',{name:/Notes.txt/}).click()
+  const notes=tree.locator('.space-folder-row').filter({hasText:'Notes.txt'}),removeNotes=()=>notes.getByRole('button',{name:'移到废纸篓 Notes.txt',exact:true})
+  await notes.waitFor();assert.equal(await notes.getAttribute('aria-selected'),'true');assert.equal(await p.locator('.space-file-details').count(),0)
+  assert.match(await notes.locator('.tree-folder-name').getAttribute('title'),/Music\/Notes.txt/)
+  await removeNotes().click();assert.match(await p.getByRole('dialog').innerText(),/Notes.txt/);await p.getByRole('dialog').getByRole('button',{name:'取消',exact:true}).click();assert.equal(await notes.getAttribute('aria-selected'),'true')
+  await removeNotes().click();await p.getByRole('dialog').getByRole('button',{name:'移到废纸篓',exact:true}).click();await p.getByRole('dialog').getByRole('button',{name:'完成',exact:true}).click();assert.equal(await notes.count(),0)
   await navigate(p,'首页');await navigate(p,'空间分析');assert.equal(await tree.getByRole('button',{name:'移到废纸篓 Notes.txt',exact:true}).count(),0)
   await navigate(p,'大文件');assert.equal(await p.getByRole('checkbox',{name:'包含隐藏目录',exact:true}).isChecked(),false);assert.match(await p.locator('.space-large .space-scan-scope').innerText(),/减少扫描时间/);const helpStyle=await p.locator(visible+' .space-heading .workspace-help>.icon-button').evaluate((e)=>({background:getComputedStyle(e).backgroundColor,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height}));assert.equal(helpStyle.background,'rgba(0, 0, 0, 0)');assert(helpStyle.width<=22&&helpStyle.height<=22);await p.locator(visible+' .space-heading .workspace-help>.icon-button').click();assert.match(await p.locator(visible+' .workspace-help-content').innerText(),/始终跳过系统目录/);await p.keyboard.press('Escape');await p.getByRole('group',{name:'文件类型'}).getByRole('button',{name:/视频/}).click();await p.waitForTimeout(250);assert.equal(await p.locator('.space-file-row').count(),2);await p.getByRole('group',{name:'文件类型'}).getByRole('button',{name:/全部/}).click();await p.getByRole('searchbox',{name:'搜索文件'}).fill('Design');await p.waitForTimeout(250);assert.equal(await p.locator('.space-file-row').count(),1)
   await p.locator('.space-file-row input').check();await p.getByRole('button',{name:'检查所选项目',exact:true}).click();await p.getByRole('dialog').waitFor();assert.match(await p.getByRole('dialog').innerText(),/废纸篓/);await p.getByRole('dialog').getByRole('button',{name:'取消',exact:true}).click();assert.equal(await p.locator('.space-file-row').count(),1)
@@ -228,12 +254,12 @@ try{
   const folderPage=await browser.newPage({viewport:viewports[0]});folderPage.on('pageerror',e=>failures.push(e.message));await folderPage.goto(baseUrl);await navigate(folderPage,'空间分析')
   const folderMap=folderPage.getByRole('group',{name:'空间分布图'}),folderTree=folderPage.getByRole('tree',{name:'文件夹内容'})
   for(const name of ['Users','alex','Documents'])await folderMap.getByRole('button',{name:new RegExp(name)}).click()
-  const folderDetails=folderPage.getByRole('region',{name:'所选项目',exact:true})
-  await folderDetails.waitFor();assert.match(await folderDetails.locator('code').innerText(),/^\/Users\/alex\/Documents$/)
+  const folderRow=folderTree.locator('.space-folder-row').filter({hasText:'Documents'})
+  await folderRow.waitFor();assert.equal(await folderRow.getAttribute('aria-selected'),'true');assert.match(await folderRow.locator('.tree-folder-name').getAttribute('title'),/^\/Users\/alex\/Documents$/);assert.equal(await folderPage.locator('.space-file-details').count(),0)
   const treeDirectoryTrash=folderTree.getByRole('button',{name:'移到废纸篓 Documents',exact:true})
   assert(await treeDirectoryTrash.isEnabled(),'Personal directories need a direct delete action')
   await treeDirectoryTrash.click();await folderPage.getByRole('dialog').waitFor();assert.match(await folderPage.getByRole('dialog').innerText(),/包含.*文件.*目录.*隐藏/);await folderPage.getByRole('dialog').getByRole('button',{name:'取消',exact:true}).click();assert(await treeDirectoryTrash.isEnabled(),'Cancelling must retain the directory')
-  await folderDetails.getByRole('button',{name:'移到废纸篓 Documents',exact:true}).click();await folderPage.getByRole('dialog').waitFor();assert.match(await folderPage.getByRole('dialog').innerText(),/\/Users\/alex\/Documents/);await folderPage.screenshot({path:`${directory}/space-directory-review.png`});await folderPage.getByRole('dialog').getByRole('button',{name:'移到废纸篓',exact:true}).click();await folderPage.getByRole('dialog').getByRole('button',{name:'完成',exact:true}).click()
+  await treeDirectoryTrash.click();await folderPage.getByRole('dialog').waitFor();assert.match(await folderPage.getByRole('dialog').innerText(),/\/Users\/alex\/Documents/);await folderPage.screenshot({path:`${directory}/space-directory-review.png`});await folderPage.getByRole('dialog').getByRole('button',{name:'移到废纸篓',exact:true}).click();await folderPage.getByRole('dialog').getByRole('button',{name:'完成',exact:true}).click()
   assert.equal(await folderTree.getByRole('button',{name:'移到废纸篓 Documents',exact:true}).count(),0);assert.equal(await folderMap.getByRole('button',{name:/Documents/}).count(),0);assert.equal(await folderPage.locator('.space-breadcrumbs button').last().innerText(),'alex','Deleting the current directory must return to its surviving parent');assert.equal(await folderMap.getByRole('button',{name:/其他项目/}).count(),0,'Deleted folder bytes must not reappear in Other')
   await navigate(folderPage,'大文件');await navigate(folderPage,'空间分析');assert.equal(await folderTree.getByRole('button',{name:'移到废纸篓 Documents',exact:true}).count(),0);await folderPage.screenshot({path:`${directory}/space-directory-removed.png`});await folderPage.close()
   await verifyScanGames(browser,baseUrl,directory)

@@ -56,7 +56,9 @@ async function nonLinkedAncestors(target:string):Promise<void>{
 }
 function assertEntryAllowed(target:string,scanRoot:string,options:DirectoryTrashOptions):void {
   const {platform,p,home,env}=policy(options),name=p.basename(target)
-  if(!isStorageMutationAllowed(target,scanRoot,platform,home,env)||storageProtectedNames.some((entry)=>entry.toLowerCase()===name.toLowerCase())||protectedFile(name)||name.toLowerCase().endsWith('.app'))throw new Error('storage.directoryProtected')
+  // An uninstalled bundle inside a reviewed project is part of that folder, like any other build output.
+  // Installed locations, credential files and the selected .app root remain protected by their own checks.
+  if(!isStorageMutationAllowed(target,scanRoot,platform,home,env)||storageProtectedNames.some((entry)=>entry.toLowerCase()===name.toLowerCase())||protectedFile(name))throw new Error('storage.directoryProtected')
 }
 /** Includes hidden entries and does not follow links, hydrate linked targets or cross mounted volumes. */
 async function capture(target:string,scanRoot:string,options:DirectoryTrashOptions):Promise<Map<string,DirectoryPath>>{

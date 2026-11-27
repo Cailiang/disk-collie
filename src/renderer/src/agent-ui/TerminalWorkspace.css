@@ -1,5 +1,5 @@
-/* Terminal diagnostics share one scrolling flow with a bounded game panel. */
-.page-stack>.content-page.terminal-cleanup { height:auto; min-height:100%; max-width:none; overflow:visible; padding:22px 30px; }
+/* Terminal scans use the same game panel and available space as file/privacy scans. */
+.page-stack>.content-page.terminal-cleanup { height:auto; min-height:100%; max-width:none; overflow:visible; padding:20px 24px 28px; }
 .terminal-cleanup>* { flex-shrink:0; }
 .terminal-cleanup .cleanup-command-bar { min-height:42px; margin-bottom:8px; }
 .terminal-cleanup .cleanup-command-bar h1 { font-size:24px; margin-bottom:4px; }
@@ -8,9 +8,9 @@
 .terminal-cleanup .cleanup-reclaimable,.terminal-cleanup .cleanup-summary-stat { display:flex; align-items:baseline; gap:10px; min-height:0; padding:0; border:0; }
 .terminal-cleanup .cleanup-reclaimable>strong,.terminal-cleanup .cleanup-summary-stat>strong { font-size:22px; font-weight:600; margin:0; }
 .terminal-cleanup .terminal-backup-note { display:flex; align-items:center; gap:5px; margin-left:auto; color:var(--text-secondary); font-size:10px; }
-.terminal-scan-area { display:block; flex:0 0 auto; min-width:0; margin:4px 0 10px; padding:10px 13px 5px; border:0; border-radius:8px; background:var(--surface); }
+.terminal-scan-area { flex:1; min-width:0; margin:4px 0 10px; }
 .terminal-scan-status { display:flex; align-items:center; gap:8px; min-height:20px; color:var(--text-secondary); font-size:11px; }
-.terminal-scan-status>span { flex:1; min-width:0; overflow-wrap:anywhere; }
+.terminal-scan-status>.space-progress-copy { flex:1; min-width:0; overflow-wrap:anywhere; }
 .terminal-scan-status>strong { flex-shrink:0; color:var(--accent); font-size:11px; font-variant-numeric:tabular-nums; }
 .terminal-cleanup .cleanup-workspace { flex:0 0 auto; min-height:0; border:0; }
 .terminal-cleanup .cleanup-results-toolbar { min-height:28px; border:0; }
@@ -20,17 +20,16 @@
 .terminal-cleanup .cleanup-selection-bar>div { flex:1; }
 .terminal-cleanup .terminal-finding-source { margin-top:3px; }
 @media(max-width:1100px) {
-  .page-stack>.content-page.terminal-cleanup { padding:20px 25px; }
+  .page-stack>.content-page.terminal-cleanup { padding:18px; }
   .terminal-cleanup .terminal-cleanup-row { grid-template-columns:22px 30px minmax(0,1fr) auto; gap:9px; }
   .terminal-cleanup .cleanup-item-size { display:none; }
 }
 @media(max-width:700px) {
-  .page-stack>.content-page.terminal-cleanup { padding:18px; }
+  .page-stack>.content-page.terminal-cleanup { padding:16px 12px 24px; }
   .terminal-cleanup .cleanup-command-bar { align-items:flex-start; gap:8px; }
   .terminal-cleanup .cleanup-command-bar .cleanup-scan-button { align-self:flex-end; }
   .terminal-cleanup .cleanup-summary-band { gap:10px 22px; padding-bottom:8px; }
   .terminal-cleanup .terminal-backup-note { width:100%; margin:0; }
-  .terminal-scan-area { padding:9px 8px 4px; }
   .terminal-cleanup .cleanup-row { min-height:76px; }
   .terminal-cleanup .cleanup-item-title { flex-wrap:wrap; gap:4px; }
   .terminal-cleanup .cleanup-item-copy p { white-space:normal; font-size:10px; }
