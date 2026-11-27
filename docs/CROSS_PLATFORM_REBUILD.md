@@ -14,6 +14,8 @@ Exclusion comparison normalizes drive/UNC namespace prefixes, separators and cas
 
 Verification normalizes host filesystem paths in injected-platform fixtures, invokes registered shutdown hooks before removing SQLite fixtures, and tests each locked browser record type independently. CI uses two test workers to avoid lock-test starvation while retaining the same assertions and five-second limit.
 
+Browser icon ownership matches names case-insensitively. Chrome, Edge and Firefox also provide common Windows executable locations when installation metadata is absent; icon reads still require an existing local file and use the native OS icon API. Electron smoke compares saved Windows exclusions by normalized path identity, including after restart.
+
 ## What the MangoDisk research changed
 
 Reference inspected: MangoDisk main `e4d30608faea9527369ee678e6d8ca9a9e1c3688`, release v2.1.1. Its Tauri 2 / Rust / Vue stack separates native storage work from the presentation layer. Useful techniques include bulk directory metadata on macOS, bounded workers, shared navigation/index queries, and staged content hashing. Its user-facing structure puts large files, duplicates, disk analysis, privacy and app associations in clear separate flows. Its homepage makes the outcome of cleaning visible.

@@ -252,8 +252,10 @@ type Browser={key:string;name:string;bundle:string;appName?:string;root:string;p
 type BrowserProfile={id:string;name:string;root:string;denied?:boolean}
 function browserSource(browser:Browser,context:PrivacyContext):PrivacySource{
   const paths=context.platform==='win32'?path.win32:path.posix
-  const installed=context.applications.find((application)=>application.bundleId?.toLowerCase()===browser.bundle.toLowerCase()||application.name===browser.name)
-  return {key:browser.key,name:browser.name,bundleIds:[browser.bundle],iconPaths:[...(installed?[installed.iconPath||installed.location]:[]),...(context.platform==='darwin'?[paths.join('/Applications',(browser.appName||browser.name)+'.app'),paths.join(context.home,'Applications',(browser.appName||browser.name)+'.app'),paths.join('/System/Applications',(browser.appName||browser.name)+'.app')]:[])]}
+  const installed=context.applications.find((application)=>application.bundleId?.toLowerCase()===browser.bundle.toLowerCase()||application.name.toLowerCase()===browser.name.toLowerCase())
+  const executable=({chrome:'Google/Chrome/Application/chrome.exe',edge:'Microsoft/Edge/Application/msedge.exe',firefox:'Mozilla Firefox/firefox.exe'} as Record<string,string>)[browser.key]
+  const windowsIcons=context.platform==='win32'&&executable?[...new Set([context.env.ProgramFiles,context.env['ProgramFiles(x86)'],context.env.LOCALAPPDATA,paths.join(context.env.SystemDrive||'C:','Program Files'),paths.join(context.env.SystemDrive||'C:','Program Files (x86)'),paths.join(context.home,'AppData/Local')].filter((root):root is string=>Boolean(root)))].map(root=>paths.join(root,executable)):[]
+  return {key:browser.key,name:browser.name,bundleIds:[browser.bundle],iconPaths:[...(installed?[installed.iconPath||installed.location]:[]),...windowsIcons,...(context.platform==='darwin'?[paths.join('/Applications',(browser.appName||browser.name)+'.app'),paths.join(context.home,'Applications',(browser.appName||browser.name)+'.app'),paths.join('/System/Applications',(browser.appName||browser.name)+'.app')]:[])]}
 }
 async function directoryState(filename:string):Promise<'present'|'missing'|'denied'>{try{return (await privacyPathSnapshot(filename)).directory?'present':'missing'}catch(error){return privacyAccessFailure(error)?'denied':'missing'}}
 async function fileExists(filename:string):Promise<boolean>{try{return !(await privacyPathSnapshot(filename)).directory}catch(error){return privacyAccessFailure(error)}}

@@ -13,6 +13,7 @@ Memento Client 的重要变更会在这里使用英文和简体中文同步记�
 - Migrate old profiles using a consistent SQLite snapshot and the original encryption key. Retain provider credentials, settings, conversations and cleanup totals, preserve the old profile, and never overwrite existing new data or redirect custom profiles.
 - Keep legacy database names, protected data folders, terminal markers and game scores compatible. Treat a new repository without a published release as up to date. Extend migration, updater, Electron and four-viewport branding checks.
 - Normalize Windows exclusion paths consistently across canonical namespace prefixes, drive/UNC paths and casing so excluded folders are pruned before indexing and hashing.
+- Resolve Chrome, Edge and Firefox icons from common Windows executable locations when installation metadata is missing, and match application names without case sensitivity.
 - Make filesystem fixtures portable across separators, close fixture database handles before cleanup, split locked-browser checks by record type and bound CI test workers without relaxing assertions or timeouts.
 
 ### 简体中文
@@ -22,6 +23,7 @@ Memento Client 的重要变更会在这里使用英文和简体中文同步记�
 - 旧数据通过一致的 SQLite 快照连同原有加密密钥迁移，保留供应商、配置、对话与清理统计，原数据不删除，新数据不覆盖，手动指定的数据目录不重定向。
 - 兼容旧数据库名、受保护目录、终端标记和游戏得分；新仓库尚无发布版本时显示已是最新，补充迁移、更新、Electron 与四尺寸品牌检查。
 - 统一 Windows 忽略目录的命名空间前缀、盘符／网络路径和大小写比较，确保在建索引、计算哈希前跳过这些目录。
+- Windows 缺少安装登记信息时，从常见可执行文件位置读取 Chrome、Edge、Firefox 图标，应用名称匹配兼容大小写差异。
 - 修正跨平台测试的路径分隔符与数据库关闭流程，按记录类型拆分浏览器锁测试，并限制 CI 测试并发，保留原断言和超时限制。
 
 ## 1.0.23 - 2026-11-27

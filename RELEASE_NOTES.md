@@ -5,8 +5,9 @@
 - 首次启动迁移原有供应商、加密密钥、配置、对话与清理统计，保留旧数据，已有 DiskCollie 数据不覆盖。
 - 同步侧栏、启动页、托盘、AI 提示、通信接口、测试、文档及全部平台发布脚本，保留必要的旧版兼容。
 - 修复 Windows 忽略目录在规范化路径前缀和大小写变化时未被跳过的问题。
+- 补齐 Windows 浏览器缺少安装登记信息时的图标查找。
 
-English: Memento becomes DiskCollie, with package `disk-collie`, bundle ID `com.fcl.diskcollie` and sidecar `disk-collie-engine`. Source and future updates move to Cailiang/disk-collie while the old repository is archived. First launch snapshots the legacy database together with its encryption key, preserving providers, settings, conversations and cleanup totals without overwriting existing DiskCollie data. Branding, IPC, build/release scripts, documentation and automated coverage are updated together. Windows exclusions now normalize canonical namespace prefixes and casing before traversal. Historical entries below retain the original product name.
+English: Memento becomes DiskCollie, with package `disk-collie`, bundle ID `com.fcl.diskcollie` and sidecar `disk-collie-engine`. Source and future updates move to Cailiang/disk-collie while the old repository is archived. First launch snapshots the legacy database together with its encryption key, preserving providers, settings, conversations and cleanup totals without overwriting existing DiskCollie data. Branding, IPC, build/release scripts, documentation and automated coverage are updated together. Windows exclusions normalize canonical namespace prefixes and casing before traversal; browser icons can use common executable locations when installation metadata is absent. Historical entries below retain the original product name.
 
 # Memento 1.0.23 — 游戏切换与窗口适配 / Game controls and window resizing
 

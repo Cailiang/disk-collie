@@ -61,6 +61,15 @@ function query(filename:string,sql:string):Array<Record<string,unknown>>{
 }
 
 describe('browser privacy SQLite adapters',()=>{
+  it.skipIf(process.platform!=='win32')('retains browser executable icon candidates when Windows installation metadata is absent',async()=>{
+    const local=path.join(home,'AppData/Local'),programs=path.join(home,'Programs')
+    await mkdir(path.join(local,'Google/Chrome/User Data/Default'),{recursive:true})
+    const resources=await browserPrivacyResources({platform:'win32',home,env:{LOCALAPPDATA:local,ProgramFiles:programs},applications:[]})
+    const chrome=resources.find(resource=>resource.source.key==='chrome')
+    expect(chrome).toBeDefined()
+    expect(chrome!.source.iconPaths).toContain(path.join(programs,'Google/Chrome/Application/chrome.exe'))
+    expect(chrome!.source.iconPaths).toContain(path.join(local,'Google/Chrome/Application/chrome.exe'))
+  })
   it('skips excluded browser profiles and individual stores without reading their metadata',async()=>{
     chromeHistory()
     const history=path.join(chrome,'History'),original=privacyPaths.privacyPathSnapshot
