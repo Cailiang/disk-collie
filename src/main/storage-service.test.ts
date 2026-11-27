@@ -89,6 +89,7 @@ describe('storage scan sessions and partial cleanup',()=>{
   })
   it('persists skipped deep-clean sources even when no mutation jobs remain',async()=>{
     const service=new StorageService();await service.init();service.register()
+    vi.spyOn(service as any,'deepProcesses').mockResolvedValue(()=>false)
     vi.spyOn((service as any).deepCleanService,'prepare').mockResolvedValue({entries:[],skipped:2})
     const result=await service.cleanDeep({ids:[crypto.randomUUID()],skipRunning:true})
     expect(result).toMatchObject({kind:'cleanup',items:0,bytes:0,failures:0,skipped:2,deepCleanIds:[],removedPaths:[],locations:[]})
