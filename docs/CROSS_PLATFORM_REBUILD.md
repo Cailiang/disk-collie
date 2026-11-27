@@ -1,4 +1,4 @@
-# Cross-platform storage rebuild — 1.0.20
+# Cross-platform storage rebuild — 1.0.21
 
 Branch: `rebuild/cross-platform-memento`. The product is organized around freeing storage; process management and the existing user-configured local Agent remain core tools.
 
@@ -194,3 +194,7 @@ A large responsive scan stage occupies available space. Initial Deep cleanup and
 ## Border collie profile branding — 1.0.20
 
 The canonical logo is a right-facing line-art border collie profile, with a folded ear tip, forehead blaze, long muzzle and neck ruff. CollieMark inlines it for sidebar and advisor use; the icon exporter synchronizes startup markup and native PNG/ICNS assets, and the favicon uses the same SVG. Runtime marks inherit theme ink. Four-viewport UI checks cover visibility, viewBox bounds, theme color and consistency between branding surfaces.
+
+## Approved identity and scan games — 1.0.21
+
+The selected upright-eared, left-facing border collie is traced into a currentColor SVG and exported for sidebar/advisor/startup/favicon/native icons. The original approved concept is retained in docs/assets. Passive story animation is replaced by three opt-in SVG games: Hurdle run, Frisbee catch and Pond hop. The same character head appears in every game. One Space press starts, jumps, resumes or retries; click/tap is equivalent, while held keys, editable controls and modal dialogs are isolated. A seeded pure engine handles bounded physics steps, fair object spacing, collision/miss rules and scoring. Separate local best scores persist across modes and completed scans. Intersection/document visibility and window blur pause rounds. Reduced motion removes decorative movement; user-started gameplay remains available. Scans and cancellation remain independent, and completion restores results immediately. New physics and browser integration checks replace the retired story checks.

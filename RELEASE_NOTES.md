@@ -1,3 +1,12 @@
+# Memento 1.0.21 — 边牧扫描小游戏 / Collie scan games
+
+- 使用选定的朝左竖耳边牧 Logo，保留坚定眼神和调皮笑意，界面与游戏角色跟随主题色。
+- 扫描区加入越障快跑、接飞盘、荷塘跳跃，空格或点击／轻触即可玩，支持得分、最佳成绩和重试。
+- 游戏默认等待，切页／失焦时暂停，减少动态效果时移除装饰运动；文本输入和弹窗保留正常按键操作。
+- 真实扫描进度和取消按钮独立保留，扫描完成立即显示结果；移除原来的宠物故事动画。
+
+English: the approved left-facing, upright-eared collie becomes the themeable identity and game character. Three opt-in one-button scan games replace passive stories: Hurdle run, Frisbee catch and Pond hop. Space or tap starts/jumps/resumes/retries, with local best scores, hidden-view pause and reduced decorative motion. Inputs and dialogs keep their normal keys; scan progress/cancellation and immediate completion remain independent.
+
 # Memento 1.0.20 — 边牧侧脸 Logo / Border collie profile logo
 
 - Logo 改为可爱的边牧侧脸线条画，以折耳尖、额头白斑、长吻和颈部毛体现边牧特征。

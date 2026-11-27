@@ -1,0 +1,4 @@
+.collie-mark { display:inline-flex; color:var(--accent); flex-shrink:0; }
+.collie-mark>svg { display:block; width:100%; height:100%; color:inherit; }
+.brand-mark.brand-mascot .collie-mark { width:42px; height:42px; }
+.advisor-mascot.collie-mark { width:68px; height:68px; }

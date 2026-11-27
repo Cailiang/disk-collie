@@ -4,6 +4,22 @@ All notable changes to Memento Client are documented here in English and Simplif
 
 Memento Client 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.21 - 2026-11-27
+
+### English
+
+- Use the approved upright-eared, left-facing border collie with a confident eye and playful smile. Trace the selected image into a themeable vector shared by branding, game characters and regenerated application icons.
+- Replace passive pet stories with three opt-in, one-button scan games: Hurdle run, Frisbee catch and Pond hop. Space or click/tap starts, jumps, resumes and retries; show scores and separate local bests.
+- Pause hidden/blurred games, isolate held keys, text fields and modal dialogs, and reduce decorative movement under reduced motion. Keep real scan progress/cancel controls available; completion immediately restores results.
+- Replace retired story code/tests with physics and interactive UI coverage for playable jumps, catches, collisions, scoring, pause/retry, theme, responsive bounds and scan completion.
+
+### 简体中文
+
+- 使用选定的朝左竖耳边牧，保留坚定眼神和调皮笑意；效果图转为随主题换色的矢量标识，同步 Logo、游戏角色及重新导出的应用图标。
+- 被动宠物动画改为越障快跑、接飞盘、荷塘跳跃三款小游戏，空格或点击／轻触即可开始、跳跃、继续和重试，展示得分及本机最佳成绩。
+- 切页、失焦或进入后台时暂停，隔离长按、文本框及弹窗按键，减少动态效果时移除装饰运动；进度和取消独立保留，扫描完成立即返回结果。
+- 删除旧故事组件、时间轴和测试，新增物理与交互验证，覆盖跳跃、接飞盘、碰撞、得分、暂停／重试、主题、窄窗口及扫描完成。
+
 ## 1.0.20 - 2026-11-26
 
 ### English

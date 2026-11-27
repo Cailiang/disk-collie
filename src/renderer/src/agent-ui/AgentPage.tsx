@@ -1,7 +1,6 @@
 import {CollieMark} from '../CollieMark'
 import {NavigationIcon} from './NavigationIcon'
 import type {AgentViewKey} from './Shell'
-import {MascotScene} from '../MascotScene'
 import './CleanupAdvisor.css'
 import {
   ArrowLeft,
@@ -231,7 +230,7 @@ export function AgentPage({
             </div>
             <div className="advisor-source-links"><span>{text('advisor.fromResults')}</span>{(['large','health','disk'] as const).map((source)=><button type="button" key={source} onClick={()=>onNavigate(source)}><NavigationIcon kind={source} size={16}/>{text(`nav.${source==='health'?'cleanup':source}`)}</button>)}</div>
           </div>}
-          {preparing&&<div className="advisor-preparing" role="status"><MascotScene activity="frisbee" compact/><span>{text('advisor.preparing')}</span></div>}
+          {preparing&&<div className="advisor-preparing" role="status"><LoaderCircle className="spinner" size={16} aria-hidden="true"/><span>{text('advisor.preparing')}</span></div>}
           {conversationRuns.map((conversationRun) => {
             const isActive = conversationRun.id === run?.id
             const runBusy = isActive && busy
