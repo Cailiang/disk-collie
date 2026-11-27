@@ -21,7 +21,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
       - run: npm run native:test
-      - run: npm test
+      - run: npm test -- --maxWorkers=2
       - run: npm run build
       - run: node scripts/native-smoke.mjs
       - name: Real Electron smoke

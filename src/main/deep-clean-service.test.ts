@@ -11,6 +11,7 @@ beforeEach(async()=>{home=await realpath(await mkdtemp(path.join(os.tmpdir(),'di
 afterEach(async()=>{await rm(home,{recursive:true,force:true})})
 async function file(relative:string,contents='owned cache'):Promise<string>{const target=path.join(home,relative);await mkdir(path.dirname(target),{recursive:true});await writeFile(target,contents);await utimes(target,new Date(Date.now()-10000),new Date(Date.now()-10000));return target}
 function definition(key:string,target:string,applications:string[]=[]):DeepCleanDefinition{return {key,group:'application',name:{zh:key,en:key},description:{zh:'可重建',en:'Regenerable'},risk:'safe',recommended:true,paths:[target],applications}}
+const within=(filename:string,directory:string):boolean=>path.normalize(filename).startsWith(path.normalize(directory)+path.sep)
 describe('deep clean registration and catalog',()=>{
   it('deduplicates overlapping static/dynamic rules before scanning and keeps real file totals',async()=>{
     const npm=await file('.npm/_cacache/content.bin','npm'),browser=await file('Library/Caches/Google/Chrome/Default/Cache/data.bin','chrome'),unknown=await file('Library/Caches/UnknownApp/cache.bin','unknown')
@@ -19,18 +20,18 @@ describe('deep clean registration and catalog',()=>{
     const scan=await new DeepCleanService().scan(context)
     expect(scan.items.reduce((total,item)=>total+item.size,0)).toBe(3+6+7)
     expect(scan.items.reduce((total,item)=>total+item.count,0)).toBe(3)
-    expect(scan.items.find((item)=>item.sources.some((source)=>unknown.startsWith(source.path+path.sep)))).toMatchObject({risk:'review',recommended:false})
-    expect(scan.items.flatMap((item)=>item.sources).filter((source)=>npm.startsWith(source.path+path.sep))).toHaveLength(1)
-    expect(scan.items.flatMap((item)=>item.sources).filter((source)=>browser.startsWith(source.path+path.sep))).toHaveLength(1)
+    expect(scan.items.find((item)=>item.sources.some((source)=>within(unknown,source.path)))).toMatchObject({risk:'review',recommended:false})
+    expect(scan.items.flatMap((item)=>item.sources).filter((source)=>within(npm,source.path))).toHaveLength(1)
+    expect(scan.items.flatMap((item)=>item.sources).filter((source)=>within(browser,source.path))).toHaveLength(1)
   })
   it('skips entire model stores and excludes Service Worker roots and credentials',async()=>{
     const model=await file('.ollama/models/imported-local-model','user trained weights'),manifest=await file('Library/Application Support/Code/Service Worker/CacheStorage/extension-script','extension cache'),secret=await file('.codex/auth.json','SECRET'),cache=await file('.codex/tmp/old.bin','temporary')
     const catalog=await deepCleanDefinitions(context)
-    expect(catalog.some((entry)=>entry.paths.some((target)=>manifest.startsWith(target+path.sep)))).toBe(false)
+    expect(catalog.some((entry)=>entry.paths.some((target)=>within(manifest,target)))).toBe(false)
     const service=new DeepCleanService(),scan=await service.scan(context)
     expect(scan.items.some((item)=>item.key==='ollama-models')).toBe(false)
-    expect(catalog.some((item)=>item.paths.some((target)=>model.startsWith(target+path.sep)))).toBe(false)
-    const cacheItem=scan.items.find((item)=>item.sources.some((source)=>cache.startsWith(source.path+path.sep)))!
+    expect(catalog.some((item)=>item.paths.some((target)=>within(model,target)))).toBe(false)
+    const cacheItem=scan.items.find((item)=>item.sources.some((source)=>within(cache,source.path)))!
     const prepared=await service.prepare(cacheItem.sources.map((source)=>source.id),()=>false)
     for(const entry of prepared.entries)await entry.snapshot.clean()
     expect(await readFile(secret,'utf8')).toBe('SECRET');expect(await readFile(model,'utf8')).toBe('user trained weights');expect(await readFile(manifest,'utf8')).toBe('extension cache')

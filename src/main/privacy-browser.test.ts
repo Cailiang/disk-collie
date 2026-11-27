@@ -9,7 +9,7 @@ import * as privacyPaths from './privacy-resource'
 const filesystemAccess=vi.hoisted(()=>({deniedDirectories:new Set<string>()}))
 vi.mock('node:fs/promises',async(importOriginal)=>{
   const original=await importOriginal<typeof import('node:fs/promises')>()
-  return {...original,readdir:(...args:Parameters<typeof original.readdir>)=>filesystemAccess.deniedDirectories.has(String(args[0]))?Promise.reject(Object.assign(new Error('Permission denied'),{code:'EACCES'})):original.readdir(...args)}
+  return {...original,readdir:(...args:Parameters<typeof original.readdir>)=>filesystemAccess.deniedDirectories.has(path.normalize(String(args[0])))?Promise.reject(Object.assign(new Error('Permission denied'),{code:'EACCES'})):original.readdir(...args)}
 })
 
 const {DatabaseSync}=require('node:sqlite') as typeof import('node:sqlite')
@@ -80,7 +80,7 @@ describe('browser privacy SQLite adapters',()=>{
     const cache=path.join(home,'Library/Caches/com.apple.Safari');await mkdir(cache,{recursive:true})
     const cacheFile=path.join(cache,'response');await writeFile(cacheFile,'cache response');await utimes(cacheFile,new Date(OLD),new Date(OLD))
     vi.spyOn(privacyPaths,'privacyPathSnapshot').mockImplementation(async(target)=>{
-      if(target===safari||target.startsWith(safari+path.sep))throw Object.assign(new Error('Operation not permitted'),{code:'EPERM'})
+      if(path.normalize(target)===safari||path.normalize(target).startsWith(safari+path.sep))throw Object.assign(new Error('Operation not permitted'),{code:'EPERM'})
       return original(target)
     })
     const resources=(await browserPrivacyResources(context)).filter((entry)=>entry.source.key==='safari')
@@ -167,7 +167,7 @@ describe('browser privacy SQLite adapters',()=>{
     expect(query(filename,'SELECT cluster_id,visit_id FROM clusters_and_visits ORDER BY cluster_id,visit_id')).toEqual([{cluster_id:10,visit_id:1},{cluster_id:20,visit_id:3}])
   })
 
-  it('reads committed history, searches and downloads through an isolated rollback-journal copy while Chrome holds an exclusive lock',async()=>{
+  it.each(['history','search','downloads'] as const)('reads committed %s through an isolated rollback-journal copy while Chrome holds an exclusive lock',async(kind)=>{
     chromeHistory()
     const filename=path.join(chrome,'History'),writer=new DatabaseSync(filename)
     const privateDirectories=async()=>new Set((await readdir(os.tmpdir())).filter((name)=>name.startsWith('diskcollie-private-browser-')))
@@ -178,7 +178,8 @@ describe('browser privacy SQLite adapters',()=>{
       const insert=writer.prepare('INSERT INTO meta VALUES(?,?)')
       for(let index=0;index<30;index++)insert.run(`uncommitted-${index}`,'x'.repeat(4096))
       const original=await readFile(filename),journal=await readFile(filename+'-journal')
-      for(const [kind,title] of [['history','Visit 2'],['search','search 2'],['downloads',path.join(home,'download-2.zip')]] as const){
+      {
+        const title=kind==='history'?'Visit 2':kind==='search'?'search 2':path.join(home,'download-2.zip')
         const snapshot=await (await resource(`chrome:Default:${kind}`)).scan('all',NOW)
         expect(snapshot.capability).toBe('ready');expect(snapshot.count).toBe(2)
         expect((await snapshot.preview(0,100)).map((entry)=>entry.title)).toContain(title)

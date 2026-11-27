@@ -3,9 +3,9 @@ import {mkdtemp,mkdir,readFile,rm,writeFile,symlink,lstat} from 'node:fs/promise
 import os from 'node:os'
 import path from 'node:path'
 import type {StorageEntry,StorageIndex} from '../shared/storage-types'
-const state=vi.hoisted(()=>({profile:'',root:'',fail:'',scanGate:null as Promise<void>|null,hashGate:null as Promise<void>|null,processCommands:[] as string[],engines:[] as any[],progress:[] as any[],hashes:new Map<number,string>(),handlers:new Map<string,(event:unknown,input?:unknown)=>any>()}))
+const state=vi.hoisted(()=>({shutdown:[] as Array<()=>void>,profile:'',root:'',fail:'',scanGate:null as Promise<void>|null,hashGate:null as Promise<void>|null,processCommands:[] as string[],engines:[] as any[],progress:[] as any[],hashes:new Map<number,string>(),handlers:new Map<string,(event:unknown,input?:unknown)=>any>()}))
 vi.mock('electron',()=>({
-  app:{getPath:()=>state.profile,on:vi.fn()},
+  app:{getPath:()=>state.profile,on:(name:string,listener:()=>void)=>{if(name==='before-quit')state.shutdown.push(listener)}},
   BrowserWindow:{getAllWindows:()=>[{webContents:{send:(_channel:string,p:unknown)=>state.progress.push(p)}}]},
   ipcMain:{handle:(name:string,fn:any)=>state.handlers.set(name,fn)},
   shell:{trashItem:vi.fn(async(location:string)=>{if(location===state.fail)throw new Error('Fixture failure')}),showItemInFolder:vi.fn()}
@@ -48,7 +48,7 @@ describe('storage scan sessions and partial cleanup',()=>{
     state.fail='';state.processCommands=[];state.scanGate=null;state.hashGate=null;state.hashes.clear();state.engines=[];state.progress=[];state.handlers.clear()
     vi.stubEnv('DISKCOLLIE_TEST_RUN','1');vi.stubEnv('DISKCOLLIE_TEST_STORAGE_ROOT',state.root)
   })
-  afterEach(async()=>{vi.unstubAllEnvs();await rm(fixture,{recursive:true,force:true})})
+  afterEach(async()=>{for(const shutdown of state.shutdown.splice(0))shutdown();vi.unstubAllEnvs();await rm(fixture,{recursive:true,force:true})})
   it('retains independent generations, removes only successful files from every session, and journals progress',async()=>{
     const service=new StorageService();await service.init();service.register()
     const first=await service.scan({mode:'large'}),second=await service.scan({mode:'duplicates'})

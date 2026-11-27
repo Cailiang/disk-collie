@@ -3,9 +3,9 @@ import {lstat,mkdir,mkdtemp,readFile,rename,rm,writeFile} from 'node:fs/promises
 import os from 'node:os'
 import path from 'node:path'
 import type {StorageEntry,StorageIndex,StorageMode} from '../shared/storage-types'
-const state=vi.hoisted(()=>({home:'',profile:'',trash:'',fail:false,calls:[] as string[],excluded:[] as string[],handlers:new Map<string,(event:unknown,input:unknown)=>Promise<any>>()}))
+const state=vi.hoisted(()=>({shutdown:[] as Array<()=>void>,home:'',profile:'',trash:'',fail:false,calls:[] as string[],excluded:[] as string[],handlers:new Map<string,(event:unknown,input:unknown)=>Promise<any>>()}))
 vi.mock('electron',()=>({
-  app:{getPath:()=>state.profile,on:vi.fn()},BrowserWindow:{getAllWindows:()=>[]},ipcMain:{handle:(name:string,handler:any)=>state.handlers.set(name,handler)},
+  app:{getPath:()=>state.profile,on:(name:string,listener:()=>void)=>{if(name==='before-quit')state.shutdown.push(listener)}},BrowserWindow:{getAllWindows:()=>[]},ipcMain:{handle:(name:string,handler:any)=>state.handlers.set(name,handler)},
   shell:{trashItem:vi.fn(async(target:string)=>{state.calls.push(target);if(state.fail)throw new Error('Owned Trash failure');await rename(target,path.join(state.trash,path.basename(target)))}),showItemInFolder:vi.fn()}
 }))
 vi.mock('./native-engine',()=>({NativeEngine:class{async request(){throw new Error('Unexpected unused native request')}stop(){}}}))
@@ -15,7 +15,7 @@ let service:StorageService,folder:string,entries:StorageEntry[]
 const inside=(target:string,root:string)=>target===root||target.startsWith(root+path.sep)
 function session(mode:StorageMode,generation:number){
   const remaining=[...entries],index:StorageIndex={generation,mode,root:{...entries[0],id:0,path:state.home,name:'Owned fixture',parent:null},entries:remaining.length+1,errors:0,skipped:0,limited:false,elapsedMs:0}
-  const engine={request:async(command:string,args:any):Promise<any>=>{
+  const engine={stop:vi.fn(),request:async(command:string,args:any):Promise<any>=>{
     if(command==='entry'){const value=remaining.find((entry)=>entry.id===args.id);if(!value)throw new Error('Entry is no longer available');return value}
     if(command==='children')return {parent:index.root,items:remaining}
     if(command==='forget'){for(let position=remaining.length-1;position>=0;position--)if(args.paths.some((root:string)=>inside(remaining[position].path,root)))remaining.splice(position,1);index.entries=remaining.length+1;return index}
@@ -31,7 +31,7 @@ beforeEach(async()=>{
   entries=await Promise.all([folder,path.join(folder,'visible.txt'),path.join(folder,'.hidden'),path.join(folder,'.hidden/extra.txt')].map(async(target,index)=>{const stat=await lstat(target);return {id:index+1,parent:index===0?0:index===3?3:1,path:target,name:path.basename(target),directory:stat.isDirectory(),size:stat.isDirectory()?13:stat.size,allocated:stat.isDirectory()?8192:stat.blocks*512,modified:stat.mtimeMs*1e6,identity:`${stat.dev}:${stat.ino}`,links:stat.nlink}}))
   service=new StorageService(()=>'en-US',()=>state.excluded);await service.init();service.register()
 })
-afterEach(async()=>{await rm(state.home,{recursive:true,force:true})})
+afterEach(async()=>{for(const shutdown of state.shutdown.splice(0))shutdown();await rm(state.home,{recursive:true,force:true})})
 describe('registered directory Trash plans',()=>{
   it('reviews the complete hidden tree, requires its exact token, and reconciles every retained index after Trash',async()=>{
     const analysis=session('analysis',31),large=session('large',32)

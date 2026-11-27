@@ -34,7 +34,7 @@ jobs:
             test "v${package_version}" = "${GITHUB_REF_NAME}"
           fi
       - run: npm run native:test
-      - run: npm test
+      - run: npm test -- --maxWorkers=2
       - run: npm run typecheck
 
   build:

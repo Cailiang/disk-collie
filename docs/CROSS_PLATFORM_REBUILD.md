@@ -12,6 +12,8 @@ The old GitHub repository is retired with a migration notice and archived after 
 
 Exclusion comparison normalizes drive/UNC namespace prefixes, separators and casing on Windows, with directory-pruning fixtures and a portable normalization regression test. Other platforms retain their path semantics.
 
+Verification normalizes host filesystem paths in injected-platform fixtures, invokes registered shutdown hooks before removing SQLite fixtures, and tests each locked browser record type independently. CI uses two test workers to avoid lock-test starvation while retaining the same assertions and five-second limit.
+
 ## What the MangoDisk research changed
 
 Reference inspected: MangoDisk main `e4d30608faea9527369ee678e6d8ca9a9e1c3688`, release v2.1.1. Its Tauri 2 / Rust / Vue stack separates native storage work from the presentation layer. Useful techniques include bulk directory metadata on macOS, bounded workers, shared navigation/index queries, and staged content hashing. Its user-facing structure puts large files, duplicates, disk analysis, privacy and app associations in clear separate flows. Its homepage makes the outcome of cleaning visible.
