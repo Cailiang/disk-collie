@@ -4,6 +4,20 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.25 - 2026-11-27
+
+### English
+
+- Publish the first DiskCollie release from `Cailiang/disk-collie`, following the migration from Memento, with the renamed application and compatible legacy profile migration.
+- Ship macOS DMG/ZIP, Windows NSIS, and Linux AppImage/DEB packages for both x64 and arm64. Public macOS packages require Developer ID signing, notarization and stapled tickets.
+- Include architecture-aware automatic-update manifests, updater blockmaps and `SHA256SUMS.txt` covering all eight installers.
+
+### 简体中文
+
+- 在从 Memento 迁移后的 `Cailiang/disk-collie` 仓库发布首个 DiskCollie 版本，包含统一的新品牌与兼容旧版的数据迁移。
+- 为 x64、arm64 同时提供 macOS DMG/ZIP、Windows NSIS 和 Linux AppImage/DEB 安装包；公开 macOS 包必须完成 Developer ID 签名、公证与票据装订。
+- 发布对应架构的自动更新清单、更新差分文件，以及覆盖全部八个安装包的 `SHA256SUMS.txt`。
+
 ## 1.0.24 - 2026-11-27
 
 ### English

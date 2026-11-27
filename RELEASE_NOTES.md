@@ -1,3 +1,27 @@
+# DiskCollie 1.0.25 — 三平台正式发布 / Cross-platform release
+
+## 简体中文
+
+DiskCollie 从 Memento 迁移后首次在新仓库正式发布，包含全新的品牌与旧版配置、供应商、加密密钥、对话和清理统计迁移，保留原有数据且不覆盖已有 DiskCollie 数据。
+
+- **macOS：** Intel x64 与 Apple Silicon arm64，提供 DMG 安装包和自动更新 ZIP；完成 Developer ID 签名、公证及票据装订。
+- **Windows：** x64 与 arm64，提供可选择安装目录的 NSIS 安装程序。
+- **Linux：** x64 与 arm64，提供 AppImage 与 DEB。
+- **更新与校验：** 附带各平台自动更新清单、差分文件和 `SHA256SUMS.txt`，共 19 个发布文件，校验和覆盖八个安装包。
+- **迁移修复：** 包含 Windows 扫描忽略路径规范化、浏览器图标查找及三平台回归修复。
+
+## English
+
+The first public DiskCollie release after migrating from Memento brings the new identity and compatible migration of settings, providers, encryption keys, conversations and cleanup totals. The original profile is preserved and existing DiskCollie data is never overwritten.
+
+- **macOS:** Intel x64 and Apple Silicon arm64 DMGs and automatic-update ZIPs, with Developer ID signing, notarization and stapled tickets.
+- **Windows:** x64 and arm64 NSIS installers with a selectable installation directory.
+- **Linux:** x64 and arm64 AppImage and DEB packages.
+- **Updates and verification:** architecture-aware update manifests, blockmaps and `SHA256SUMS.txt`; 19 release assets including checksums for all eight installers.
+- **Migration fixes:** includes Windows scan exclusion normalization, browser icon discovery and cross-platform regression fixes.
+
+---
+
 # DiskCollie 1.0.24 — 新名称与新仓库 / New identity and repository
 
 - 产品与安装包统一使用 DiskCollie，包名 `disk-collie`，应用标识 `com.fcl.diskcollie`，原生引擎 `disk-collie-engine`。

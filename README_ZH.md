@@ -2,6 +2,8 @@
 
 代码与更新迁至 [Cailiang/disk-collie](https://github.com/Cailiang/disk-collie)。原名 Memento，旧仓库停止维护。
 
+[下载最新版本](https://github.com/Cailiang/disk-collie/releases/latest)：提供 macOS DMG、Windows 安装程序和 Linux AppImage/DEB，均支持 x64 与 arm64。安装包校验和见 `SHA256SUMS.txt`。
+
 包名统一为 `disk-collie`，应用标识为 `com.fcl.diskcollie`，原生引擎为 `disk-collie-engine`，安装包为 `DiskCollie-<版本>-<架构>`。新用户数据位于平台应用数据目录下的 `DiskCollie` 文件夹，数据库为 `disk-collie.sqlite`。首次启动会以一致的 SQLite 快照连同原有加密密钥复制旧 Memento 数据，保留供应商、配置、对话和清理统计；旧数据不删除，已有 DiskCollie 数据不覆盖。手动指定的数据目录保持隔离。旧数据库名、受保护目录、终端标记及游戏得分键保留兼容。应用仅检查新仓库的更新，首个版本发布前显示当前版本已是最新。
 
 围绕“释放空间”重新设计的本地桌面工具：大文件、重复文件、空间分析、缓存、隐私和应用卸载。保留进程管理与用户自选模型的 AI Agent。

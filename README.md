@@ -2,6 +2,8 @@
 
 Source and updates: [Cailiang/disk-collie](https://github.com/Cailiang/disk-collie). Formerly Memento; the previous repository is retired.
 
+[Download the latest release](https://github.com/Cailiang/disk-collie/releases/latest): macOS DMG, Windows installer, and Linux AppImage/DEB, each available for x64 and arm64. Installer checksums are in `SHA256SUMS.txt`.
+
 A local desktop workspace for making space: large files, verified duplicates, an interactive disk map, deep cleanup, privacy, and application removal. Process management and the user-configured Cleanup advisor remain first-class tools.
 
 [简体中文](README_ZH.md) · [Architecture and comparison](docs/CROSS_PLATFORM_REBUILD.md) · [Development](docs/LOCAL_AGENT_DEVELOPMENT.md) · [Packaging](docs/RELEASING.md)
