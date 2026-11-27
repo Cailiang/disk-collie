@@ -1,4 +1,4 @@
-# DiskCollie 1.0.25 — 三平台正式发布 / Cross-platform release
+# DiskCollie 1.0.26 — 三平台正式发布 / Cross-platform release
 
 ## 简体中文
 
@@ -8,6 +8,7 @@ DiskCollie 从 Memento 迁移后首次在新仓库正式发布，包含全新的
 - **Windows：** x64 与 arm64，提供可选择安装目录的 NSIS 安装程序。
 - **Linux：** x64 与 arm64，提供 AppImage 与 DEB。
 - **更新与校验：** 附带各平台自动更新清单、差分文件和 `SHA256SUMS.txt`，共 19 个发布文件，校验和覆盖八个安装包。
+- **Linux 包名：** x64 安装包使用原生格式名称 `x86_64.AppImage` 与 `amd64.deb`，确保发布收集与自动更新地址一致。
 - **迁移修复：** 包含 Windows 扫描忽略路径规范化、浏览器图标查找及三平台回归修复。
 
 ## English
@@ -18,6 +19,7 @@ The first public DiskCollie release after migrating from Memento brings the new 
 - **Windows:** x64 and arm64 NSIS installers with a selectable installation directory.
 - **Linux:** x64 and arm64 AppImage and DEB packages.
 - **Updates and verification:** architecture-aware update manifests, blockmaps and `SHA256SUMS.txt`; 19 release assets including checksums for all eight installers.
+- **Linux filenames:** x64 packages retain the native `x86_64.AppImage` and `amd64.deb` names so release collection and update URLs agree.
 - **Migration fixes:** includes Windows scan exclusion normalization, browser icon discovery and cross-platform regression fixes.
 
 ---

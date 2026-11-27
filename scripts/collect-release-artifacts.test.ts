@@ -40,9 +40,9 @@ async function createFixture(root: string): Promise<void> {
     ['macos-arm64', `DiskCollie-${version}-arm64.dmg`],
     ['windows-x64', `DiskCollie-${version}-x64.exe`],
     ['windows-arm64', `DiskCollie-${version}-arm64.exe`],
-    ['linux-x64', `DiskCollie-${version}-x64.AppImage`],
+    ['linux-x64', `DiskCollie-${version}-x86_64.AppImage`],
     ['linux-arm64', `DiskCollie-${version}-arm64.AppImage`],
-    ['linux-x64', `DiskCollie-${version}-x64.deb`],
+    ['linux-x64', `DiskCollie-${version}-amd64.deb`],
     ['linux-arm64', `DiskCollie-${version}-arm64.deb`]
   ]
   for (const [runner, name] of installers) await addArtifact(root, runner, name)
@@ -66,8 +66,8 @@ async function createFixture(root: string): Promise<void> {
   await addArtifact(root, 'windows-x64', 'latest.yml', manifest([`DiskCollie-${version}-x64.exe`]))
   await addArtifact(root, 'windows-arm64', 'latest.yml', manifest([`DiskCollie-${version}-arm64.exe`]))
   await addArtifact(root, 'linux-x64', 'latest-linux.yml', manifest([
-    `DiskCollie-${version}-x64.AppImage`,
-    `DiskCollie-${version}-x64.deb`
+    `DiskCollie-${version}-x86_64.AppImage`,
+    `DiskCollie-${version}-amd64.deb`
   ]))
   await addArtifact(root, 'linux-arm64', 'latest-linux-arm64.yml', manifest([
     `DiskCollie-${version}-arm64.AppImage`,
@@ -98,6 +98,18 @@ describe('release artifact collector', () => {
     expect(outputNames.filter((name) => /\.(exe|AppImage|deb)$/.test(name))).toHaveLength(6)
     expect(outputNames).toContain('latest.yml')
     expect(outputNames).toContain('latest-linux.yml')
+    expect(outputNames).toContain(`DiskCollie-${version}-x86_64.AppImage`)
+    expect(outputNames).toContain(`DiskCollie-${version}-amd64.deb`)
+    for (const name of ['latest.yml', 'latest-linux.yml', 'latest-linux-arm64.yml']) {
+      const manifest = load(await readFile(path.join(output, name), 'utf8')) as {
+        files: Array<{ url: string; sha512: string; size: number }>
+      }
+      for (const file of manifest.files) {
+        const contents = await readFile(path.join(output, file.url))
+        expect(contents.length).toBe(file.size)
+        expect(createHash('sha512').update(contents).digest('base64')).toBe(file.sha512)
+      }
+    }
     const checksums = (await readFile(path.join(output, 'SHA256SUMS.txt'), 'utf8')).trim().split('\n')
     expect(checksums).toHaveLength(8)
     expect(checksums.every((line) => !line.includes('.zip') && !line.includes('.blockmap'))).toBe(true)

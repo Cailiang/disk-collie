@@ -114,9 +114,9 @@ export async function collectReleaseArtifacts(
     { runner: 'macos-arm64', name: `DiskCollie-${version}-arm64.dmg` },
     { runner: 'windows-x64', name: `DiskCollie-${version}-x64.exe` },
     { runner: 'windows-arm64', name: `DiskCollie-${version}-arm64.exe` },
-    { runner: 'linux-x64', name: `DiskCollie-${version}-x64.AppImage` },
+    { runner: 'linux-x64', name: `DiskCollie-${version}-x86_64.AppImage` },
     { runner: 'linux-arm64', name: `DiskCollie-${version}-arm64.AppImage` },
-    { runner: 'linux-x64', name: `DiskCollie-${version}-x64.deb` },
+    { runner: 'linux-x64', name: `DiskCollie-${version}-amd64.deb` },
     { runner: 'linux-arm64', name: `DiskCollie-${version}-arm64.deb` }
   ]
   const updaterPayloads: ArtifactSource[] = [

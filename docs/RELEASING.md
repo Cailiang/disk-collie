@@ -15,6 +15,8 @@ The canonical repository and updater source is [Cailiang/disk-collie](https://gi
 
 The portable storage and process adapters are described in [Cross-platform rebuild](CROSS_PLATFORM_REBUILD.md). Release CI builds and collects every platform. Native `beforePack` compilation matches the package architecture and includes `native/source-revision.json` in Resources. Each build runner needs Rust and its native platform compiler.
 
+Linux x64 artifacts use Electron Builder's target-specific architecture names: `x86_64.AppImage` and `amd64.deb`. Linux arm64 artifacts use `arm64` for both formats. The collector preserves these filenames so update manifests reference the exact published payloads.
+
 Public macOS packages must be Developer ID signed, notarized and stapled. A complete public release has **19 assets**: eight installers (two DMG, two EXE, two AppImage, two DEB), two signed-app macOS ZIPs, four updater blockmaps, four update manifests and `SHA256SUMS.txt`. The checksum manifest covers eight installers. macOS and Windows manifests merge both architectures; Linux publishes x64 and arm64 manifests separately.
 
 The signer signs executable code, including the native engine. Chromium `.pak` data resources are covered by the enclosing bundle's resource seal and skipped as individual code-signing targets, avoiding hundreds of unnecessary timestamp requests. Strict verification of the complete bundle remains required.
