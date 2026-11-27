@@ -22,14 +22,13 @@ async function verifySceneryControls(page,game,directory){
 
 export async function verifyFullscreenGameLayout(browser,baseUrl,directory){
   const normal=[]
-  for(const [name,key]of [['大文件','large'],['深度清理','deep'],['隐私清理','privacy'],['终端优化','terminal']]){
+  for(const [name,key]of [['大文件','large'],['隐私清理','privacy'],['终端优化','terminal']]){
     const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[]
     page.on('pageerror',error=>errors.push(error.message))
     try{
       await page.clock.install();await page.goto(baseUrl+'?demoScanMs=90000')
       await page.locator('.nav-button').filter({hasText:name}).filter({visible:true}).click()
       if(key==='large')await page.locator('.space-large .space-heading .space-button.primary').click()
-      if(key==='deep')await page.locator('.deep-heading button').click()
       const game=page.locator('.scan-game:visible')
       await game.waitFor();await page.clock.pauseAt(await page.evaluate(()=>Date.now())+100);await settleGameViewport(page,game)
       assert.equal(await game.locator('.scan-game-modes>button').count(),3,`${key}: all scan pages must offer all three games`)
@@ -57,7 +56,7 @@ export async function verifyFullscreenGameLayout(browser,baseUrl,directory){
         previous={viewport,height:bounds.canvas.height}
       }
       await page.clock.runFor(91000);await game.waitFor({state:'hidden'})
-      const rescan=key==='terminal'?page.locator('.terminal-cleanup .cleanup-scan-button'):key==='deep'?page.locator('.deep-heading-actions>.space-button').last():key==='privacy'?page.locator('.privacy-page-heading .space-button'):page.locator('.space-large .space-heading .space-button.primary')
+      const rescan=key==='terminal'?page.locator('.terminal-cleanup .cleanup-scan-button'):key==='privacy'?page.locator('.privacy-page-heading .space-button'):page.locator('.space-large .space-heading .space-button.primary')
       await rescan.click();await game.waitFor();await settleGameViewport(page,game)
       const refreshHeight=await game.locator('.scan-game-canvas').evaluate(element=>element.getBoundingClientRect().height)
       await page.setViewportSize({width:1920,height:1080});await settleGameViewport(page,game)

@@ -405,7 +405,7 @@ export class StorageService {
           await Promise.all(locations.slice(offset,offset+8).map(async(location)=>{
             try{
               const stat=await snapshot(location),info=await inspectApplication(location,this.language(),false,false)
-              if(!info||info.bundleId==='com.fcl.diskcollie')return
+              if(!info)return
               let infoModified=0;try{infoModified=(await lstat(path.join(location,'Contents/Info.plist'))).mtimeMs}catch{/* Metadata fallback remains usable. */}
               const id=this.applicationId(location,info.name),previous=this.applications.get(id),system=location.startsWith('/System/')
               if(this.applicationOperations.has(id)){seen.add(id);return}
@@ -414,7 +414,7 @@ export class StorageService {
               if(changed){this.updates.delete(id);for(const [key,value] of this.related)if(value.applicationId===id)this.related.delete(key)}
               this.applicationFingerprints.set(id,fingerprint);this.metadata.set(id,info);seen.add(id)
               const measured=this.measuredApplicationFingerprints.get(id)===fingerprint
-              this.applications.set(id,{...previous,...(changed?{updateAvailable:false,latestVersion:null,updateSource:undefined,updateMode:undefined,updateCheckedAt:null}:{}),id,name:info.name,version:info.version,bundleId:info.bundleId,location,size:measured?previous?.size||info.sizeBytes:info.sizeBytes,lastUsedAt:info.lastUsedAt?.toISOString()||null,system,protected:system||location===app.getPath('exe').split('.app/')[0]+'.app',method:'trash',cached:false})
+              this.applications.set(id,{...previous,...(changed?{updateAvailable:false,latestVersion:null,updateSource:undefined,updateMode:undefined,updateCheckedAt:null}:{}),id,name:info.name,version:info.version,bundleId:info.bundleId,location,size:measured?previous?.size||info.sizeBytes:info.sizeBytes,lastUsedAt:info.lastUsedAt?.toISOString()||null,system,protected:system||info.bundleId==='com.fcl.diskcollie'||location===app.getPath('exe').split('.app/')[0]+'.app',method:'trash',cached:false})
             }catch{/* Unreadable or redirected bundles are excluded from live registration. */}
           }))
           this.publishApplications()

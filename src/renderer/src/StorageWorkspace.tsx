@@ -1,8 +1,5 @@
 import {ScanGame} from './ScanGame'
-import {DeepCleanWorkspace} from './DeepCleanWorkspace'
-import {demoDeepCleanScan,demoDeepCleanPreview} from './deep-clean-demo'
 import type {StorageDirectoryPlan} from '../../shared/storage-directory-types'
-import type {DeepCleanScan} from '../../shared/deep-clean-types'
 import {demoPrivacyItems,demoPrivacyPreview} from './privacy-demo'
 import type {PrivacyItem,PrivacyTimeRange} from '../../shared/privacy-types'
 import {useMessages} from './Messages'
@@ -26,8 +23,8 @@ import {selectExtraCopies} from '../../shared/duplicate-selection'
 import type {ApplicationInventoryState} from '../../shared/storage-types'
 import { selectedApplicationFiles } from '../../shared/application-files'
 
-export type StorageView = 'overview'|'health'|'large'|'duplicates'|'disk'|'privacy'|'apps'|'history'
-interface Confirmation { deep?:boolean; effects?:string[]; kind:StorageActivity['kind']; count:number; size:number; names:string[]; run:(options?:{skipRunning?:boolean})=>Promise<StorageActivity|null> }
+export type StorageView = 'overview'|'large'|'duplicates'|'disk'|'privacy'|'apps'|'history'
+interface Confirmation { effects?:string[]; kind:StorageActivity['kind']; count:number; size:number; names:string[]; run:(options?:{skipRunning?:boolean})=>Promise<StorageActivity|null> }
 const MB=1024**2
 export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren,activity,onActivity,onProcess}:{view:StorageView;active:boolean;metrics:OverviewMetrics|null;onNavigate:(view:AgentViewKey)=>void;historyChildren?:React.ReactNode;activity:StorageActivity|null;onActivity:(activity:StorageActivity)=>void;onProcess:(sort:'cpuPercent'|'memoryBytes')=>void}):React.JSX.Element {
   const {t,locale}=useI18n()
@@ -72,9 +69,6 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   useEffect(()=>{if(view!=='disk'||!mapRef.current)return;const observer=new ResizeObserver(([entry])=>{if(entry.contentRect.width>0&&entry.contentRect.height>0)setMapSize({width:entry.contentRect.width,height:entry.contentRect.height})});observer.observe(mapRef.current);return()=>observer.disconnect()},[view,active,index?.generation,folder?.id])
   const [groups,setGroups]=useState<DuplicateGroup[]|null>(null)
   const [cleanup,setCleanup]=useState<CleanupItem[]|null>(null)
-  const [deepScan,setDeepScan]=useState<DeepCleanScan|null>(null)
-  const [deepSelected,setDeepSelected]=useState<Set<string>>(new Set())
-  const demoDeepCleared=useRef(new Set<string>())
   const [privacy,setPrivacy]=useState<PrivacyItem[]|null>(null)
   const [privacyRange,setPrivacyRange]=useState<PrivacyTimeRange>('all')
   const [privacySkipRunning,setPrivacySkipRunning]=useState(false)
@@ -111,11 +105,11 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     const epoch=scopeEpoch.current
     if(window.diskCollie) void window.diskCollie.storageState().then((s)=>{if(epoch!==scopeEpoch.current)return;const retained=s.indexes[view==='disk'?'analysis':view==='large'||view==='duplicates'?view:'analysis'];setIndex(retained||null);setIncludeHidden(retained?.includeHidden??false);setHistory(s.history)}).catch((e)=>setError(readableTaskError(e)))
     else {setIndex(demoIndex);setHistory(demoHistory)}
-    const unsubscribe=window.diskCollie?.onStorageProgress((p)=>{if(!p.scope||p.scope===(view==='health'?'cleanup':view==='disk'?'analysis':view))setProgress(p)})
+    const unsubscribe=window.diskCollie?.onStorageProgress((p)=>{if(!p.scope||p.scope===(view==='disk'?'analysis':view))setProgress(p)})
     const stopScope=window.diskCollie?.onStorageScopeChanged(()=>{
       ++scopeEpoch.current;++querySequence.current;++detailsSequence.current;cancelled.current=true
       setIndex(null);setLarge([]);setLargeCount(0);setCategoryCounts({});setGroups(null);setFolder(null);setChildren([]);setBreadcrumbs([]);setMapFile(null);setMapOffset(0)
-      setSelected(new Set());setCleanup(null);setDeepScan(null);setDeepSelected(new Set());setPrivacy(null);setRuleSelected(new Set());setRelated([]);setRelatedSelected(new Set());setConfirmation(null)
+      setSelected(new Set());setCleanup(null);setPrivacy(null);setRuleSelected(new Set());setRelated([]);setRelatedSelected(new Set());setConfirmation(null)
       setBusy(false);setTask(null);setProgress(null);attempted.current.clear();duplicateAfterScan.current=null
     })
     return ()=>{mounted.current=false;++scopeEpoch.current;unsubscribe?.();stopScope?.()}
@@ -147,7 +141,6 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     setLargeCount((n)=>Math.max(0,n-large.filter((e)=>removed(e.path)).length))
     setGroups((prev)=>prev?.map((g)=>{const files=g.files.filter((e)=>!removed(e.path));return {...g,files,reclaimable:files.slice(1).reduce((n,e)=>n+e.allocated,0)}}).filter((g)=>g.files.length>1)||prev)
     const filterRules=(prev:CleanupItem[]|null):CleanupItem[]|null=>prev?.filter((r)=>!removed(r.path))||prev
-    if(activity.deepCleanIds?.length){const cleared=new Set(activity.deepCleanIds),failed=new Set(activity.errors?.map((error)=>error.path)||[]);setDeepSelected((previous)=>new Set([...previous].filter((id)=>!cleared.has(id))));setDeepScan((previous)=>previous?{...previous,items:previous.items.map((item)=>{const sources=item.sources.map((source)=>cleared.has(source.id)?failed.has(source.path)?{...source,status:'limited' as const}:{...source,size:0,count:0,status:'empty' as const}:source);return {...item,sources,size:sources.reduce((sum,source)=>sum+source.size,0),count:sources.reduce((sum,source)=>sum+source.count,0)}})}:previous)}
     setCleanup(filterRules);setPrivacy((previous)=>previous?.filter((item)=>!activity.privacyIds?.includes(item.id)&&!removed(item.path))||previous)
     if(mapFile&&removed(mapFile.path))setMapFile(null)
     setApplications((prev)=>prev?.filter((a)=>!removed(a.location))||prev)
@@ -178,12 +171,11 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     })
     if(result){if(view==='duplicates')duplicateAfterScan.current=result.generation;setIndex(result);setGroups(null);setSelected(new Set());setBreadcrumbs([]);setFolder(null)}
   }
-  const cancel=async():Promise<void>=>{cancelled.current=true;const active=await window.diskCollie?.storageCancel(view==='health'?'cleanup':view==='disk'?'analysis':view==='privacy'?'privacy':view==='duplicates'?'duplicates':'large');if(active&&task==='duplicates')setIndex(null)}
+  const cancel=async():Promise<void>=>{cancelled.current=true;const active=await window.diskCollie?.storageCancel(view==='disk'?'analysis':view==='privacy'?'privacy':view==='duplicates'?'duplicates':'large');if(active&&task==='duplicates')setIndex(null)}
   const loadCleanup=useCallback(async(isPrivacy:boolean,range:PrivacyTimeRange=privacyRange):Promise<void>=>{
     if(isPrivacy){const result=await runTask('cleanup',async()=>window.diskCollie?window.diskCollie.storagePrivacyScan(range):new Promise<PrivacyItem[]>((resolve)=>setTimeout(()=>resolve(demoPrivacyItems(range,demoPrivacyCleared.current)),demoScanMs)));if(result){setPrivacy(result);setRuleSelected(new Set())}}
     else{const result=await runTask('cleanup',async()=>window.diskCollie?window.diskCollie.storageCleanup(false):demoCleanup);if(result){setCleanup(result);setRuleSelected(new Set())}}
   },[runTask,privacyRange])
-  const loadDeep=async():Promise<void>=>{const result=await runTask('cleanup',async()=>window.diskCollie?window.diskCollie.storageDeepScan():new Promise<DeepCleanScan>((resolve)=>setTimeout(()=>resolve(demoDeepCleanScan(demoDeepCleared.current)),demoScanMs)));if(result){setDeepScan(result);setDeepSelected(new Set())}}
   const loadApps=useCallback(async():Promise<void>=>{
     const result=await runTask('apps',async()=>window.diskCollie?window.diskCollie.storageApplications(true):demoApps)
     if(result){setApplications(result);setApplication(null);setRelated([]);setRelatedSelected(new Set())}
@@ -250,22 +242,6 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     const size=plan?.allocated??entries.reduce((sum,entry)=>sum+entry.allocated,0)
     setConfirmation({kind,count:entries.length,size,names:entries.map((entry)=>entry.path),effects:plan?[t('disk.directoryContents',{files:plan.files,directories:plan.directories,hidden:plan.hiddenFiles})]:undefined,run:()=>window.diskCollie?window.diskCollie.storageTrash({generation:index.generation,ids:entries.map((entry)=>entry.id),kind,groupId:group?.id,directoryPlanId:plan?.id}):fakeActivity(kind,entries.length,size,entries.map((entry)=>entry.path))})
   }
-  const confirmDeep=():void=>{
-    if(!deepScan)return
-    const sources=deepScan.items.flatMap((item)=>item.sources.filter((source)=>deepSelected.has(source.id)&&['ready','requires-close'].includes(source.status)).map((source)=>({item,source})))
-    if(!sources.length)return
-    setPrivacySkipRunning(false)
-    const localized=(value:{zh:string;en:string}):string=>locale==='zh-CN'?value.zh:value.en
-    setConfirmation({deep:true,kind:'cleanup',count:sources.length,size:sources.reduce((sum,entry)=>sum+entry.source.size,0),names:sources.map(({item,source})=>`${localized(item.name)} · ${source.path}`),effects:[...new Set(sources.map(({item})=>localized(item.description)))],run:async(options)=>{
-      if(window.diskCollie)return window.diskCollie.storageDeepClean({ids:sources.map(({source})=>source.id),skipRunning:Boolean(options?.skipRunning)})
-      const running=sources.filter(({source})=>source.status==='requires-close')
-      if(running.length&&!options?.skipRunning)throw new Error(t('deep.closeApplications'))
-      const actionable=sources.filter((entry)=>!running.includes(entry))
-      const result=await fakeActivity('cleanup',actionable.length,actionable.reduce((sum,entry)=>sum+entry.source.size,0),actionable.map(({source})=>source.path))
-      for(const {source} of actionable)demoDeepCleared.current.add(source.id)
-      return {...result,deepCleanIds:actionable.map(({source})=>source.id),removedPaths:actionable.map(({source})=>source.path),traces:actionable.reduce((sum,entry)=>sum+entry.source.count,0),skipped:running.length,unchanged:0}
-    }})
-  }
   const confirmClean=():void=>{
     if(view==='privacy'){
       const items=(privacy||[]).filter((item)=>ruleSelected.has(item.id)&&item.capability==='ready')
@@ -308,7 +284,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const scanButtons=<div className="space-actions"><button className="space-button primary" disabled={busy} onClick={()=>void scan()}><Search size={16}/>{t(index?'common.rescan':'common.scan')}</button></div>
   const scanPrompt=<div className="space-start"><HardDrive size={32}/><h2>{t('scan.fullDisk')}</h2>{scanButtons}</div>
   const scanStatus=index&&<div className="space-scan-status"><CheckCircle2 size={14}/><span>{t('scan.ready',{count:index.entries.toLocaleString(locale),seconds:(index.elapsedMs/1000).toFixed(2)})}</span><code title={index.root?.path}>{index.root?.path}</code>{view!=='disk'&&(index.errors>0||index.skipped>0)&&<WorkspaceHelp>{t('scan.coverage',{errors:index.errors,skipped:index.skipped})}</WorkspaceHelp>}</div>
-  const progressLabel=t(progress?.phase==='queued'?'scan.queued':task==='scan'?`scan.${view==='disk'?'analysis':view==='duplicates'?'duplicates':'large'}`:task==='duplicates'?`scan.${progress?.phase==='hashing'?'hashing':'sampling'}`:view==='privacy'?'privacy.loading':view==='health'?'deep.scanning':'common.working')
+  const progressLabel=t(progress?.phase==='queued'?'scan.queued':task==='scan'?`scan.${view==='disk'?'analysis':view==='duplicates'?'duplicates':'large'}`:task==='duplicates'?`scan.${progress?.phase==='hashing'?'hashing':'sampling'}`:view==='privacy'?'privacy.loading':'common.working')
   const taskProgress=busy&&task!=='related'&&task!=='apps'&&<div className="space-progress space-progress-game"><div className="space-progress-heading"><div className="space-progress-copy" role="status" aria-live="polite"><strong>{progressLabel}</strong><span>{progress?.phase==='queued'?t('scan.waiting'):progress?`${progress.entries.toLocaleString(locale)}${progress.total!==undefined?` / ${progress.total.toLocaleString(locale)}`:''} · ${(progress.elapsedMs/1000).toFixed(1)} s`:'—'}</span><small title={progress?.path}>{progress?.path}</small><div className={`space-progress-track ${progress?.total?'is-measured':''}`} role="progressbar" aria-label={progressLabel} aria-valuenow={progress?.total?Math.round(progress.entries/progress.total*100):undefined} aria-valuemin={0} aria-valuemax={100}><i style={progress?.total?{width:`${progress.entries/progress.total*100}%`}:undefined}/></div></div>{(task==='scan'||task==='duplicates'||progress?.phase==='queued')&&<button className="space-button" onClick={()=>void cancel()}>{t('common.cancel')}</button>}</div><ScanGame initialMode={view==='duplicates'?'pond':view==='disk'||view==='privacy'?'frisbee':'runner'}/></div>
   const categories=(counts:Record<string,number>):React.JSX.Element=><div className="space-category-tabs" role="group" aria-label={t('compact.categories')}>{(['all',...Object.keys(fileCategories),'other'] as const).map((key)=><button key={key} className={category===key?'is-active':''} onClick={()=>{setCategory(key as typeof category);setOffset(0);setSelected(new Set());setGroupLimit(40)}}>{t(`category.${key}`)}<small>{key==='all'?Object.values(counts).reduce((a,b)=>a+b,0):counts[key]||0}</small></button>)}</div>
   const activityRows=(records:StorageActivity[]):React.JSX.Element=><div className="space-activity">{records.map((r)=><div className="space-activity-row" key={r.id}><span className={`space-activity-icon ${r.failures?'has-error':''}`}>{r.kind==='privacy'?<ShieldCheck size={19}/>:r.kind==='cleanup'?<Sparkles size={19}/>:<Trash2 size={19}/>}</span><div><strong>{t(`history.${r.kind}`)}</strong><small>{formatDate(r.date)} · {t('history.items',{count:r.items})}{r.failures>0&&` · ${t('history.failures',{count:r.failures})}`}</small></div><b>{bytes(r.bytes)}</b><Check size={15}/></div>)}</div>
@@ -367,7 +343,6 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
 
       </>}
     </>}
-    {view==='health'&&<DeepCleanWorkspace scan={deepScan} selected={deepSelected} bytes={bytes} loading={busy} onScan={()=>void loadDeep()} onCancel={()=>void cancel()} onToggle={(ids,checked)=>setDeepSelected((previous)=>{const next=new Set(previous);for(const id of ids)if(checked)next.add(id);else next.delete(id);return next})} onClear={()=>setDeepSelected(new Set())} onReview={confirmDeep} preview={async(id,offset)=>window.diskCollie?window.diskCollie.storageDeepPreview({id,offset}):demoDeepCleanPreview(id,offset)} reveal={async(id,path)=>{if(window.diskCollie)await window.diskCollie.storageDeepReveal({id,path});else setNotice(t('common.reveal'))}} icon={async(id)=>window.diskCollie?window.diskCollie.storageDeepIcon(id):null} onPermissions={()=>{if(window.diskCollie)return window.diskCollie.storagePrivacyPermissions().catch((error)=>setError(readableTaskError(error)));setNotice(t('privacy.permissionsDemo'))}} progress={taskProgress}/>}
 
     {view==='privacy'&&<PrivacyWorkspace rules={privacy||[]} selected={ruleSelected} onToggle={(ids,checked)=>setRuleSelected((previous)=>{const next=new Set(previous);for(const id of ids)if(checked)next.add(id);else next.delete(id);return next})} bytes={bytes} loading={busy} range={privacyRange} onRangeChange={(range)=>{setPrivacyRange(range);void loadCleanup(true,range)}} onRefresh={()=>void loadCleanup(true)} onReview={confirmClean} onClear={()=>setRuleSelected(new Set())} preview={async(id,offset)=>window.diskCollie?window.diskCollie.storagePrivacyPreview({id,offset}):demoPrivacyPreview(id,privacyRange,offset)} onPermissions={()=>{if(window.diskCollie)void window.diskCollie.storagePrivacyPermissions().catch((error)=>setError(readableTaskError(error)));else setNotice(t('privacy.permissionsDemo'))}} progress={taskProgress}/>}
 
@@ -381,7 +356,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
       <button className="space-ledger-toggle space-button" aria-expanded={ledgerOpen} onClick={()=>setLedgerOpen(!ledgerOpen)}>{t('history.ai')}<ChevronRight size={16}/></button>{ledgerOpen&&historyChildren}
     </>}
     {(confirmation||completed)&&<StorageDialog title={completed?t(completed.failures?'confirm.failed':'common.complete'):t(executing?'cleaning.title':'confirm.title')} dismiss={()=>{if(!executing){setConfirmation(null);setCompleted(null)}}}>
-      {executing&&confirmation?<CleanupAnimation confirmation={confirmation} progress={progress} bytes={bytes}/>:completed?<><span className="space-dialog-success"><CheckCircle2 size={35}/></span><h3>{t('confirm.completed',{count:completed.items,size:bytes(completed.bytes)})}</h3>{(completed.kind==='privacy'||completed.deepCleanIds!==undefined)&&<p>{t(completed.kind==='privacy'?'privacy.cleanedTraces':'deep.cleanedFiles',{count:completed.traces||0})}{Boolean(completed.skipped)&&' · '+t('privacy.skippedItems',{count:completed.skipped!})}{Boolean(completed.unchanged)&&' · '+t('privacy.unchangedItems',{count:completed.unchanged!})}</p>}{completed.failures>0&&<p role="alert">{t('common.failed',{count:completed.failures})}</p>}{completed.errors?.map((error)=><p className="space-result-error" key={error.path}>{error.path} · {error.message}</p>)}<p>{t(completed.kind==='cleanup'||completed.kind==='privacy'?'history.note':'home.trashNote')}</p><footer><button className="space-button primary" autoFocus onClick={()=>setCompleted(null)}>{t('confirm.finish')}</button></footer></>:confirmation&&<><p>{t('confirm.description',{count:confirmation.count,size:bytes(confirmation.size)})}</p>{confirmation.effects&&<div className="space-confirm-effects">{confirmation.effects.map((effect)=><p key={effect}>{effect}</p>)}</div>}{(confirmation.kind==='privacy'||confirmation.deep)&&<label className="privacy-confirm-skip"><input type="checkbox" checked={privacySkipRunning} onChange={(event)=>setPrivacySkipRunning(event.target.checked)}/>{t(confirmation.deep?'deep.skipRunning':'privacy.skipRunning')}</label>}<div className="space-dialog-files">{confirmation.names.map((name)=><div key={name}><File size={16}/><span>{name}</span></div>)}</div><div className="space-dialog-consequence"><CircleHelp size={19}/><p>{t(confirmation.deep?'deep.confirmMethods':confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'cleanup.permanent':confirmation.kind==='uninstall'?'confirm.uninstall':'confirm.trash')}{confirmation.kind==='duplicates'&&` ${t('duplicates.confirm')}`}</p></div><footer><button className="space-button" autoFocus disabled={executing} onClick={()=>setConfirmation(null)}>{t('common.cancel')}</button><button className="space-button danger" disabled={executing} onClick={()=>void execute()}>{executing?<><LoaderCircle className="spinner" size={16}/>{t('common.working')}</>:t(confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'common.clean':'common.trash')}</button></footer></>}
+      {executing&&confirmation?<CleanupAnimation confirmation={confirmation} progress={progress} bytes={bytes}/>:completed?<><span className="space-dialog-success"><CheckCircle2 size={35}/></span><h3>{t('confirm.completed',{count:completed.items,size:bytes(completed.bytes)})}</h3>{completed.kind==='privacy'&&<p>{t('privacy.cleanedTraces',{count:completed.traces||0})}{Boolean(completed.skipped)&&' · '+t('privacy.skippedItems',{count:completed.skipped!})}{Boolean(completed.unchanged)&&' · '+t('privacy.unchangedItems',{count:completed.unchanged!})}</p>}{completed.failures>0&&<p role="alert">{t('common.failed',{count:completed.failures})}</p>}{completed.errors?.map((error)=><p className="space-result-error" key={error.path}>{error.path} · {error.message}</p>)}<p>{t(completed.kind==='cleanup'||completed.kind==='privacy'?'history.note':'home.trashNote')}</p><footer><button className="space-button primary" autoFocus onClick={()=>setCompleted(null)}>{t('confirm.finish')}</button></footer></>:confirmation&&<><p>{t('confirm.description',{count:confirmation.count,size:bytes(confirmation.size)})}</p>{confirmation.effects&&<div className="space-confirm-effects">{confirmation.effects.map((effect)=><p key={effect}>{effect}</p>)}</div>}{confirmation.kind==='privacy'&&<label className="privacy-confirm-skip"><input type="checkbox" checked={privacySkipRunning} onChange={(event)=>setPrivacySkipRunning(event.target.checked)}/>{t('privacy.skipRunning')}</label>}<div className="space-dialog-files">{confirmation.names.map((name)=><div key={name}><File size={16}/><span>{name}</span></div>)}</div><div className="space-dialog-consequence"><CircleHelp size={19}/><p>{t(confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'cleanup.permanent':confirmation.kind==='uninstall'?'confirm.uninstall':'confirm.trash')}{confirmation.kind==='duplicates'&&` ${t('duplicates.confirm')}`}</p></div><footer><button className="space-button" autoFocus disabled={executing} onClick={()=>setConfirmation(null)}>{t('common.cancel')}</button><button className="space-button danger" disabled={executing} onClick={()=>void execute()}>{executing?<><LoaderCircle className="spinner" size={16}/>{t('common.working')}</>:t(confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'common.clean':'common.trash')}</button></footer></>}
     </StorageDialog>}
   </div>
 }

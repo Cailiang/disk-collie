@@ -22,9 +22,9 @@ macOS packages are signed and notarized. [SHA-256 checksums](https://github.com/
 
 ![Space explorer with a folder tree and an interactive disk map](docs/screenshots/space-explorer-en.png)
 
-## Review before cleaning
+## Manage your applications
 
-![Deep cleanup with measured cache sources and selected items ready for review](docs/screenshots/deep-cleanup-en.png)
+![Application manager with installed apps, sizes and update controls](docs/screenshots/applications-en.png)
 
 Screenshots use demo data. Also includes large files, duplicate search, privacy cleanup, app management and an optional AI advisor.
 

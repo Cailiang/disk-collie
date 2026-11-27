@@ -1826,9 +1826,9 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     setRunStatusMessage('')
   }
   const agentOriginLabel = agentOrigin?.view === 'task'
-    ? appText(`nav.${agentOrigin.source==='overview'?'home':agentOrigin.source==='health'?'cleanup':agentOrigin.source}`)
+    ? appText(`nav.${agentOrigin.source==='overview'?'home':agentOrigin.source}`)
     : agentOrigin?.view === 'storage'
-    ? appText(`nav.${agentOrigin.source==='health'?'cleanup':agentOrigin.source}`)
+    ? appText(`nav.${agentOrigin.source}`)
     : agentOrigin?.view === 'overview'
     ? appText('nav.processes')
     : agentOrigin?.view === 'apps'
@@ -1899,7 +1899,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
         onIgnore={setPendingIgnore}
         onManageIgnored={openIgnoredManager}
       />}
-      {(['overview','health','large','duplicates','disk','privacy','apps'] as StorageView[]).map((storageView)=><div key={storageView} hidden={view!==storageView}>
+      {(['overview','large','duplicates','disk','privacy','apps'] as StorageView[]).map((storageView)=><div key={storageView} hidden={view!==storageView}>
         <StorageWorkspace view={storageView} active={view===storageView} metrics={overviewMetrics} onProcess={(sort)=>{setProcessEntry({sort,token:Date.now()});setView('processes')}} onNavigate={setView} activity={storageActivity} onActivity={setStorageActivity} />
       </div>)}
       {view==='settings'&&aiSetupOrigin&&<div className="ai-setup-return"><button className="space-button" onClick={()=>{viewScroll.current.set(aiSetupOrigin.source,aiSetupOrigin.scrollTop);setView(aiSetupOrigin.source);setAiSetupOrigin(null)}}><ArrowLeft size={15}/>{appText('tasks.return',{page:appText(`nav.${aiSetupOrigin.source==='overview'?'home':aiSetupOrigin.source==='health'?'cleanup':aiSetupOrigin.source}`)})}</button><span>{appText(aiSetupOrigin.source==='agent'?'advisor.setupReturn':'tasks.resumeAfterSetup')}</span></div>}

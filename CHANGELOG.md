@@ -4,6 +4,22 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.28 - 2026-11-27
+
+### English
+
+- Remove the Deep cleanup workspace and sidebar entry. Overview now links directly to Large files; refresh the screenshot-led documentation and UI coverage.
+- Include DiskCollie in the macOS user application inventory while keeping self-update/removal protected in Application manager.
+- Batch Windows directory metadata and file IDs. Below-threshold files no longer require individual metadata handles during large-file discovery; retain hardlink allocation accounting, strict candidate/removal validation and a standard-reader fallback.
+- Add malformed-record, Windows metadata/hardlink and large-file parity checks with a 20,000-file fixture. Fixture timings are not a full-disk performance guarantee.
+
+### 简体中文
+
+- 删除“深度清理”页面和侧栏入口，首页直接进入大文件，同步更新截图文档与界面覆盖。
+- 修复 macOS 应用管理主动过滤 DiskCollie 自身的问题；在用户应用列表显示，仍保护自身更新与卸载操作。
+- Windows 改为批量读取目录元数据和文件标识；大文件发现不再逐个打开低于阈值的小文件，保留硬链接空间去重、候选与删除前严格核验，以及标准遍历回退。
+- 新增异常目录记录、Windows 元数据／硬链接、两万文件大文件扫描一致性验证；样本耗时不代表整盘性能承诺。
+
 ## 1.0.27 - 2026-11-27
 
 ### English

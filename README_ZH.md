@@ -22,9 +22,9 @@ macOS 安装包已签名并公证。[SHA-256 校验和](https://github.com/Caili
 
 ![空间分析：目录树与可交互的磁盘占用图](docs/screenshots/space-explorer-zh.png)
 
-## 选好要清理的，再确认
+## 安装了哪些应用，清楚掌握
 
-![深度清理：按来源查看缓存大小，勾选后核对清理](docs/screenshots/deep-cleanup-zh.png)
+![应用管理：查看已安装应用、体积与更新操作](docs/screenshots/applications-zh.png)
 
 截图使用演示数据。还支持大文件、重复文件、隐私清理、应用管理与可选的 AI 清理顾问。
 

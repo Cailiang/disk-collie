@@ -30,8 +30,16 @@ fn scan_path_key(value: &Path) -> std::path::PathBuf {
 }
 #[cfg(target_os = "macos")]
 mod macos_bulk;
+#[cfg(any(windows, test))]
+mod windows_bulk;
 
-fn read_directory(directory: &Path, parent: usize) -> (Vec<Entry>, usize, usize) {
+fn read_directory(directory: &Path, parent: usize, _minimum: Option<u64>) -> (Vec<Entry>, usize, usize) {
+    #[cfg(windows)]
+    if std::env::var_os("DISKCOLLIE_STANDARD_READDIR").is_none() {
+        if let Ok((entries, skipped)) = windows_bulk::read(directory, parent, _minimum.unwrap_or(0)) {
+            return (entries, 0, skipped);
+        }
+    }
     #[cfg(target_os = "macos")]
     if std::env::var_os("DISKCOLLIE_STANDARD_READDIR").is_none() {
         if let Ok((entries, skipped)) = macos_bulk::read(directory, parent) {
@@ -312,7 +320,7 @@ impl Index {
                 .collect();
             let results: Vec<_> = batch
                 .par_iter()
-                .map(|(id, p)| read_directory(Path::new(p), *id))
+                .map(|(id, p)| read_directory(Path::new(p), *id, if self.mode == "analysis" { None } else { Some(minimum) }))
                 .collect();
             for (children, errors, skipped) in results {
                 self.errors += errors;
@@ -340,7 +348,7 @@ impl Index {
                             continue;
                         }
                     } else {
-                        if record.links > 1 && !hardlinks.insert((record.volume, record.file)) {
+                        if record.links != 1 && !hardlinks.insert((record.volume, record.file)) {
                             record.allocated = 0;
                         }
                         let retain = self.mode == "analysis"
@@ -792,7 +800,7 @@ fn handle(index: &mut Index, req: &Request) -> Result<Value, String> {
                         Err(_) => errors += 1,
                     }
                     while let Some(path) = pending.pop() {
-                        let (entries, failed, skipped) = read_directory(&path, 0);
+                        let (entries, failed, skipped) = read_directory(&path, 0, None);
                         errors += failed + skipped;
                         for entry in entries {
                             if entry.directory {

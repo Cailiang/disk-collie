@@ -228,7 +228,7 @@ export function AgentPage({
               <button type="button" disabled={preparing||busy} onClick={()=>{setInput(text('advisor.fileDraft'));composerRef.current?.focus()}}><NavigationIcon kind="large" size={23}/><span><strong>{text('advisor.file')}</strong><small>{text('advisor.fileDetail')}</small></span><ArrowUp size={16}/></button>
               <button type="button" onClick={()=>onNavigate('apps')}><NavigationIcon kind="apps" size={23}/><span><strong>{text('advisor.apps')}</strong><small>{text('advisor.appsDetail')}</small></span><ArrowUp size={16}/></button>
             </div>
-            <div className="advisor-source-links"><span>{text('advisor.fromResults')}</span>{(['large','health','disk'] as const).map((source)=><button type="button" key={source} onClick={()=>onNavigate(source)}><NavigationIcon kind={source} size={16}/>{text(`nav.${source==='health'?'cleanup':source}`)}</button>)}</div>
+            <div className="advisor-source-links"><span>{text('advisor.fromResults')}</span>{(['large','disk'] as const).map((source)=><button type="button" key={source} onClick={()=>onNavigate(source)}><NavigationIcon kind={source} size={16}/>{text(`nav.${source}`)}</button>)}</div>
           </div>}
           {preparing&&<div className="advisor-preparing" role="status"><LoaderCircle className="spinner" size={16} aria-hidden="true"/><span>{text('advisor.preparing')}</span></div>}
           {conversationRuns.map((conversationRun) => {

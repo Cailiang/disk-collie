@@ -32,8 +32,8 @@
 .space-progress-game>.scan-game { flex:1; }
 .space-progress-game .space-progress-heading>.space-button { flex-shrink:0; }
 .space-workspace:has(>.space-progress-game) { min-height:calc(100dvh - 80px); }
-.deep-clean-page:has(.space-progress-game),.privacy-page:has(.space-progress-game) { min-height:calc(100dvh - 112px); }
-.deep-clean-page:has(.space-progress-game):not(:has(.deep-workspace))>.space-progress-game,.privacy-page:has(.space-progress-game):not(:has(.privacy-workspace))>.space-progress-game { flex:1; }
+.privacy-page:has(.space-progress-game) { min-height:calc(100dvh - 112px); }
+.privacy-page:has(.space-progress-game):not(:has(.privacy-workspace))>.space-progress-game { flex:1; }
 @media(max-width:700px) {
   .space-progress.space-progress-game { padding:15px 14px 8px; min-height:max(365px,calc(100dvh - 320px)); gap:5px; }
   .space-progress-game>.space-progress-heading { gap:10px; align-items:flex-start; flex-wrap:wrap; }
@@ -50,7 +50,7 @@
   .scan-game-overlay>span { font-size:10px; }
   .scan-game-hint { font-size:10px; padding-bottom:12px; }
   .scan-game-hint small { display:none; }
-  .deep-clean-page:has(.space-progress-game),.privacy-page:has(.space-progress-game) { min-height:calc(100dvh - 180px); }
+  .privacy-page:has(.space-progress-game) { min-height:calc(100dvh - 180px); }
   .space-workspace:has(>.space-progress-game) { min-height:calc(100dvh - 125px); }
 }
 

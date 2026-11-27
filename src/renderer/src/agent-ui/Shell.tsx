@@ -14,7 +14,7 @@ export function Shell({ activeView, provider, appVersion, updateState, hostname,
   onNavigate:(view:AgentViewKey)=>void; onInstallUpdate:()=>void; children:React.ReactNode
 }):React.JSX.Element {
   const {t}=useI18n()
-  const storage=[{id:'health',key:'cleanup'},{id:'large',key:'large'},{id:'duplicates',key:'duplicates'},{id:'disk',key:'disk'},{id:'privacy',key:'privacy'}] as const
+  const storage=[{id:'large',key:'large'},{id:'duplicates',key:'duplicates'},{id:'disk',key:'disk'},{id:'privacy',key:'privacy'}] as const
   const tools=[{id:'apps',key:'apps'},{id:'processes',key:'processes'},{id:'terminal',key:'terminal'},{id:'agent',key:'agent'}] as const
   const utility=[{id:'settings',key:'settings'}] as const
   const nav=(item:{id:AgentViewKey;key:string}):React.JSX.Element=><button key={item.id} type="button" className={`nav-button ${activeView===item.id?'is-active':''}`} title={t(`nav.${item.key}`)} aria-current={activeView===item.id?'page':undefined} onClick={()=>onNavigate(item.id)}><NavigationIcon kind={item.id}/><span>{t(`nav.${item.key}`)}</span>{activeView===item.id&&<i/>}</button>
