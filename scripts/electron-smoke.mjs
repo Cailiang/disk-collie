@@ -233,7 +233,7 @@ try{
   await electronApp.close();electronApp=await launch(smokePrivacyRoot);const privacyRestarted=await electronApp.firstWindow();await privacyRestarted.locator('.nav-button[title="首页"]').waitFor({timeout:20000});const persistedPrivacy=await privacyRestarted.evaluate(()=>window.diskCollie.storageState());assert(persistedPrivacy.history.some(record=>record.kind==='privacy'&&record.items===privacyOutcome.selected&&record.traces===privacyOutcome.traces),'Verified privacy outcomes must persist after restart')
   console.log(`Electron smoke passed: production IPC, native scan (${state.index.elapsedMs}ms), tree file actions, physical ASAR directory review and changed-archive rejection, cross-group duplicate batch guard and real Trash operations on owned fixtures, persisted activity, ${metrics.processes.length} processes, ${applicationCount} applications, registered application actions, queued app/config uninstall with hidden explorer reconciliation, read-only real privacy scan, ${privacyOutcome.traces} owned privacy traces, encrypted provider editing. Version ${version}.`)
 }finally{
-  ownedStartup.cleanup()
+  try{ownedStartup.cleanup()}catch(error){console.error('Startup fixture cleanup failed',error);process.exitCode=1}
   if(ownedWorker?.exitCode===null&&!ownedWorker.signalCode)ownedWorker.kill('SIGKILL')
   await electronApp?.close().catch(()=>undefined)
   rmSync(profile,{recursive:true,force:true});rmSync(fixture,{recursive:true,force:true});rmSync(smokePrivacyRoot,{recursive:true,force:true});if(ownedAppRoot)rmSync(ownedAppRoot,{recursive:true,force:true});if(ownedSupport)rmSync(ownedSupport,{recursive:true,force:true});if(ownedPreferences)rmSync(ownedPreferences,{force:true})

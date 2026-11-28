@@ -9,7 +9,7 @@ export function startupFixture(){
   const root=mkdtempSync(path.join(tmpdir(),'diskcollie-startup-smoke-')),prefix='dev.diskcollie.smoke.'+randomUUID().replaceAll('-',''),names={live:prefix+'.live',orphan:prefix+'.orphan',protected:prefix+'.protected'},program=path.join(root,process.platform==='win32'?'keep-program.txt':'keep-program.sh'),missing=path.join(root,'missing-program')
   writeFileSync(program,'#!/bin/sh\nexit 0\n');chmodSync(program,0o700)
   const files={}
-  const ps=source=>execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(source,'utf16le').toString('base64')],{timeout:15000,windowsHide:true,encoding:'utf8'})
+  const ps=source=>execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from("$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';"+source,'utf16le').toString('base64')],{timeout:15000,windowsHide:true,encoding:'utf8'})
   const escape=value=>value.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
   const realTarget=process.platform==='win32'?process.execPath:program
   const writeLive=target=>{
@@ -39,7 +39,7 @@ export function startupFixture(){
   return {root,names,program,files,realTarget,writeLive,cleanup(){
     if(process.platform==='win32'){
       const payload=Buffer.from(JSON.stringify(Object.values(names))).toString('base64')
-      ps(`$names=ConvertFrom-Json ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}')));foreach($n in $names){Remove-ItemProperty -LiteralPath 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name $n -ErrorAction SilentlyContinue;Remove-ItemProperty -LiteralPath 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run' -Name $n -ErrorAction SilentlyContinue}`)
+      ps(`$names=ConvertFrom-Json ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}')));foreach($path in @('Software\\Microsoft\\Windows\\CurrentVersion\\Run','Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run')){$key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($path,$true);if($key){try{foreach($n in $names){$key.DeleteValue($n,$false)}}finally{$key.Dispose()}}}`)
     }else if(process.platform==='darwin')for(const name of [names.live,names.orphan])try{execFileSync('/bin/launchctl',['enable',`gui/${process.getuid()}/${name}`],{timeout:5000})}catch{}
     rmSync(root,{recursive:true,force:true})
   }}
