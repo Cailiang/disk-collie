@@ -1165,7 +1165,7 @@
   "game.over": "Another round?",
   "game.paused": "Paused",
   "game.guide.runner": "Time your jumps. Run under high birds",
-  "game.guide.frisbee": "High, low and curved flights. Chain catches for bonuses",
+  "game.guide.frisbee": "Misses break your streak; keep playing for as long as you like",
   "game.guide.pond": "Cross streams and land on stones and islands",
   "game.tap": "or click / tap",
   "game.space": "Space",
@@ -1189,5 +1189,10 @@
   "game.lightChoice": "Game lighting",
   "game.autoScene": "Auto · {name}",
   "game.autoLight": "Auto · {name}",
-  "game.terminalScan": "Terminal scan progress"
+  "game.terminalScan": "Terminal scan progress",
+  "common.deleteSelected": "Delete selected items",
+  "cleaning.queued": "Waiting to remove selected items",
+  "cleaning.waiting": "Removal will continue when the current file operation finishes.",
+  "apps.uninstalling": "Uninstalling selected items",
+  "game.caught": "Caught {count}"
 }

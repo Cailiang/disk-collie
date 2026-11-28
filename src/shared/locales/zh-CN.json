@@ -1165,7 +1165,7 @@
   "game.over": "再来一局",
   "game.paused": "已暂停",
   "game.guide.runner": "看准障碍起跳，高飞鸟可从下方通过",
-  "game.guide.frisbee": "高抛、低掠、回旋；连击加分",
+  "game.guide.frisbee": "漏接只中断连击，可以持续游玩",
   "game.guide.pond": "跨过溪流，利用石台和岛屿落脚",
   "game.tap": "也可点击或轻触",
   "game.space": "空格",
@@ -1189,5 +1189,10 @@
   "game.lightChoice": "游戏光照",
   "game.autoScene": "自动 · {name}",
   "game.autoLight": "自动 · {name}",
-  "game.terminalScan": "终端检查进度"
+  "game.terminalScan": "终端检查进度",
+  "common.deleteSelected": "删除所选项目",
+  "cleaning.queued": "正在等待文件操作",
+  "cleaning.waiting": "其他文件操作完成后将自动继续。",
+  "apps.uninstalling": "正在卸载所选项目",
+  "game.caught": "已接住 {count} 个"
 }

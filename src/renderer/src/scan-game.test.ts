@@ -40,8 +40,17 @@ describe('varied one-button scan games',()=>{
     const paused=pauseGame(state);expect(advanceGame(paused,.1)).toBe(paused);expect(gameAction(paused)).toEqual({...state,phase:'running'})
     const retry=gameAction({...state,phase:'over',score:40});expect(retry.phase).toBe('running');expect(retry.score).toBe(0);expect(retry.objects).toEqual([])
   })
-  it('ends unplayed rounds on obstacles, empty frisbee groups or water',()=>{
-    for(const mode of gameModes){const state=play(gameAction(createGame(mode,1)),35);expect(state.phase,mode).toBe('over');if(mode==='frisbee')expect(state.missed).toBe(3)}
+  it('ends unplayed runner and pond rounds on obstacles or water',()=>{
+    for(const mode of ['runner','pond'] as const){const state=play(gameAction(createGame(mode,1)),35);expect(state.phase,mode).toBe('over')}
+  })
+  it('keeps frisbee running beyond 30 seconds despite repeated misses and resumes scoring',()=>{
+    let state=play({...gameAction(createGame('frisbee',42)),points:50,combo:4},65)
+    expect(state.phase).toBe('running');expect(state.time).toBeCloseTo(65,1)
+    expect(state.missed).toBeGreaterThan(3);expect(state.combo).toBe(0);expect(state.score).toBeGreaterThanOrEqual(50)
+    const caught=state.caught
+    state=play(state,55,true)
+    expect(state.phase).toBe('running');expect(state.time).toBeCloseTo(120,1)
+    expect(state.caught).toBeGreaterThan(caught);expect(state.score).toBeGreaterThan(50)
   })
   it('keeps two-minute rounds playable across seeds while introducing every pattern and scene',()=>{
     for(const mode of gameModes)for(const seed of [1,7,42,905,6001,20261127]){

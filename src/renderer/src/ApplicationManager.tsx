@@ -44,8 +44,9 @@ export function ApplicationManager(props:Props):React.JSX.Element {
     }catch(e){onError(String(e))}finally{setUpdating(operations.current.activeIds('update'))}
   }
   const loadChildren=async(file:RelatedApplicationFile,offset=0):Promise<void>=>{
+    if(busy)return
     const currentId=application?.id;setLoading(file.id)
-    try {const result=window.diskCollie?await window.diskCollie.storageRelatedChildren({id:file.id,offset}):{items:demoRelatedChildren(file),more:false};if(currentId!==currentApplication.current)return;onFiles([...new Map([...files,...result.items].map((f)=>[f.id,f])).values()]);setLoaded((prev)=>new Map(prev).set(file.id,{more:result.more,offset:offset+100}))}catch(e){onError(String(e))}finally{setLoading(null)}
+    try {const result=window.diskCollie?await window.diskCollie.storageRelatedChildren({id:file.id,offset}):{items:demoRelatedChildren(file),more:false};if(currentId!==currentApplication.current)return;onFiles([...new Map([...files,...result.items].map((f)=>[f.id,f])).values()]);setLoaded((prev)=>new Map(prev).set(file.id,{more:result.more,offset:offset+100}))}catch(e){if(currentId===currentApplication.current)onError(String(e))}finally{if(currentId===currentApplication.current)setLoading(null)}
   }
   const currentApplication=useRef(application?.id);currentApplication.current=application?.id
   const selectedFiles=selectedApplicationFiles(files,selected)
@@ -55,7 +56,7 @@ export function ApplicationManager(props:Props):React.JSX.Element {
     const change=():void=>{const next=new Set(selected);if(checked)next.delete(file.id);else next.add(file.id);onSelect(next)}
     return <div className="manager-file-branch" key={file.id}>
       <div className="space-related-row manager-file" style={{paddingLeft:12+depth*18}}>
-        {file.directory?<button className="icon-button manager-file-toggle" aria-label={`${t(isOpen?'compact.collapse':'compact.expand')} ${file.path}`} aria-expanded={isOpen} onClick={()=>{setExpanded((prev)=>{const next=new Set(prev);if(isOpen)next.delete(file.id);else next.add(file.id);return next});if(!isOpen&&!loaded.has(file.id))void loadChildren(file)}}><ChevronRight size={14} className={isOpen?'is-open':''}/></button>:<span className="manager-file-spacer"/>}
+        {file.directory?<button className="icon-button manager-file-toggle" disabled={busy} aria-label={`${t(isOpen?'compact.collapse':'compact.expand')} ${file.path}`} aria-expanded={isOpen} onClick={()=>{setExpanded((prev)=>{const next=new Set(prev);if(isOpen)next.delete(file.id);else next.add(file.id);return next});if(!isOpen&&!loaded.has(file.id))void loadChildren(file)}}><ChevronRight size={14} className={isOpen?'is-open':''}/></button>:<span className="manager-file-spacer"/>}
         <input type="checkbox" aria-label={file.path} checked={checked} disabled={file.kind==='application'||covered||busy||Boolean(application&&updating.has(application.id))} onChange={change}/>
         {file.directory?<Folder size={17}/>:<File size={17}/>}
         <div className="manager-file-name"><strong>{depth===0?t(`apps.${file.kind}`):file.path.split(/[/\\]/).pop()}</strong><small title={file.path}>{file.path}</small></div>

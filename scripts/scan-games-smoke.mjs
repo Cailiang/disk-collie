@@ -165,7 +165,28 @@ export async function verifyScanGames(browser,baseUrl,directory){
   assert.deepEqual(errors,[]);await page.close()
   const finished=await browser.newPage({viewport:{width:1440,height:900}});await finished.clock.install();await finished.goto(baseUrl+'?demoScanMs=1600');await finished.locator('.nav-button[title="大文件"]').click();await finished.locator('.space-large .space-heading .space-button.primary').click();await finished.locator('.scan-game-field').focus();await finished.keyboard.press('Space');await finished.clock.runFor(2200);assert.equal(await finished.locator('.scan-game').count(),0,'Scan completion must not wait for the game');assert(await finished.locator('.space-file-row').count()>0);assert(JSON.parse(await finished.evaluate(()=>localStorage.getItem('diskcollie.scan-games.best.v1'))).runner>0,'Completed scans save the local best score');await finished.close()
   await verifyFullscreenGameLayout(browser,baseUrl,directory)
+  await verifyFrisbeeMisses(browser,baseUrl,directory)
   await verifyGameJourney(browser,baseUrl,directory)
   await verifyTerminalGameLayout(browser,baseUrl,directory)
   console.log('Scan games passed: Space/tap, collisions/scoring, scenery/light controls, continuous resize and pause, 1080p/1440p fullscreen layouts, shared Terminal layout at four viewports, theme, input isolation and scan completion')
+}
+
+async function verifyFrisbeeMisses(browser,baseUrl,directory){
+  const page=await browser.newPage({viewport:{width:1440,height:900}})
+  try{
+    await page.clock.install();await page.goto(baseUrl+'?demoScanMs=90000')
+    await page.locator('.nav-button[title="大文件"]').click();await page.locator('.space-large .space-heading .space-button.primary').click()
+    const game=page.locator('.space-large .scan-game');await game.waitFor()
+    await page.clock.pauseAt(await page.evaluate(()=>Date.now())+100);await settleGameViewport(page,game)
+    await game.getByRole('button',{name:'接飞盘',exact:true}).click();await game.locator('.scan-game-field').focus();await page.keyboard.press('Space')
+    await page.clock.runFor(65000)
+    assert.equal(await game.getAttribute('data-game-phase'),'running','Frisbee misses must never end the round')
+    assert(Number(await game.getAttribute('data-game-time'))>60)
+    assert(Number(await game.getAttribute('data-game-missed'))>3,'Exercise the former three-miss game-over condition')
+    assert.equal(await game.locator('.scan-game-overlay').count(),0)
+    await page.screenshot({path:`${directory}/frisbee-after-repeated-misses.png`})
+    const result=await playVisibleGame(page,game,75);assert(result.state.score>0,'Catching must still score after repeated misses')
+    await page.clock.runFor(16000);await game.waitFor({state:'hidden'})
+    console.log('Frisbee continuous play passed: 65s of misses, resumed scoring, then immediate scan results')
+  }finally{await page.close()}
 }

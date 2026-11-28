@@ -77,8 +77,9 @@ const analysisOnly=path.join(fixture,'diskcollie-smoke-analysis-only.bin')
 writeFileSync(analysisOnly,Buffer.alloc(1024*1024,17))
 const legacyActivity={id:'owned-legacy-record',date:new Date().toISOString(),kind:'cleanup',items:1,bytes:4096,failures:0,locations:[]}
 writeFileSync(path.join(profile,'storage-history.json'),JSON.stringify([legacyActivity]))
-const ownedAppName='DiskCollie Smoke '+crypto.randomUUID(),ownedApp=process.platform==='darwin'?path.join(homedir(),'Applications',ownedAppName+'.app'):null
-if(ownedApp){mkdirSync(path.join(ownedApp,'Contents'),{recursive:true});writeFileSync(path.join(ownedApp,'Contents/Info.plist'),`<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleName</key><string>${ownedAppName}</string><key>CFBundleIdentifier</key><string>dev.diskcollie.smoke.${crypto.randomUUID().replaceAll('-','')}</string><key>CFBundleShortVersionString</key><string>1.0</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>`)}
+const ownedAppName='DiskCollie Smoke '+crypto.randomUUID(),ownedBundleId='dev.diskcollie.smoke.'+crypto.randomUUID().replaceAll('-',''),ownedAppRoot=process.platform==='darwin'?path.join(homedir(),'Applications',ownedAppName):null,ownedApp=ownedAppRoot?path.join(ownedAppRoot,ownedAppName+'.app'):null
+const ownedSupport=ownedApp?path.join(homedir(),'Library/Application Support',ownedBundleId):null,ownedPreferences=ownedApp?path.join(homedir(),'Library/Preferences',ownedBundleId+'.plist'):null
+if(ownedApp){mkdirSync(path.join(ownedApp,'Contents'),{recursive:true});writeFileSync(path.join(ownedApp,'Contents/Info.plist'),`<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleName</key><string>${ownedAppName}</string><key>CFBundleIdentifier</key><string>${ownedBundleId}</string><key>CFBundleShortVersionString</key><string>1.0</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>`)}
 const first=path.join(fixture,'diskcollie-smoke-copy-a.bin'), second=path.join(fixture,'diskcollie-smoke-copy-b.bin'), third=path.join(fixture,'diskcollie-smoke-copy-c.bin'), fourth=path.join(fixture,'diskcollie-smoke-copy-d.bin'), unique=path.join(fixture,'diskcollie-smoke-unique.bin')
 writeFileSync(first,Buffer.alloc(12*1024*1024,23));writeFileSync(second,Buffer.alloc(12*1024*1024,23));writeFileSync(unique,Buffer.alloc(12*1024*1024,47));writeFileSync(third,Buffer.alloc(12*1024*1024,91));writeFileSync(fourth,Buffer.alloc(12*1024*1024,91))
 let electronApp, ownedWorker
@@ -113,7 +114,7 @@ try{
   const large=await p.evaluate(generation=>window.diskCollie.storageLarge({generation,minimum:1,search:'',offset:0}),state.index.generation);assert.equal(large.count,5)
   await p.locator('.nav-button[title="大文件"]').click();await p.getByRole('button',{name:'开始扫描',exact:true}).click();await p.getByRole('combobox',{name:'最小文件大小'}).selectOption(String(10*1024**2));await p.locator('.space-file-row').first().waitFor();assert.equal(await p.locator('.space-file-row input:checked').count(),0)
   await p.getByRole('searchbox',{name:'搜索文件'}).fill('unique');await p.waitForFunction(()=>document.querySelectorAll('.space-file-row').length===1)
-  await p.locator('.space-file-row input').check();await p.getByRole('button',{name:'检查所选项目',exact:true}).click();await p.getByRole('dialog').getByRole('button',{name:'移到废纸篓',exact:true}).click();await p.locator('.space-cleaning-animation').waitFor();await p.getByRole('dialog').getByRole('button',{name:'完成',exact:true}).click();assert(!existsSync(unique));assert.equal(await p.getByRole('button',{name:'开始扫描',exact:true}).count(),0)
+  await p.locator('.space-file-row input').check();await p.getByRole('button',{name:'删除所选项目',exact:true}).click();await p.getByRole('dialog').getByRole('button',{name:'移到废纸篓',exact:true}).click();await p.locator('.space-cleaning-animation').waitFor();await p.getByRole('dialog').getByRole('button',{name:'完成',exact:true}).click();assert(!existsSync(unique));assert.equal(await p.getByRole('button',{name:'开始扫描',exact:true}).count(),0)
   await p.getByRole('searchbox',{name:'搜索文件'}).fill('');await p.waitForFunction(()=>document.querySelectorAll('.space-file-row').length===4)
   await p.locator('.nav-button[title="重复文件"]').click();await p.getByRole('button',{name:'开始扫描',exact:true}).click();await p.locator('.space-duplicate-group').first().waitFor({timeout:30000});const duplicateState=await p.evaluate(()=>window.diskCollie.storageState());const duplicates=await p.evaluate(g=>window.diskCollie.storageDuplicates(g),duplicateState.index.generation);assert.equal(duplicates.groups.length,2)
   await p.locator('.nav-button[title="大文件"]').click();assert.equal(await p.locator('.space-file-row').count(),4);assert.equal(await p.getByRole('combobox',{name:'最小文件大小'}).inputValue(),String(10*1024**2))
@@ -169,7 +170,52 @@ try{
   const visibleIds=await p.locator('.manager-application').evaluateAll((rows)=>rows.map((row)=>row.getAttribute('data-application-id')))
   await p.getByRole('button',{name:'检查更新',exact:true}).click();await acknowledgeMessage(p,/更新检查完成/);assert.deepEqual(await p.locator('.manager-application').evaluateAll((rows)=>rows.map((row)=>row.getAttribute('data-application-id'))),visibleIds,'Update checks must preserve application registrations')
   const invalidAppOperations=await p.evaluate(async()=>{const id=crypto.randomUUID();return Promise.all([window.diskCollie.storageOpenApplication(id),window.diskCollie.storageUpdateApplication(id),window.diskCollie.storageRelatedChildren({id})].map((operation)=>operation.then(()=>false,()=>true)))});assert(invalidAppOperations.every(Boolean),'Application actions must reject unregistered IDs')
-  if(ownedApp){const fixtureApp=beforeApps.find(application=>application.location===ownedApp);assert(fixtureApp,'Owned app fixture must be discovered');await p.getByRole('searchbox',{name:'搜索应用'}).fill(ownedAppName);await p.getByRole('button',{name:`查看卸载文件 ${ownedAppName}`,exact:true}).click();await p.locator('.manager-empty-related').waitFor();assert.equal(await p.locator('.manager-files .manager-file').count(),1);await p.getByRole('button',{name:'卸载所选项目',exact:true}).click();assert.equal(await p.locator('.space-dialog-files>div').count(),1);await p.getByRole('dialog').getByRole('button',{name:'移到废纸篓',exact:true}).click();await p.getByRole('dialog').getByRole('button',{name:'完成',exact:true}).click();assert(!existsSync(ownedApp),'App-only uninstall must move the owned bundle to Trash')}
+  if(ownedApp){
+    assert(beforeApps.some(application=>application.location===ownedApp),'Owned nested app fixture must be discovered')
+    await p.getByRole('searchbox',{name:'搜索应用'}).fill(ownedAppName)
+    await p.getByRole('button',{name:`查看卸载文件 ${ownedAppName}`,exact:true}).click();await p.locator('.manager-empty-related').waitFor()
+    assert.equal(await p.locator('.manager-files .manager-file').count(),1,'An app without related data must remain removable')
+    mkdirSync(path.join(ownedSupport,'nested'),{recursive:true});writeFileSync(path.join(ownedSupport,'nested/settings.json'),'{}');writeFileSync(ownedPreferences,'owned preferences')
+    // Keep the explorer open inside a bundle which another workspace will remove.
+    await electronApp.evaluate((_,root)=>{process.env.DISKCOLLIE_TEST_STORAGE_ROOT=root},ownedAppRoot)
+    await p.locator('.nav-button[title="空间分析"]').click();await p.locator('.space-disk .space-heading .space-button.primary,.space-disk .space-start .space-button.primary').click()
+    await p.locator('.space-disk .space-progress').waitFor({state:'hidden'})
+    await p.locator('.tree-folder-name').filter({hasText:ownedAppName+'.app'}).click()
+    await p.locator('.tree-folder-name[title="'+path.join(ownedApp,'Contents')+'"]').click()
+    await electronApp.evaluate((_,root)=>{process.env.DISKCOLLIE_TEST_STORAGE_ROOT=root},fixture)
+    await p.locator('.nav-button[title="应用管理"]').click();await p.getByRole('button',{name:`查看卸载文件 ${ownedAppName}`,exact:true}).click()
+    await p.getByRole('checkbox',{name:ownedSupport,exact:true}).waitFor()
+    assert.equal(await p.getByRole('checkbox',{name:ownedSupport,exact:true}).isChecked(),false)
+    await p.getByRole('button',{name:'展开 '+ownedSupport,exact:true}).click()
+    await p.getByRole('checkbox',{name:path.join(ownedSupport,'nested'),exact:true}).waitFor()
+    await p.getByRole('checkbox',{name:ownedSupport,exact:true}).check();await p.getByRole('checkbox',{name:ownedPreferences,exact:true}).check()
+    assert(await p.getByRole('checkbox',{name:path.join(ownedSupport,'nested'),exact:true}).isDisabled(),'A selected parent covers its children')
+    // Hold a different owned mutation so the uninstall really enters the queue.
+    const queuedIndex=await p.evaluate(()=>window.diskCollie.storageScan({mode:'large'})),queuedFiles=await p.evaluate(generation=>window.diskCollie.storageLarge({generation,minimum:1,search:'',offset:0}),queuedIndex.generation),queuedFile=queuedFiles.items[0]
+    assert(queuedFile&&queuedFile.path.startsWith(fixture+path.sep))
+    await electronApp.evaluate(({shell},target)=>{
+      globalThis.__ownedOriginalTrash=shell.trashItem;globalThis.__ownedTrashWaiting=false
+      shell.trashItem=async location=>{if(location===target){globalThis.__ownedTrashWaiting=true;await new Promise(resolve=>{globalThis.__releaseOwnedTrash=resolve})}return globalThis.__ownedOriginalTrash(location)}
+    },queuedFile.path)
+    await p.evaluate(input=>{window.__ownedMutation=window.diskCollie.storageTrash(input)},{generation:queuedIndex.generation,ids:[queuedFile.id],kind:'large'})
+    for(let attempt=0;attempt<100&&!await electronApp.evaluate(()=>globalThis.__ownedTrashWaiting);attempt++)await p.waitForTimeout(20)
+    assert(await electronApp.evaluate(()=>globalThis.__ownedTrashWaiting))
+    try{
+      await p.getByRole('button',{name:'卸载所选项目',exact:true}).click();assert.equal(await p.locator('.space-dialog-files>div').count(),3,'Only the app and two selected configuration roots are confirmed')
+      await p.getByRole('dialog').getByRole('button',{name:'移到废纸篓',exact:true}).click()
+      await p.locator('.space-cleaning-animation').getByText('正在等待文件操作',{exact:true}).waitFor()
+      assert.doesNotMatch(await p.getByRole('dialog').innerText(),/扫描|scan/i)
+      await p.screenshot({path:'/tmp/diskcollie-uninstall-waiting.png'})
+    }finally{await electronApp.evaluate(()=>globalThis.__releaseOwnedTrash?.())}
+    await p.evaluate(async()=>{await window.__ownedMutation;delete window.__ownedMutation})
+    await p.getByRole('dialog').getByRole('button',{name:'完成',exact:true}).click()
+    assert(!existsSync(ownedApp)&&!existsSync(ownedSupport)&&!existsSync(ownedPreferences),'Only owned app/config fixtures must move to Trash')
+    await p.locator('.nav-button[title="空间分析"]').click()
+    await p.waitForFunction(root=>document.querySelector('.space-breadcrumbs')?.textContent.includes(root)&&!document.querySelector('.space-breadcrumbs')?.textContent.includes('.app'),ownedAppName)
+    assert.equal(await p.getByRole('alertdialog').count(),0,'Reconciliation must not request a removed bundle or descendant from the hidden explorer')
+    assert.equal(await p.locator('.tree-folder-name').filter({hasText:ownedAppName+'.app'}).count(),0)
+    await electronApp.evaluate(({shell})=>{shell.trashItem=globalThis.__ownedOriginalTrash;delete globalThis.__ownedOriginalTrash;delete globalThis.__ownedTrashWaiting;delete globalThis.__releaseOwnedTrash})
+  }
   // Real privacy discovery is read-only. Do not preview user records or clean any real source.
   await p.locator('.nav-button[title="隐私清理"]').click();await waitPrivacy(p);assert.equal(await p.locator('.privacy-categories button').count(),4);assert.equal(await p.locator('.privacy-record-row input:checked').count(),0)
   const privacyRules=await p.evaluate(()=>window.diskCollie.storagePrivacyScan('all'));assert(privacyRules.length);assert(privacyRules.every(rule=>rule.privacyCategory&&rule.source&&rule.kind&&['ready','empty','permission-required','unavailable','range-unsupported'].includes(rule.capability)&&(rule.count===null||Number.isSafeInteger(rule.count))))
@@ -182,9 +228,9 @@ try{
   await electronApp.close();const ownedPrivacy=privacyFixture();electronApp=await launch(smokePrivacyRoot);const restarted=await electronApp.firstWindow();restarted.on('pageerror',e=>errors.push(e.message));await restarted.locator('.nav-button[title="首页"]').waitFor({timeout:20000});assert((await restarted.evaluate(()=>window.diskCollie.getAppSettings())).scanExcludedDirectories.some(directory=>samePath(directory,excludedFolder)),'Excluded directories must persist after restart');const restoredInventory=await restarted.evaluate(()=>window.diskCollie.storageApplicationState());assert(restoredInventory.applications.some(application=>application.id===beforeApps[0].id),'Warm launch must restore stable application IDs without opening Applications');const restoredHistory=await restarted.evaluate(()=>window.diskCollie.storageState());assert.equal(restoredHistory.history.filter(record=>record.id===legacyActivity.id).length,1);assert(restoredHistory.history.some(record=>record.kind==='analysis'&&record.items===1),'Explorer cleanup must survive restart');assert.equal(await restarted.locator('.overview-recent').count(),0)
   const privacyOutcome=await verifyPrivacyFixture(restarted,ownedPrivacy);assert.deepEqual(errors,[])
   await electronApp.close();electronApp=await launch(smokePrivacyRoot);const privacyRestarted=await electronApp.firstWindow();await privacyRestarted.locator('.nav-button[title="首页"]').waitFor({timeout:20000});const persistedPrivacy=await privacyRestarted.evaluate(()=>window.diskCollie.storageState());assert(persistedPrivacy.history.some(record=>record.kind==='privacy'&&record.items===privacyOutcome.selected&&record.traces===privacyOutcome.traces),'Verified privacy outcomes must persist after restart')
-  console.log(`Electron smoke passed: production IPC, native scan (${state.index.elapsedMs}ms), tree file actions, physical ASAR directory review and changed-archive rejection, cross-group duplicate batch guard and real Trash operations on owned fixtures, persisted activity, ${metrics.processes.length} processes, ${applicationCount} applications, registered application actions, read-only real privacy scan, ${privacyOutcome.traces} owned privacy traces, encrypted provider editing. Version ${version}.`)
+  console.log(`Electron smoke passed: production IPC, native scan (${state.index.elapsedMs}ms), tree file actions, physical ASAR directory review and changed-archive rejection, cross-group duplicate batch guard and real Trash operations on owned fixtures, persisted activity, ${metrics.processes.length} processes, ${applicationCount} applications, registered application actions, queued app/config uninstall with hidden explorer reconciliation, read-only real privacy scan, ${privacyOutcome.traces} owned privacy traces, encrypted provider editing. Version ${version}.`)
 }finally{
   if(ownedWorker?.exitCode===null&&!ownedWorker.signalCode)ownedWorker.kill('SIGKILL')
   await electronApp?.close().catch(()=>undefined)
-  rmSync(profile,{recursive:true,force:true});rmSync(fixture,{recursive:true,force:true});rmSync(smokePrivacyRoot,{recursive:true,force:true});if(ownedApp)rmSync(ownedApp,{recursive:true,force:true})
+  rmSync(profile,{recursive:true,force:true});rmSync(fixture,{recursive:true,force:true});rmSync(smokePrivacyRoot,{recursive:true,force:true});if(ownedAppRoot)rmSync(ownedAppRoot,{recursive:true,force:true});if(ownedSupport)rmSync(ownedSupport,{recursive:true,force:true});if(ownedPreferences)rmSync(ownedPreferences,{force:true})
 }

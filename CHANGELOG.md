@@ -4,6 +4,24 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.30 - 2026-11-28
+
+### English
+
+- Rename the large-file batch action to “Delete selected items”; one confirmation immediately runs the existing validated Trash operation.
+- Prevent hidden Space explorer trees from requesting removed application/configuration directories during reconciliation. Ignore stale navigation responses and return to the nearest surviving folder.
+- Show file-operation waiting and uninstall progress instead of scan queue text; prevent detail expansion during uninstall.
+- Keep Frisbee catch running after missed formations. Misses reset the streak without discarding points or ending the round; show catches instead of remaining lives.
+- Cover queued app/config uninstall with a real Electron fixture and continuous frisbee play beyond 65 seconds, including missed catches and later scoring.
+
+### 简体中文
+
+- 大文件批量按钮改为“删除所选项目”，一次确认后立即执行已有的安全复核及移到废纸篓操作。
+- 修复卸载应用及配置文件后，隐藏的空间分析目录树仍查询已删除目录并弹出“Item was removed”的问题；忽略过期导航响应并返回最近仍存在的目录。
+- 卸载展示文件操作等待和卸载进度，移除扫描排队文案，执行期间禁用明细展开。
+- 接飞盘漏接只中断连击，保留得分并继续本局；取消三次漏接结束规则，界面改为显示接住数量。
+- 真实 Electron 冒烟覆盖排队卸载应用及配置、隐藏目录刷新；浏览器覆盖连续漏接超过 65 秒后继续接取计分。
+
 ## 1.0.29 - 2026-11-27
 
 ### English

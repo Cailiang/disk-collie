@@ -127,7 +127,9 @@ function tick(previous:GameState,dt:number):GameState {
         else{state.treats++;state.lastReward=object.value;state.points+=object.value}
       }else if(object.x<PLAYER_X-22){
         object.resolved=true
-        if(object.kind==='disc'&&object.last&&!state.objects.some(item=>item.group===object.group&&item.collected)){state.missed++;state.combo=0;if(state.missed>=3){state.phase='over';break}}
+        // Frisbee is a continuous scan pastime. A missed formation breaks the
+        // streak without ending the round or discarding the accumulated score.
+        if(object.kind==='disc'&&object.last&&!state.objects.some(item=>item.group===object.group&&item.collected)){state.missed++;state.combo=0}
       }
     }
   }

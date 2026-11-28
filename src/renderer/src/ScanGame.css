@@ -22,9 +22,7 @@
 .scan-game-hint { display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:8px; padding:4px 0 18px; color:var(--text-secondary); font-size:11px; }
 .scan-game-hint kbd { display:inline-flex; align-items:center; justify-content:center; min-width:48px; height:24px; border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; background:var(--surface-subtle); font:inherit; color:var(--text); }
 .scan-game-hint small { margin-left:7px; font-size:10px; opacity:.65; }
-.game-chances { position:absolute; top:17px; right:15px; display:flex; gap:6px; }
-.game-chances i { height:6px; width:6px; border-radius:50%; background:var(--accent); }
-.game-chances i.is-lost { opacity:.16; }
+.game-catches { position:absolute; top:17px; right:15px; color:var(--game-ink); font-size:11px; font-variant-numeric:tabular-nums; pointer-events:none; }
 .scan-game-sr { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
 .space-progress.space-progress-game { display:flex; flex-direction:column; align-items:stretch; padding:20px 23px 9px; gap:0; min-height:max(390px,calc(100dvh - 225px)); background:var(--surface); }
 .space-progress-game>.space-progress-heading { display:flex; align-items:center; gap:18px; width:100%; }
@@ -66,12 +64,11 @@
 .game-route select { max-width:145px; min-width:0; padding:3px 19px 3px 6px; border:1px solid color-mix(in srgb,var(--game-ink) 25%,transparent); border-radius:4px; background-color:var(--game-paper); color:var(--game-ink); font:inherit; font-size:10px; cursor:pointer; }
 .game-route select:focus-visible { outline:2px solid var(--game-ink); outline-offset:2px; }
 .game-route option { color:var(--text); background:var(--surface); }
-.game-chances i { background:var(--game-ink); }
 @media(max-width:700px) {
   .game-route { left:7px; top:7px; gap:4px; }
   .game-route select { max-width:108px; font-size:9px; padding-left:4px; padding-right:13px; }
   .game-route em { display:none; }
-  .game-chances { top:12px; right:8px; gap:4px; }
+  .game-catches { top:12px; right:8px; }
   .scan-game-overlay { top:36%; }
   .scan-game-overlay>strong { font-size:15px; }
 }

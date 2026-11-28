@@ -21,7 +21,7 @@ import {PrivacyWorkspace} from './PrivacyWorkspace'
 import { ApplicationManager } from './ApplicationManager'
 import {selectExtraCopies} from '../../shared/duplicate-selection'
 import type {ApplicationInventoryState} from '../../shared/storage-types'
-import { selectedApplicationFiles } from '../../shared/application-files'
+import { pathContains,selectedApplicationFiles } from '../../shared/application-files'
 
 export type StorageView = 'overview'|'large'|'duplicates'|'disk'|'privacy'|'apps'|'history'
 interface Confirmation { effects?:string[]; kind:StorageActivity['kind']; count:number; size:number; names:string[]; run:(options?:{skipRunning?:boolean})=>Promise<StorageActivity|null> }
@@ -44,6 +44,11 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const [large,setLarge]=useState<StorageEntry[]>([])
   const [largeCount,setLargeCount]=useState(0)
   const [removedPaths,setRemovedPaths]=useState<string[]>([])
+  const scanActivity=useRef<string|undefined>(undefined)
+  // Activity arrives before effects refresh the retained tree. Exclude its paths
+  // during this render too, so a remounted tree cannot request removed IDs.
+  const unavailablePaths=[...removedPaths,...(activity?.id!==scanActivity.current?activity?.removedPaths||activity?.locations||[]:[])]
+  const unavailablePathsRef=useRef(unavailablePaths);unavailablePathsRef.current=unavailablePaths
   const demoRemovedSizes=useRef(new Map<string,number>()),demoOriginalSizes=useRef(new Map<string,{size:number;allocated:number}>())
   const adjustDemoEntry=(entry:StorageEntry):StorageEntry=>{
     if(!entry.directory)return entry
@@ -110,6 +115,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
       ++scopeEpoch.current;++querySequence.current;++detailsSequence.current;cancelled.current=true
       setIndex(null);setLarge([]);setLargeCount(0);setCategoryCounts({});setGroups(null);setFolder(null);setChildren([]);setBreadcrumbs([]);setMapFile(null);setMapOffset(0)
       setSelected(new Set());setCleanup(null);setPrivacy(null);setRuleSelected(new Set());setRelated([]);setRelatedSelected(new Set());setConfirmation(null)
+      setRemovedPaths([]);scanActivity.current=activity?.id
       setBusy(false);setTask(null);setProgress(null);attempted.current.clear();duplicateAfterScan.current=null
     })
     return ()=>{mounted.current=false;++scopeEpoch.current;unsubscribe?.();stopScope?.()}
@@ -124,6 +130,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   },[])
   useEffect(()=>{
     if(!activity)return
+    ++querySequence.current
     setHistory((prev)=>[activity,...prev.filter((r)=>r.id!==activity.id)])
     const removed=(p:string):boolean=>(activity.removedPaths||activity.locations).some((location)=>p===location||p.startsWith(location+'/')||p.startsWith(location+'\\'))
     if(demo){
@@ -154,13 +161,14 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
       }
     }
     if(view==='disk'&&index&&activity.locations.length&&window.diskCollie)void (async()=>{
+      const sequence=querySequence.current
       try {
         const state=await window.diskCollie!.storageState(),next=state.indexes.analysis
-        if(!next)return
-        setIndex(next)
+        if(!next||sequence!==querySequence.current)return
         const survivingTrail=breadcrumbs.filter((entry)=>!removed(entry.path)),current=folder&&!removed(folder.path)?folder:survivingTrail.at(-1)||next.root
-        if(current){const result=await window.diskCollie!.storageChildren({generation:next.generation,id:current.id});setFolder(result.parent);setChildren(result.items);if(folder&&removed(folder.path)){setBreadcrumbs(survivingTrail.length?survivingTrail:[result.parent]);setMapFile(result.parent.id===0?null:result.parent)}else if(current.id===0)setBreadcrumbs([result.parent])}
-      }catch(e){setError(readableTaskError(e))}
+        if(current){const result=await window.diskCollie!.storageChildren({generation:next.generation,id:current.id});if(sequence!==querySequence.current)return;setIndex(next);setFolder(result.parent);setChildren(result.items);if(folder&&removed(folder.path)){setBreadcrumbs(survivingTrail.length?survivingTrail:[result.parent]);setMapFile(result.parent.id===0?null:result.parent)}else if(current.id===0)setBreadcrumbs([result.parent])}
+        else{setIndex(next);setFolder(null);setChildren([]);setBreadcrumbs([]);setMapFile(null)}
+      }catch(e){if(sequence===querySequence.current)setError(readableTaskError(e))}
     })()
   },[activity])
   useEffect(()=>{setGroups(null);setSelected(new Set());setOffset(0);setBreadcrumbs([]);setFolder(null);setMapFile(null);if(index&&duplicateAfterScan.current===index.generation){duplicateAfterScan.current=null;void findDuplicates(index)}},[index?.generation,index?.root?.path])
@@ -169,7 +177,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
       if(window.diskCollie)return window.diskCollie.storageScan({mode:view==='disk'||view==='overview'?'analysis':view==='duplicates'?'duplicates':'large',minimum:duplicateMinimum,includeHidden})
       await new Promise((resolve)=>setTimeout(resolve,demoScanMs));return {...demoIndex,generation:(index?.generation||0)+1}
     })
-    if(result){if(view==='duplicates')duplicateAfterScan.current=result.generation;setIndex(result);setGroups(null);setSelected(new Set());setBreadcrumbs([]);setFolder(null)}
+    if(result){scanActivity.current=activity?.id;if(!demo)setRemovedPaths([]);if(view==='duplicates')duplicateAfterScan.current=result.generation;setIndex(result);setGroups(null);setSelected(new Set());setBreadcrumbs([]);setFolder(null)}
   }
   const cancel=async():Promise<void>=>{cancelled.current=true;const active=await window.diskCollie?.storageCancel(view==='disk'?'analysis':view==='privacy'?'privacy':view==='duplicates'?'duplicates':'large');if(active&&task==='duplicates')setIndex(null)}
   const loadCleanup=useCallback(async(isPrivacy:boolean,range:PrivacyTimeRange=privacyRange):Promise<void>=>{
@@ -194,13 +202,13 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     return ()=>{clearTimeout(timeout);++querySequence.current}
   },[index,view,active,minimum,search,offset,category,activity,removedPaths])
   const openFolder=useCallback(async(entry:StorageEntry,trail:StorageEntry[]):Promise<void>=>{
-    if(!index)return
+    if(!index||unavailablePathsRef.current.some((location)=>pathContains(location,entry.path)))return
     const sequence=++querySequence.current
     try {
       const result=window.diskCollie?await window.diskCollie.storageChildren({generation:index.generation,id:entry.id}):{parent:adjustDemoEntry(entry),items:demoChildren(entry).map(adjustDemoEntry)}
       if(sequence!==querySequence.current)return
       setMapFile(result.parent.id===0?null:result.parent);setFolder(result.parent);setChildren(result.items.filter((file)=>!demo||!removedPaths.some((location)=>file.path===location||file.path.startsWith(location+'/')||file.path.startsWith(location+'\\'))));setBreadcrumbs(trail);setMapOffset(0)
-    }catch(e){setError(readableTaskError(e))}
+    }catch(e){if(sequence===querySequence.current&&!unavailablePathsRef.current.some((location)=>pathContains(location,entry.path)))setError(readableTaskError(e))}
   },[index,removedPaths])
   useEffect(()=>{if(view==='disk'&&index?.root&&!folder)void openFolder(index.root,[index.root])},[view,index,folder,openFolder])
   const findDuplicates=async(current=index):Promise<void>=>{
@@ -274,7 +282,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
       const [result]=await Promise.all([confirmation.run({skipRunning:privacySkipRunning}),new Promise((resolve)=>setTimeout(resolve,750))])
       if(result){onActivity(result);if(result.kind==='privacy')await loadCleanup(true);setCompleted(result)}
       setConfirmation(null)
-    }catch(e){setError(readableTaskError(e));setConfirmation(null)}finally{setExecuting(false)}
+    }catch(e){setError(readableTaskError(e));setConfirmation(null)}finally{setExecuting(false);setProgress(null)}
   }
   const toggle=<T,>(setter:React.Dispatch<React.SetStateAction<Set<T>>>,id:T):void=>setter((prev)=>{const next=new Set(prev);if(next.has(id))next.delete(id);else next.add(id);return next})
   const reveal=async(entry:StorageEntry):Promise<void>=>{if(!index)return;try{if(window.diskCollie)await window.diskCollie.storageReveal({generation:index.generation,id:entry.id});else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}
@@ -328,7 +336,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
         </>}
         {view==='disk'&&folder&&<>
           <div className="space-disk-toolbar"><div className="space-disk-navigation"><button className="space-button space-disk-back" disabled={breadcrumbs.length<2} onClick={()=>void openFolder(breadcrumbs[breadcrumbs.length-2],breadcrumbs.slice(0,-1))}><ArrowLeft size={16}/>{t('disk.back')}</button><nav className="space-breadcrumbs" aria-label={t('disk.root')}>{breadcrumbs.map((crumb,i)=><button key={crumb.id} disabled={i===breadcrumbs.length-1} onClick={()=>void openFolder(crumb,breadcrumbs.slice(0,i+1))}>{i===0&&<HardDrive size={14}/>}<span>{crumb.name}</span>{i<breadcrumbs.length-1&&<ChevronRight size={14}/>}</button>)}</nav></div><div><strong>{bytes(folder.size)}</strong><small>{t('disk.total')}</small></div></div>
-          <div className="space-explorer"><DirectoryTree key={`${index.generation}:${activity?.id||''}`} index={index} selected={folder.id} activeTrail={breadcrumbs} bytes={bytes} onOpen={openFolder} onReveal={reveal} onSelectFile={setMapFile} selectedFile={mapFile?.id} onError={setError} adjustDemo={demo?adjustDemoEntry:undefined} removedPaths={demo?removedPaths:[]} actions={(file)=>fileActions(file,{type:'entry',generation:index.generation,id:file.id},file.id===0?undefined:()=>void confirmTrash([file]))}/><div className="space-map-column"><div className="space-map-caption"><span title={t('disk.areaHint')}>{t('disk.top10')}{mapOffset>0&&` / ${t('disk.other')}`}</span>{mapOffset>0&&<button className="space-text-button" onClick={()=>setMapOffset((offset)=>Math.max(0,offset-10))}><ArrowLeft size={13}/>{t('disk.backTop')}</button>}</div><div className="space-treemap" ref={mapRef} role="group" aria-label={t('disk.map')}>{map.map((rect,i)=>{const file=mapEntries.find((entry)=>entry.id===rect.id)!;return <button className={`space-treemap-cell ${mapFile?.id===rect.id?'is-current':''}`} key={rect.id} style={{left:`${rect.x}%`,top:`${rect.y}%`,width:`${rect.width}%`,height:`${rect.height}%`,background:colors[i%colors.length],color:i%colors.length===3||i%colors.length===4?'#27382c':'#fff'}} title={`${file.name} · ${bytes(file.size)}`} aria-label={`${file.name} ${bytes(file.size)}`} onClick={()=>file.id===-1?void openMapOther():file.directory?void openFolder(file,[...breadcrumbs,file]):setMapFile(file)}>{rect.height*mapSize.height/100>=90&&rect.width*mapSize.width/100>=75&&<span>{file.directory?<Folder size={16}/>:<File size={16}/>}</span>}<strong>{file.name}</strong><small>{bytes(file.size)}</small></button>})}{!map.length&&<div className="space-empty">{t('common.empty')}</div>}</div></div></div>
+          <div className="space-explorer"><DirectoryTree key={`${index.generation}:${activity?.id||''}`} index={index} selected={folder.id} activeTrail={breadcrumbs} bytes={bytes} onOpen={openFolder} onReveal={reveal} onSelectFile={setMapFile} selectedFile={mapFile?.id} onError={setError} adjustDemo={demo?adjustDemoEntry:undefined} removedPaths={unavailablePaths} actions={(file)=>fileActions(file,{type:'entry',generation:index.generation,id:file.id},file.id===0?undefined:()=>void confirmTrash([file]))}/><div className="space-map-column"><div className="space-map-caption"><span title={t('disk.areaHint')}>{t('disk.top10')}{mapOffset>0&&` / ${t('disk.other')}`}</span>{mapOffset>0&&<button className="space-text-button" onClick={()=>setMapOffset((offset)=>Math.max(0,offset-10))}><ArrowLeft size={13}/>{t('disk.backTop')}</button>}</div><div className="space-treemap" ref={mapRef} role="group" aria-label={t('disk.map')}>{map.map((rect,i)=>{const file=mapEntries.find((entry)=>entry.id===rect.id)!;return <button className={`space-treemap-cell ${mapFile?.id===rect.id?'is-current':''}`} key={rect.id} style={{left:`${rect.x}%`,top:`${rect.y}%`,width:`${rect.width}%`,height:`${rect.height}%`,background:colors[i%colors.length],color:i%colors.length===3||i%colors.length===4?'#27382c':'#fff'}} title={`${file.name} · ${bytes(file.size)}`} aria-label={`${file.name} ${bytes(file.size)}`} onClick={()=>file.id===-1?void openMapOther():file.directory?void openFolder(file,[...breadcrumbs,file]):setMapFile(file)}>{rect.height*mapSize.height/100>=90&&rect.width*mapSize.width/100>=75&&<span>{file.directory?<Folder size={16}/>:<File size={16}/>}</span>}<strong>{file.name}</strong><small>{bytes(file.size)}</small></button>})}{!map.length&&<div className="space-empty">{t('common.empty')}</div>}</div></div></div>
         </>}
         {view==='duplicates'&&<>
           {groups===null&&!busy&&<div className="space-start compact"><Copy size={28}/><button className="space-button primary" onClick={()=>void findDuplicates()}><Search size={16}/>{t('duplicates.find')}</button></div>}
@@ -346,7 +354,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
 
     {view==='privacy'&&<PrivacyWorkspace rules={privacy||[]} selected={ruleSelected} onToggle={(ids,checked)=>setRuleSelected((previous)=>{const next=new Set(previous);for(const id of ids)if(checked)next.add(id);else next.delete(id);return next})} bytes={bytes} loading={busy} range={privacyRange} onRangeChange={(range)=>{setPrivacyRange(range);void loadCleanup(true,range)}} onRefresh={()=>void loadCleanup(true)} onReview={confirmClean} onClear={()=>setRuleSelected(new Set())} preview={async(id,offset)=>window.diskCollie?window.diskCollie.storagePrivacyPreview({id,offset}):demoPrivacyPreview(id,privacyRange,offset)} onPermissions={()=>{if(window.diskCollie)void window.diskCollie.storagePrivacyPermissions().catch((error)=>setError(readableTaskError(error)));else setNotice(t('privacy.permissionsDemo'))}} progress={taskProgress}/>}
 
-    {view==='apps'&&<ApplicationManager inventory={inventory} applications={applications} onApplications={setApplications} busy={busy} loadingFiles={task==='related'} application={application} files={related} selected={relatedSelected} onSelect={setRelatedSelected} onFiles={(next)=>setRelated((prev)=>[...new Map([...prev,...next].map((f)=>[f.id,f])).values()])} onInspect={(app)=>app?void inspect(app):setApplication(null)} onRefresh={()=>void loadApps()} onConfirm={confirmUninstall} actions={fileActions} bytes={bytes} onNotice={setNotice} onError={(error)=>setError(readableTaskError(error))}/>}
+    {view==='apps'&&<ApplicationManager inventory={inventory} applications={applications} onApplications={setApplications} busy={busy||executing} loadingFiles={task==='related'} application={application} files={related} selected={relatedSelected} onSelect={setRelatedSelected} onFiles={(next)=>setRelated((prev)=>[...new Map([...prev,...next].map((f)=>[f.id,f])).values()])} onInspect={(app)=>app?void inspect(app):setApplication(null)} onRefresh={()=>void loadApps()} onConfirm={confirmUninstall} actions={fileActions} bytes={bytes} onNotice={setNotice} onError={(error)=>setError(readableTaskError(error))}/>}
 
     {view==='history'&&<>
       {heading('history.title','history.subtitle')}
@@ -370,7 +378,7 @@ function SelectionBar({count,size,detail,disabled,onClear,onReview,label}:{count
     measure();const observer=new ResizeObserver(measure);observer.observe(parent);window.addEventListener('resize',measure)
     return()=>{observer.disconnect();window.removeEventListener('resize',measure)}
   },[])
-  return <section ref={ref} style={position} data-batch-actions className="space-selection-bar" role="region" aria-label={t('selection.actions')}><div><strong>{t('common.selected',{count})}</strong><span>{size}{detail&&` · ${detail}`}</span></div><div className="space-selection-actions"><button className="space-text-button" disabled={disabled} onClick={onClear}>{t('selection.clear')}</button><button className="space-button primary" disabled={disabled} onClick={onReview}><Trash2 size={16}/>{label||t('common.review')}</button></div></section>
+  return <section ref={ref} style={position} data-batch-actions className="space-selection-bar" role="region" aria-label={t('selection.actions')}><div><strong>{t('common.selected',{count})}</strong><span>{size}{detail&&` · ${detail}`}</span></div><div className="space-selection-actions"><button className="space-text-button" disabled={disabled} onClick={onClear}>{t('selection.clear')}</button><button className="space-button primary" disabled={disabled} onClick={onReview}><Trash2 size={16}/>{label||t('common.deleteSelected')}</button></div></section>
 }
 
 
@@ -381,16 +389,19 @@ function DirectoryTree({index,selected,activeTrail,bytes,onOpen,onReveal,actions
   const [expanded,setExpanded]=useState<Set<number>>(new Set([0]))
   const [loading,setLoading]=useState<Set<number>>(new Set())
   const current=useRef(index.generation)
+  const removedRef=useRef(removedPaths);removedRef.current=removedPaths
+  const removed=(entry:StorageEntry):boolean=>removedRef.current.some((location)=>pathContains(location,entry.path))
   const load=useCallback(async(entry:StorageEntry,offset=0):Promise<void>=>{
+    if(removed(entry))return
     const generation=index.generation
     setLoading((s)=>new Set([...s,entry.id]))
     try{
       const result=window.diskCollie?await window.diskCollie.storageChildren({generation,id:entry.id,offset}):{items:demoChildren(entry)}
-      if(current.current===generation){setNodes((s)=>new Map(s).set(entry.id,offset?[...(s.get(entry.id)||[]),...result.items]:result.items));setMore((s)=>new Map(s).set(entry.id,result.items.length===200))}
-    }catch(e){if(current.current===generation)onError(readableTaskError(e))}finally{if(current.current===generation)setLoading((s)=>{const next=new Set(s);next.delete(entry.id);return next})}
+      if(current.current===generation&&!removed(entry)){setNodes((s)=>new Map(s).set(entry.id,offset?[...(s.get(entry.id)||[]),...result.items]:result.items));setMore((s)=>new Map(s).set(entry.id,result.items.length===200))}
+    }catch(e){if(current.current===generation&&!removed(entry))onError(readableTaskError(e))}finally{if(current.current===generation)setLoading((s)=>{const next=new Set(s);next.delete(entry.id);return next})}
   },[index.generation])
   useEffect(()=>{current.current=index.generation;setNodes(new Map());setMore(new Map());setExpanded(new Set([0]));if(index.root)void load(index.root);return()=>{current.current=-1}},[index.generation,load])
-  useEffect(()=>{setExpanded((s)=>new Set([...s,...activeTrail.map((e)=>e.id)]));for(const entry of activeTrail){if(entry.id!==0&&!nodes.has(entry.id))void load(entry)}},[selected,index.generation,load])
+  useEffect(()=>{setExpanded((s)=>new Set([...s,...activeTrail.filter((entry)=>!removed(entry)).map((e)=>e.id)]));for(const entry of activeTrail){if(entry.id!==0&&!removed(entry)&&!nodes.has(entry.id))void load(entry)}},[selected,index.generation,load])
   const branch=(entry:StorageEntry,trail:StorageEntry[],depth:number):React.ReactNode=>{
     entry=adjustDemo?.(entry)||entry
     const open=expanded.has(entry.id),children=(nodes.get(entry.id)||[]).filter((file)=>!removedPaths.some((location)=>file.path===location||file.path.startsWith(location+'/')||file.path.startsWith(location+'\\')))
@@ -430,7 +441,7 @@ function CleanupAnimation({confirmation,progress,bytes}:{confirmation:Confirmati
   const percent=Math.min(100,Math.round(done/total*100))
   return <div className="space-cleaning-animation" role="status" aria-live="polite">
     <div className="space-cleaning-scene" aria-hidden="true"><i/><i/><i/><span><Trash2 size={35}/></span><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="54"/><circle cx="60" cy="60" r="54" pathLength="100" strokeDasharray={`${percent} 100`}/></svg></div>
-    <p>{t(progress?.phase==='queued'?'scan.queued':confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'cleaning.permanent':'cleaning.trash')}</p>{progress?.phase==='queued'&&<p>{t('scan.waiting')}</p>}
+    <p>{t(progress?.phase==='queued'?'cleaning.queued':confirmation.kind==='uninstall'?'apps.uninstalling':confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'cleaning.permanent':'cleaning.trash')}</p>{progress?.phase==='queued'&&<p>{t('cleaning.waiting')}</p>}
     <div className="space-cleaning-count"><strong>{t('cleaning.progress',{done,total})}</strong><span>{bytes(confirmation.size)}</span></div>
     <div className="space-progress-track is-measured" role="progressbar" aria-label={t('cleaning.title')} aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}><i style={{width:`${percent}%`}}/></div>
     <code title={progress?.path}>{progress?.path||confirmation.names[0]}</code>
