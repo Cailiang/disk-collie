@@ -1298,5 +1298,14 @@
   "startup.authorization.more": " and others",
   "startup.authorization.title": "System authorization",
   "startup.authorization.system": "The macOS password dialog may still be titled “osascript”, the system tool used by DiskCollie. It will also show the operation described above.",
-  "startup.authorizing": "Requesting system authorization and verifying…"
+  "startup.authorizing": "Requesting system authorization and verifying…",
+  "disk.reviewApplicationData": "Review and move to Trash (application data)",
+  "disk.applicationDataTitle": "This folder contains application data",
+  "disk.applicationDataWarning": "Settings, account data, databases and files in this folder will all move to Trash. The application may stop working or lose data. Quit the application and its background services before continuing.",
+  "disk.applicationDataConfirm": "I no longer need the application data in the selected folder",
+  "storage.applicationDataAcknowledgement": "Confirm that you no longer need the selected application data first.",
+  "storage.applicationDataAuthorization": "DiskCollie needs administrator permission to move the application data folder “{name}” to Trash, including its settings and data. The application may stop working.",
+  "storage.applicationDataCancelled": "Administrator authorization was cancelled. Application data was not moved.",
+  "storage.applicationDataTrashUnavailable": "The current user Trash cannot be used safely. The folder was preserved. Use Finder to manage it.",
+  "storage.applicationDataMoveFailed": "macOS could not move this application data folder. Quit the application and its background services, then try again."
 }

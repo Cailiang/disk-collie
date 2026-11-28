@@ -1,3 +1,4 @@
+import {verifyApplicationDataElectron} from './application-data-smoke.mjs'
 import {startupFixture,verifyStartupFixture} from './startup-electron-smoke.mjs'
 import {acknowledgeMessage} from './message-smoke.mjs'
 import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync, mkdirSync, realpathSync, copyFileSync } from 'node:fs'
@@ -225,6 +226,7 @@ try{
   const windowsBrowserIcons=[...beforeApps.filter(application=>/chrome/i.test(application.name)).map(application=>application.iconPath),...[process.env.ProgramFiles,process.env['ProgramFiles(x86)'],process.env.LOCALAPPDATA,'C:\\Program Files','C:\\Program Files (x86)'].filter(Boolean).map(root=>path.join(root,'Google/Chrome/Application/chrome.exe'))]
   // Old browser profiles can remain after uninstall; OS artwork requires an installed executable.
   if(sourceRule&&(process.platform!=='win32'||windowsBrowserIcons.some(filename=>filename&&existsSync(filename)))){const icon=await p.evaluate(id=>window.diskCollie.storageCleanupIcon(id),sourceRule.id);assert(icon?.startsWith('data:image/'),'Privacy applications must expose complete OS icons: '+JSON.stringify(beforeApps.filter(application=>/chrome|safari/i.test(application.name)).map(({name,location,iconPath})=>({name,location,iconPath}))))}
+  await verifyApplicationDataElectron(p,fixture)
   await verifyStartupFixture(p,ownedStartup)
   await verifyProviderKeyEditing(p)
   assert.deepEqual(errors,[])

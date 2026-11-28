@@ -64,3 +64,5 @@ Windows 读取用户／机器 Run 与 RunOnce、适用的注册表视图、启�
 程序每次启动约三秒后及每小时检查更新，优先读取 GitHub Releases；GitHub 的版本、清单或下载网络不可用时改用 https://diskcollie.app/releases/latest.json 和 /updates/ 更新清单，从官网已校验的本地镜像下载，不跳回 GitHub。普通退出不安装，下载完成后由用户点击安装并重启。
 
 启动项应用分组与应用管理共用本地化名称规则，按界面语言读取软件自带的 InfoPlist.strings 和 Info.plist；例如中文显示“迅雷”，英文显示 Thunder。切换语言后刷新名称，原始启动配置名称和路径仍可搜索。只按原生应用或明确的父应用身份关联，不按名称猜测归属。
+
+空间分析也可对单个第三方 Application Support 目录进行完整核验：先说明配置、账户和资料的影响，单独确认后移到废纸篓；系统关键目录、共享父目录和 Apple 管理的数据保持保护。

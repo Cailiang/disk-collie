@@ -24,7 +24,7 @@ import type {ApplicationInventoryState} from '../../shared/storage-types'
 import { pathContains,selectedApplicationFiles } from '../../shared/application-files'
 
 export type StorageView = 'overview'|'large'|'duplicates'|'disk'|'privacy'|'apps'|'history'
-interface Confirmation { effects?:string[]; kind:StorageActivity['kind']; count:number; size:number; names:string[]; run:(options?:{skipRunning?:boolean})=>Promise<StorageActivity|null> }
+interface Confirmation { applicationData?:boolean; effects?:string[]; kind:StorageActivity['kind']; count:number; size:number; names:string[]; run:(options?:{skipRunning?:boolean;acknowledgeApplicationData?:boolean})=>Promise<StorageActivity|null> }
 const MB=1024**2
 export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren,activity,onActivity,onProcess}:{view:StorageView;active:boolean;metrics:OverviewMetrics|null;onNavigate:(view:AgentViewKey)=>void;historyChildren?:React.ReactNode;activity:StorageActivity|null;onActivity:(activity:StorageActivity)=>void;onProcess:(sort:'cpuPercent'|'memoryBytes')=>void}):React.JSX.Element {
   const {t,locale}=useI18n()
@@ -85,6 +85,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
   const [application,setApplication]=useState<StorageApplication|null>(null)
   const [related,setRelated]=useState<RelatedApplicationFile[]>([])
   const [relatedSelected,setRelatedSelected]=useState<Set<string>>(new Set())
+  const [applicationDataConfirmed,setApplicationDataConfirmed]=useState(false)
   const [confirmation,setConfirmation]=useState<Confirmation|null>(null)
   const [completed,setCompleted]=useState<StorageActivity|null>(null)
   const [executing,setExecuting]=useState(false)
@@ -242,13 +243,14 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
         if(window.diskCollie)return window.diskCollie.storageDirectoryPlan({generation:index.generation,id:directory.id})
         const all:StorageEntry[]=[],pending=[directory],visited=new Set<number>()
         while(pending.length&&visited.size<1000){const current=pending.pop()!;if(visited.has(current.id))continue;visited.add(current.id);if(current.id!==directory.id)all.push(current);if(current.directory)pending.push(...demoChildren(current))}
-        return {id:crypto.randomUUID(),generation:index.generation,entryId:directory.id,path:directory.path,name:directory.name,size:directory.size,allocated:directory.allocated,files:all.filter((entry)=>!entry.directory).length,directories:all.filter((entry)=>entry.directory).length,links:0,hiddenFiles:all.filter((entry)=>entry.name.startsWith('.')).length}
+        return {id:crypto.randomUUID(),generation:index.generation,entryId:directory.id,path:directory.path,name:directory.name,size:directory.size,allocated:directory.allocated,files:all.filter((entry)=>!entry.directory).length,directories:all.filter((entry)=>entry.directory).length,links:0,hiddenFiles:all.filter((entry)=>entry.name.startsWith('.')).length,applicationData:directory.applicationData}
       })
       if(!result)return
       plan=result
     }
     const size=plan?.allocated??entries.reduce((sum,entry)=>sum+entry.allocated,0)
-    setConfirmation({kind,count:entries.length,size,names:entries.map((entry)=>entry.path),effects:plan?[t('disk.directoryContents',{files:plan.files,directories:plan.directories,hidden:plan.hiddenFiles})]:undefined,run:()=>window.diskCollie?window.diskCollie.storageTrash({generation:index.generation,ids:entries.map((entry)=>entry.id),kind,groupId:group?.id,directoryPlanId:plan?.id}):fakeActivity(kind,entries.length,size,entries.map((entry)=>entry.path))})
+    setApplicationDataConfirmed(false)
+    setConfirmation({applicationData:plan?.applicationData,kind,count:entries.length,size,names:entries.map((entry)=>entry.path),effects:plan?[t('disk.directoryContents',{files:plan.files,directories:plan.directories,hidden:plan.hiddenFiles})]:undefined,run:(options)=>window.diskCollie?window.diskCollie.storageTrash({generation:index.generation,ids:entries.map((entry)=>entry.id),kind,groupId:group?.id,directoryPlanId:plan?.id,acknowledgeApplicationData:options?.acknowledgeApplicationData}):fakeActivity(kind,entries.length,size,entries.map((entry)=>entry.path))})
   }
   const confirmClean=():void=>{
     if(view==='privacy'){
@@ -276,17 +278,17 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
     setConfirmation({kind:'uninstall',count:items.length,size:items.reduce((s,e)=>s+e.size,0),names:items.map((e)=>e.path),run:()=>window.diskCollie?window.diskCollie.storageUninstall({applicationId:application.id,ids:items.map((e)=>e.id)}):fakeActivity('uninstall',items.length,items.reduce((s,e)=>s+e.size,0),items.map((e)=>e.path))})
   }
   const execute=async():Promise<void>=>{
-    if(!confirmation||executing)return
+    if(!confirmation||executing||confirmation.applicationData&&!applicationDataConfirmed)return
     setExecuting(true);setError('');setProgress({phase:'cleaning',entries:0,total:confirmation.count,elapsedMs:0,path:confirmation.names[0]})
     try {
-      const [result]=await Promise.all([confirmation.run({skipRunning:privacySkipRunning}),new Promise((resolve)=>setTimeout(resolve,750))])
+      const [result]=await Promise.all([confirmation.run({skipRunning:privacySkipRunning,acknowledgeApplicationData:applicationDataConfirmed}),new Promise((resolve)=>setTimeout(resolve,750))])
       if(result){onActivity(result);if(result.kind==='privacy')await loadCleanup(true);setCompleted(result)}
       setConfirmation(null)
     }catch(e){setError(readableTaskError(e));setConfirmation(null)}finally{setExecuting(false);setProgress(null)}
   }
   const toggle=<T,>(setter:React.Dispatch<React.SetStateAction<Set<T>>>,id:T):void=>setter((prev)=>{const next=new Set(prev);if(next.has(id))next.delete(id);else next.add(id);return next})
   const reveal=async(entry:StorageEntry):Promise<void>=>{if(!index)return;try{if(window.diskCollie)await window.diskCollie.storageReveal({generation:index.generation,id:entry.id});else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}
-  const fileActions=(file:{path:string;size:number;name?:string;modified?:number;trashable?:boolean},target:StorageTarget,onTrash?:()=>void):React.JSX.Element=><FileActions file={file} target={target} onTrash={onTrash} onReveal={async(target)=>{try{if(window.diskCollie)await window.diskCollie.storageRevealTarget(target);else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}}/>
+  const fileActions=(file:{path:string;size:number;name?:string;modified?:number;trashable?:boolean;applicationData?:boolean},target:StorageTarget,onTrash?:()=>void):React.JSX.Element=><FileActions file={file} target={target} onTrash={onTrash} onReveal={async(target)=>{try{if(window.diskCollie)await window.diskCollie.storageRevealTarget(target);else setNotice(t('common.reveal'))}catch(e){setError(readableTaskError(e))}}}/>
   const formatDate=(date:string|number):string=>new Intl.DateTimeFormat(locale,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(date))
   const heading=(title:string,subtitle:string,action?:React.ReactNode):React.JSX.Element=><header className="space-heading"><div><h1>{t(title)}</h1>{['large','duplicates','privacy'].includes(view)&&<WorkspaceHelp>{t(subtitle)}{view==='duplicates'&&<p>{t('compact.duplicateHelp')}</p>}{view==='large'&&<p>{t('compact.largeHelp')}</p>}{view==='privacy'&&<p>{t('privacy.warning')}</p>}</WorkspaceHelp>}</div>{action}</header>
   const scanButtons=<div className="space-actions"><button className="space-button primary" disabled={busy} onClick={()=>void scan()}><Search size={16}/>{t(index?'common.rescan':'common.scan')}</button></div>
@@ -364,7 +366,7 @@ export function StorageWorkspace({view,active,metrics,onNavigate,historyChildren
       <button className="space-ledger-toggle space-button" aria-expanded={ledgerOpen} onClick={()=>setLedgerOpen(!ledgerOpen)}>{t('history.ai')}<ChevronRight size={16}/></button>{ledgerOpen&&historyChildren}
     </>}
     {(confirmation||completed)&&<StorageDialog title={completed?t(completed.failures?'confirm.failed':'common.complete'):t(executing?'cleaning.title':'confirm.title')} dismiss={()=>{if(!executing){setConfirmation(null);setCompleted(null)}}}>
-      {executing&&confirmation?<CleanupAnimation confirmation={confirmation} progress={progress} bytes={bytes}/>:completed?<><span className="space-dialog-success"><CheckCircle2 size={35}/></span><h3>{t('confirm.completed',{count:completed.items,size:bytes(completed.bytes)})}</h3>{completed.kind==='privacy'&&<p>{t('privacy.cleanedTraces',{count:completed.traces||0})}{Boolean(completed.skipped)&&' · '+t('privacy.skippedItems',{count:completed.skipped!})}{Boolean(completed.unchanged)&&' · '+t('privacy.unchangedItems',{count:completed.unchanged!})}</p>}{completed.failures>0&&<p role="alert">{t('common.failed',{count:completed.failures})}</p>}{completed.errors?.map((error)=><p className="space-result-error" key={error.path}>{error.path} · {error.message}</p>)}<p>{t(completed.kind==='cleanup'||completed.kind==='privacy'?'history.note':'home.trashNote')}</p><footer><button className="space-button primary" autoFocus onClick={()=>setCompleted(null)}>{t('confirm.finish')}</button></footer></>:confirmation&&<><p>{t('confirm.description',{count:confirmation.count,size:bytes(confirmation.size)})}</p>{confirmation.effects&&<div className="space-confirm-effects">{confirmation.effects.map((effect)=><p key={effect}>{effect}</p>)}</div>}{confirmation.kind==='privacy'&&<label className="privacy-confirm-skip"><input type="checkbox" checked={privacySkipRunning} onChange={(event)=>setPrivacySkipRunning(event.target.checked)}/>{t('privacy.skipRunning')}</label>}<div className="space-dialog-files">{confirmation.names.map((name)=><div key={name}><File size={16}/><span>{name}</span></div>)}</div><div className="space-dialog-consequence"><CircleHelp size={19}/><p>{t(confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'cleanup.permanent':confirmation.kind==='uninstall'?'confirm.uninstall':'confirm.trash')}{confirmation.kind==='duplicates'&&` ${t('duplicates.confirm')}`}</p></div><footer><button className="space-button" autoFocus disabled={executing} onClick={()=>setConfirmation(null)}>{t('common.cancel')}</button><button className="space-button danger" disabled={executing} onClick={()=>void execute()}>{executing?<><LoaderCircle className="spinner" size={16}/>{t('common.working')}</>:t(confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'common.clean':'common.trash')}</button></footer></>}
+      {executing&&confirmation?<CleanupAnimation confirmation={confirmation} progress={progress} bytes={bytes}/>:completed?<><span className="space-dialog-success"><CheckCircle2 size={35}/></span><h3>{t('confirm.completed',{count:completed.items,size:bytes(completed.bytes)})}</h3>{completed.kind==='privacy'&&<p>{t('privacy.cleanedTraces',{count:completed.traces||0})}{Boolean(completed.skipped)&&' · '+t('privacy.skippedItems',{count:completed.skipped!})}{Boolean(completed.unchanged)&&' · '+t('privacy.unchangedItems',{count:completed.unchanged!})}</p>}{completed.failures>0&&<p role="alert">{t('common.failed',{count:completed.failures})}</p>}{completed.errors?.map((error)=><p className="space-result-error" key={error.path}>{error.path} · {error.message}</p>)}<p>{t(completed.kind==='cleanup'||completed.kind==='privacy'?'history.note':'home.trashNote')}</p><footer><button className="space-button primary" autoFocus onClick={()=>setCompleted(null)}>{t('confirm.finish')}</button></footer></>:confirmation&&<><p>{t('confirm.description',{count:confirmation.count,size:bytes(confirmation.size)})}</p>{confirmation.effects&&<div className="space-confirm-effects">{confirmation.effects.map((effect)=><p key={effect}>{effect}</p>)}</div>}{confirmation.applicationData&&<div className="space-application-data-warning"><strong>{t('disk.applicationDataTitle')}</strong><p>{t('disk.applicationDataWarning')}</p><label><input type="checkbox" checked={applicationDataConfirmed} onChange={event=>setApplicationDataConfirmed(event.target.checked)}/>{t('disk.applicationDataConfirm')}</label></div>}{confirmation.kind==='privacy'&&<label className="privacy-confirm-skip"><input type="checkbox" checked={privacySkipRunning} onChange={(event)=>setPrivacySkipRunning(event.target.checked)}/>{t('privacy.skipRunning')}</label>}<div className="space-dialog-files">{confirmation.names.map((name)=><div key={name}><File size={16}/><span>{name}</span></div>)}</div><div className="space-dialog-consequence"><CircleHelp size={19}/><p>{t(confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'cleanup.permanent':confirmation.kind==='uninstall'?'confirm.uninstall':'confirm.trash')}{confirmation.kind==='duplicates'&&` ${t('duplicates.confirm')}`}</p></div><footer><button className="space-button" autoFocus disabled={executing} onClick={()=>setConfirmation(null)}>{t('common.cancel')}</button><button className="space-button danger" disabled={executing||Boolean(confirmation.applicationData&&!applicationDataConfirmed)} onClick={()=>void execute()}>{executing?<><LoaderCircle className="spinner" size={16}/>{t('common.working')}</>:t(confirmation.kind==='cleanup'||confirmation.kind==='privacy'?'common.clean':'common.trash')}</button></footer></>}
     </StorageDialog>}
   </div>
 }
@@ -424,13 +426,13 @@ function CleanupTree({rules,selected,onToggle,bytes,actions}:{rules:CleanupItem[
   })}</div>
 }
 
-function FileActions({file,target,onReveal,onTrash}:{file:{path:string;size:number;name?:string;modified?:number;trashable?:boolean};target:StorageTarget;onReveal:(target:StorageTarget)=>Promise<void>;onTrash?:()=>void}):React.JSX.Element {
+function FileActions({file,target,onReveal,onTrash}:{file:{path:string;size:number;name?:string;modified?:number;trashable?:boolean;applicationData?:boolean};target:StorageTarget;onReveal:(target:StorageTarget)=>Promise<void>;onTrash?:()=>void}):React.JSX.Element {
   const {t}=useI18n()
   const name=file.name||file.path.split(/[/\\]/).pop()||file.path
   return <span className="space-file-actions" onClick={(e)=>e.stopPropagation()}>
     <button className="icon-button" title={t('common.reveal')} aria-label={`${t('common.reveal')} ${name}`} onClick={()=>void onReveal(target)}><FolderOpen size={15}/></button>
     <AiActionButton request={{key:`file:${file.path}:${file.modified||file.size}`,title:name,prompt:t('file.prompt',{path:JSON.stringify(file.path),size:file.size,modified:file.modified?new Date(file.modified/1e6).toISOString():t('file.unknown')})}}/>
-    {onTrash&&<button className="icon-button file-trash" disabled={file.trashable===false} title={t(file.trashable===false?'storage.readOnly':'common.trash')} aria-label={`${t(file.trashable===false?'storage.readOnly':'common.trash')} ${name}`} onClick={onTrash}><Trash2 size={15}/></button>}
+    {onTrash&&<button className="icon-button file-trash" disabled={file.trashable===false} title={t(file.trashable===false?'storage.readOnly':file.applicationData?'disk.reviewApplicationData':'common.trash')} aria-label={`${t(file.trashable===false?'storage.readOnly':'common.trash')} ${name}`} onClick={onTrash}><Trash2 size={15}/></button>}
   </span>
 }
 

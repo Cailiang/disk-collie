@@ -12,4 +12,5 @@ export interface StorageDirectoryPlan {
   links:number
   /** Files and links inside a hidden directory, or whose own name starts with a dot. */
   hiddenFiles:number
+  applicationData?:boolean
 }

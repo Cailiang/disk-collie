@@ -4,6 +4,20 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.36 - 2026-11-28
+
+### English
+
+- Allow explicitly selected macOS third-party Application Support directories to be reviewed and moved to Trash from Space explorer, including leftover software data. Shared parent folders and known Apple-managed sources remain read-only.
+- Show the full-folder footprint, explain settings/account/database loss and require a separate application-data acknowledgement in both Renderer and main before any move.
+- Use native Trash first. If administrator permission is needed, bind a single explained authorization to the reviewed tree and an exclusive same-volume move into the current user's Trash; reject changes, redirects and destination collisions.
+
+### 简体中文
+
+- 空间分析支持核对并移走用户主动选择的 macOS 第三方 Application Support 目录，包括已不再使用的软件数据；共享父目录和已知 Apple 管理的数据仍保持只读。
+- 显示完整目录统计，说明配置、账户和数据库等资料的影响，界面和主进程共同要求单独确认应用数据风险后再移动。
+- 优先使用原生废纸篓；需要管理员权限时，一次明确授权绑定已核验目录，执行同卷、禁止覆盖的废纸篓移动，拒绝内容变化、路径替换和目标冲突。
+
 ## 1.0.35 - 2026-11-28
 
 ### English

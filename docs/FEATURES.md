@@ -74,3 +74,5 @@ Native null placeholders are omitted from startup names/publishers. Bundled help
 App updates check GitHub about three seconds after launch and hourly. GitHub version/manifest/download network failures fall back to https://diskcollie.app/releases/latest.json and the /updates/ feed, with verified local payload mirrors. Integrity errors remain errors. Downloads require an explicit install/restart click; normal quit does not install.
 
 Startup application groups share Applications' localized bundle-name rules. Names follow the interface language and use the app's own InfoPlist.strings/Info.plist resources: for example, 迅雷 in Chinese and Thunder in English. Language changes refresh names; original registration names and paths remain searchable. Ownership follows native application paths or explicit background-task parent records, without guessing from labels.
+
+Space explorer can review an individual third-party Application Support folder, explain its settings/account/data impact and require explicit acknowledgement before moving it to Trash. System paths, shared parent folders and Apple-managed stores remain protected.

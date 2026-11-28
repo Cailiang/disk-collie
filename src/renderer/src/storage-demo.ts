@@ -22,6 +22,10 @@ export const demoRootEntries=[{...entry(100,'Users',84.2*GB,true),path:'/Users'}
 const demoUser={...entry(101,'alex',84.2*GB,true,100),path:'/Users/alex'}
 export function demoChildren(parent:StorageEntry):StorageEntry[]{
   if(parent.path==='/')return demoRootEntries.map((entry)=>({...entry,trashable:false}))
+  if(parent.id===112)return [{...entry(120,'Application Support',12*GB,true,112),path:'/Library/Application Support',trashable:false}]
+  if(parent.id===120)return [{...entry(121,'NoMachine',8.4*GB,true,120),path:'/Library/Application Support/NoMachine',trashable:true,applicationData:true},{...entry(122,'com.apple.idleassetsd',GB,true,120),path:'/Library/Application Support/com.apple.idleassetsd',trashable:false}]
+  if(parent.id===121)return [{...entry(123,'var',8.4*GB,true,121),path:parent.path+'/var',trashable:true,applicationData:true}]
+  if(parent.id===123)return [{...entry(124,'server.log',8.4*GB,false,123),path:parent.path+'/server.log',trashable:false}]
   if(parent.id===100)return [{...demoUser,trashable:false}]
   if(parent.id===101)return demoEntries.map((e)=>({...e,parent:101}))
   if(parent.name==='Music')return [{...entry(301,'Studio recordings',3.2*GB-18*500*1024-220*1024,true,parent.id),path:parent.path+'/Studio recordings'},{...entry(302,'Playlists',200*1024,true,parent.id),path:parent.path+'/Playlists'},{...entry(303,'Notes.txt',20*1024,false,parent.id),path:parent.path+'/Notes.txt'},...Array.from({length:18},(_,index)=>({...entry(310+index,'Session '+String(index+1)+'.m4a',500*1024,false,parent.id),path:parent.path+'/Session '+String(index+1)+'.m4a'}))]

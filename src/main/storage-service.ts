@@ -32,6 +32,8 @@ import {storageProcessMatcher} from './storage-process-match'
 import type {DeepCleanScan} from '../shared/deep-clean-types'
 import type {StorageDirectoryPlan} from '../shared/storage-directory-types'
 import {isStorageDirectoryCandidate,prepareStorageDirectoryTrash,type DirectoryTrashSnapshot} from './storage-directory-trash'
+import {applicationDataRoot} from './storage-application-data-policy'
+import {trashApplicationDataDirectory} from './storage-application-data-trash'
 import type {PrivacyItem,PrivacyTimeRange} from '../shared/privacy-types'
 import {PrivacyCleanupError,type PrivacyOutcome} from './privacy-resource'
 
@@ -345,22 +347,23 @@ export class StorageService {
     },true)
   }
   invalidateDirectoryPlan():void {this.directoryTrashPlan=null}
+  private directoryOptions(){return {home:process.env.DISKCOLLIE_TEST_RUN==='1'&&process.env.DISKCOLLIE_TEST_STORAGE_ROOT?process.env.DISKCOLLIE_TEST_STORAGE_ROOT:home,excludedPaths:this.getScanExclusions()}}
   async directoryPlan(input:{generation:number;id:number}):Promise<StorageDirectoryPlan>{
     return this.exclusive('analysis',async()=>{
       const epoch=this.scopeEpoch
       this.directoryTrashPlan=null
       const {index,engine}=this.session(input.generation)
       const entry=await engine.request<StorageEntry>('entry',{id:input.id})
-      const options={excludedPaths:this.getScanExclusions()}
+      const options=this.directoryOptions()
       if(index.mode!=='analysis'||!entry.directory||!index.root||!isStorageDirectoryCandidate(entry.path,index.root.path,options))throw new Error(translate(this.language(),'storage.directoryProtected'))
       const directory=await prepareStorageDirectoryTrash(entry.path,index.root.path,options)
-      const plan:StorageDirectoryPlan={id:randomUUID(),generation:input.generation,entryId:entry.id,...directory.summary}
+      const plan:StorageDirectoryPlan={id:randomUUID(),generation:input.generation,entryId:entry.id,...directory.summary,applicationData:Boolean(applicationDataRoot(entry.path,options.home))}
       if(epoch!==this.scopeEpoch)throw new Error('storage.scopeChanged')
       this.directoryTrashPlan={plan,snapshot:directory}
       return plan
     })
   }
-  async trash(input: { generation: number; ids: number[]; kind: StorageMode; groupId?: string;directoryPlanId?:string }): Promise<StorageActivity> {
+  async trash(input: { generation: number; ids: number[]; kind: StorageMode; groupId?: string;directoryPlanId?:string;acknowledgeApplicationData?:boolean }): Promise<StorageActivity> {
     return this.exclusive(input.kind,async () => {
       const session=this.session(input.generation)
       const {index,engine}=session
@@ -370,14 +373,19 @@ export class StorageService {
         if(input.kind!=='analysis'||entries.length!==1||!input.directoryPlanId)throw new Error(translate(this.language(),'storage.protectedPath',{path:entries.find((entry)=>entry.directory)!.path}))
         const reviewed=this.directoryTrashPlan,entry=entries[0]
         if(!reviewed||reviewed.plan.id!==input.directoryPlanId||reviewed.plan.generation!==input.generation||reviewed.plan.entryId!==entry.id||reviewed.plan.path!==entry.path)throw new Error(translate(this.language(),'storage.directoryPlanExpired'))
-        const assertCurrentPolicy=():void=>{if(!index.root||!isStorageDirectoryCandidate(entry.path,index.root.path,{excludedPaths:this.getScanExclusions()}))throw new Error(translate(this.language(),'storage.directoryProtected'))}
+        if(reviewed.plan.applicationData&&!input.acknowledgeApplicationData)throw new Error(translate(this.language(),'storage.applicationDataAcknowledgement'))
+        const assertCurrentPolicy=():void=>{if(!index.root||!isStorageDirectoryCandidate(entry.path,index.root.path,this.directoryOptions()))throw new Error(translate(this.language(),'storage.directoryProtected'))}
         assertCurrentPolicy();await reviewed.snapshot.validate()
-        const result=await this.activity('analysis',[{path:entry.path,size:reviewed.plan.allocated,run:()=>reviewed.snapshot.trash(async(target)=>{assertCurrentPolicy();await shell.trashItem(target)})}])
+        const result=await this.activity('analysis',[{path:entry.path,size:reviewed.plan.allocated,run:()=>reviewed.snapshot.trash(async(target)=>{
+          assertCurrentPolicy()
+          if(reviewed.plan.applicationData)await trashApplicationDataDirectory(target,async()=>{assertCurrentPolicy();await reviewed.snapshot.validate()},this.language(),{trash:file=>shell.trashItem(file),home:this.directoryOptions().home})
+          else await shell.trashItem(target)
+        })}])
         this.directoryTrashPlan=null
         return result
       }
       if(input.directoryPlanId)throw new Error(translate(this.language(),'storage.directoryPlanExpired'))
-      for (const entry of entries) if (!index.root || !isStorageMutationAllowed(entry.path, index.root.path) || isScanPathExcluded(entry.path,this.getScanExclusions()) || entry.directory) throw new Error(translate(this.language(),'storage.protectedPath',{path:entry.path}))
+      for (const entry of entries) if (!index.root || !isStorageMutationAllowed(entry.path, index.root.path,process.platform,this.directoryOptions().home) || isScanPathExcluded(entry.path,this.getScanExclusions()) || entry.directory) throw new Error(translate(this.language(),'storage.protectedPath',{path:entry.path}))
       if (input.kind === 'duplicates') {
         const batches=duplicateRemovalGroups([...session.groups.values()],new Set(input.ids),input.groupId)
         for(const {group,keep,files} of batches)for(const entry of [keep,...files]) {
@@ -589,7 +597,7 @@ export class StorageService {
     handle('state',()=>({index:this.latest?this.sessions.get(this.latest)?.index||null:null,indexes:Object.fromEntries([...this.sessions].map(([mode,s])=>[mode,s.index])),history:this.history,home}))
     handle('scan',(v)=>this.scan(z.object({mode:z.enum(['analysis','large','duplicates']).default('analysis'),minimum:z.number().int().min(10*1024**2).optional(),includeHidden:z.boolean().optional()}).parse(v||{})))
     handle('cancel',(v)=>{const scope=z.enum(['analysis','large','duplicates','cleanup','privacy','apps']).optional().parse(v)||this.queue.activeScopes[0];if(!scope)return false;this.queue.cancelPending(scope);if(scope==='cleanup'&&this.deepScanCancellation){this.deepScanCancellation.abort();return true}const engine=this.activeEngines.get(scope as StorageMode);if(!engine)return false;engine.stop();for(const [mode,session] of this.sessions)if(session.engine===engine)this.sessions.delete(mode);return true})
-    handle('children',async(v)=>{const q=entryInput.extend({offset:int.optional()}).parse(v),session=this.session(q.generation);const result=await session.engine.request<{parent:StorageEntry;items:StorageEntry[]}>('children',q);const annotate=(entry:StorageEntry):StorageEntry=>({...entry,trashable:Boolean(session.index.root&&isStorageMutationAllowed(entry.path,session.index.root.path)&&(!entry.directory||session.index.mode==='analysis'&&isStorageDirectoryCandidate(entry.path,session.index.root.path,{excludedPaths:this.getScanExclusions()})))});return {...result,parent:annotate(result.parent),items:result.items.map(annotate)}})
+    handle('children',async(v)=>{const q=entryInput.extend({offset:int.optional()}).parse(v),session=this.session(q.generation);const result=await session.engine.request<{parent:StorageEntry;items:StorageEntry[]}>('children',q);const annotate=(entry:StorageEntry):StorageEntry=>({...entry,applicationData:entry.directory&&Boolean(applicationDataRoot(entry.path,this.directoryOptions().home)),trashable:Boolean(session.index.root&&(entry.directory?session.index.mode==='analysis'&&isStorageDirectoryCandidate(entry.path,session.index.root.path,this.directoryOptions()):isStorageMutationAllowed(entry.path,session.index.root.path,process.platform,this.directoryOptions().home)))});return {...result,parent:annotate(result.parent),items:result.items.map(annotate)}})
     handle('large',(v)=>{const q=scope.extend({minimum:z.number().nonnegative(),search:z.string().max(500),offset:int,category:z.enum(['all','video','image','audio','archive','installer','document','other']).default('all')}).parse(v);return this.session(q.generation).engine.request('large',{...q,categories:fileCategories})})
     handle('duplicates',(v)=>this.exclusive('duplicates',async()=>{
       const q=typeof v==='number'?{generation:v,minimum:10*1024**2}:scope.extend({minimum:z.number().int().min(10*1024**2).default(10*1024**2)}).parse(v)
@@ -601,7 +609,7 @@ export class StorageService {
       }finally{this.activeEngines.delete('duplicates')}
     }))
     handle('directory-plan',(v)=>this.directoryPlan(entryInput.parse(v)))
-    handle('trash',(v)=>this.trash(scope.extend({ids:z.array(int).min(1).max(500).transform((v)=>[...new Set(v)]),kind:z.enum(['analysis','large','duplicates']),groupId:z.string().max(100).optional(),directoryPlanId:z.string().uuid().optional()}).parse(v)))
+    handle('trash',(v)=>this.trash(scope.extend({ids:z.array(int).min(1).max(500).transform((v)=>[...new Set(v)]),kind:z.enum(['analysis','large','duplicates']),groupId:z.string().max(100).optional(),directoryPlanId:z.string().uuid().optional(),acknowledgeApplicationData:z.boolean().optional()}).parse(v)))
     handle('reveal',async(v)=>{const q=entryInput.parse(v);const entry=await this.session(q.generation).engine.request<StorageEntry>('entry',q);shell.showItemInFolder(entry.path)})
     handle('reveal-target',async(v)=>{
       const q=z.discriminatedUnion('type',[

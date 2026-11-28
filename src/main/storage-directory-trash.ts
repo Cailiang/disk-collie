@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import type {StorageDirectoryPlan} from '../shared/storage-directory-types'
 import {isStorageMutationAllowed,storageProtectedNames,storageProtectedPaths} from './storage-policy'
+import {applicationDataRoot} from './storage-application-data-policy'
 
 interface DirectoryPath {
   path:string
@@ -41,10 +42,13 @@ function policy(options:DirectoryTrashOptions):{platform:NodeJS.Platform;home:st
 /** This only controls whether a folder can be offered for review. The full tree is checked later. */
 export function isStorageDirectoryCandidate(target:string,scanRoot:string,options:DirectoryTrashOptions={}):boolean {
   const {platform,p,normalize,home,env}=policy(options),normalized=normalize(target),root=normalize(scanRoot),user=normalize(home)
-  if(!isStorageMutationAllowed(target,scanRoot,platform,home,env))return false
+  const relative=p.relative(root,normalized)
+  if(!relative||relative==='..'||relative.startsWith('..'+p.sep)||p.isAbsolute(relative))return false
+  const applicationData=applicationDataRoot(normalized,home,platform)
+  if(!applicationData&&!isStorageMutationAllowed(target,scanRoot,platform,home,env))return false
   if(normalized===normalize(p.parse(target).root)||normalized===user||equalOrInside(user,normalized,p))return false
   if(normalized===root||normalized.toLowerCase().endsWith('.app'))return false
-  const protectedPaths=[...storageProtectedPaths(home,platform,env),...(options.excludedPaths||[])].map(normalize)
+  const protectedPaths=[...(applicationData?[]:storageProtectedPaths(home,platform,env)),...(options.excludedPaths||[])].map(normalize)
   if(protectedPaths.some((protectedPath)=>equalOrInside(normalized,protectedPath,p)||equalOrInside(protectedPath,normalized,p)))return false
   return !p.basename(normalized).toLowerCase().endsWith('.app')&&!protectedFile(p.basename(normalized))
 }
@@ -54,8 +58,11 @@ async function nonLinkedAncestors(target:string):Promise<void>{
     if(path.dirname(current)===current)break
   }
 }
-function assertEntryAllowed(target:string,scanRoot:string,options:DirectoryTrashOptions):void {
+function assertEntryAllowed(target:string,scanRoot:string,options:DirectoryTrashOptions,applicationDataScope?:string):void {
   const {platform,p,home,env}=policy(options),name=p.basename(target)
+  // Explicit application-data review includes that app's own settings and account data.
+  // Links remain physical entries; their destinations are never traversed or removed.
+  if(applicationDataScope&&equalOrInside(target,applicationDataScope,p))return
   // An uninstalled bundle inside a reviewed project is part of that folder, like any other build output.
   // Installed locations, credential files and the selected .app root remain protected by their own checks.
   if(!isStorageMutationAllowed(target,scanRoot,platform,home,env)||storageProtectedNames.some((entry)=>entry.toLowerCase()===name.toLowerCase())||protectedFile(name))throw new Error('storage.directoryProtected')
@@ -67,12 +74,13 @@ async function capture(target:string,scanRoot:string,options:DirectoryTrashOptio
   const root=await lstat(target),parent=await lstat(path.dirname(target))
   if(!root.isDirectory()||root.isSymbolicLink())throw new Error('storage.directoryChanged')
   if(root.dev!==parent.dev)throw new Error('storage.directoryProtected')
+  const applicationDataScope=applicationDataRoot(target,options.home||os.homedir(),options.platform||process.platform)?target:undefined
   const maximum=options.maximumEntries??500000,result=new Map<string,DirectoryPath>(),pending=[{path:target,hidden:path.basename(target).startsWith('.')}]
   while(pending.length){
     if(result.size+pending.length>maximum)throw new Error('storage.directoryIncomplete')
     const batch=pending.splice(Math.max(0,pending.length-32),32)
     await Promise.all(batch.map(async(entry)=>{
-      assertEntryAllowed(entry.path,scanRoot,options)
+      assertEntryAllowed(entry.path,scanRoot,options,applicationDataScope)
       let value:Awaited<ReturnType<typeof lstat>>
       try{value=await lstat(entry.path)}catch{throw new Error('storage.directoryIncomplete')}
       const link=value.isSymbolicLink()

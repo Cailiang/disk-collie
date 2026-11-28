@@ -6,6 +6,7 @@ import type {PrivacyItem,PrivacyPreview,PrivacyTimeRange} from './privacy-types'
 export interface StorageEntry {
   /** Main-process policy metadata; never authorizes a mutation on its own. */
   trashable?:boolean
+  applicationData?:boolean
   id: number
   parent: number | null
   name: string
@@ -117,7 +118,7 @@ export interface StorageApi {
   storageChildren: (input: { generation: number; id: number; offset?: number }) => Promise<{ parent: StorageEntry; items: StorageEntry[] }>
   storageLarge: (input: { generation: number; minimum: number; search: string; offset: number; category?: FileCategory | 'all' }) => Promise<{ count: number; items: StorageEntry[]; categories?: Record<string,number> }>
   storageDuplicates: (generation: number, minimum?:number) => Promise<{ groups: DuplicateGroup[]; elapsedMs: number }>
-  storageTrash: (input: { generation: number; ids: number[]; kind: StorageMode; groupId?: string;directoryPlanId?:string }) => Promise<StorageActivity>
+  storageTrash: (input: { generation: number; ids: number[]; kind: StorageMode; groupId?: string;directoryPlanId?:string;acknowledgeApplicationData?:boolean }) => Promise<StorageActivity>
   storageDirectoryPlan:(input:{generation:number;id:number})=>Promise<StorageDirectoryPlan>
   onStorageScopeChanged:(callback:()=>void)=>()=>void
   storageReveal: (input: { generation: number; id: number }) => Promise<void>

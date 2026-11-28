@@ -1298,5 +1298,14 @@
   "startup.authorization.more": "等",
   "startup.authorization.title": "系统授权说明",
   "startup.authorization.system": "接下来 macOS 的密码框可能仍显示“osascript”。这是 DiskCollie 使用的系统执行工具，上面的说明会同时显示在密码框中。",
-  "startup.authorizing": "正在请求系统授权并核验…"
+  "startup.authorizing": "正在请求系统授权并核验…",
+  "disk.reviewApplicationData": "核对并移到废纸篓（应用数据）",
+  "disk.applicationDataTitle": "这不是普通临时文件，而是应用数据",
+  "disk.applicationDataWarning": "目录中的配置、账户资料、数据库和文件会一并移到废纸篓，可能导致相关软件无法使用或丢失资料。请先退出对应软件及其后台服务，再确认是否继续。",
+  "disk.applicationDataConfirm": "我确认不再需要所选目录中的应用数据",
+  "storage.applicationDataAcknowledgement": "请先确认不再需要所选目录中的应用数据。",
+  "storage.applicationDataAuthorization": "DiskCollie 要将应用数据目录“{name}”移到废纸篓，需要管理员权限。其中的配置和资料会一并移动，相关软件可能无法使用。",
+  "storage.applicationDataCancelled": "已取消管理员授权，应用数据未移动。",
+  "storage.applicationDataTrashUnavailable": "无法安全使用当前用户的废纸篓，目录未移动。请在 Finder 中处理。",
+  "storage.applicationDataMoveFailed": "macOS 未能移动此应用数据目录。请退出相关软件及其后台服务后重试。"
 }

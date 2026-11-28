@@ -640,4 +640,8 @@ summary::-webkit-details-marker { display:none; }
 /* Selection stays in the tree and map; actions belong to the directory rows. */
 .space-treemap-cell.is-current { outline:3px solid var(--text); outline-offset:-5px; filter:brightness(1.09); z-index:1; }
 .privacy-confirm-skip { display:flex; align-items:center; gap:8px; font-size:12px; line-height:1.7; margin:15px 0; }
+.space-application-data-warning { border:1px solid var(--line); border-left:3px solid var(--usage-warning); background:var(--surface-subtle); border-radius:6px; padding:13px 15px; margin:14px 0; font-size:12px; line-height:1.7; }
+.space-application-data-warning>strong { color:var(--usage-warning); }
+.space-application-data-warning>label { display:flex; align-items:flex-start; gap:8px; }
+.space-application-data-warning input { margin-top:4px; flex-shrink:0; }
 .space-dialog .space-result-error { color:var(--usage-danger); font-size:11px; overflow-wrap:anywhere; }

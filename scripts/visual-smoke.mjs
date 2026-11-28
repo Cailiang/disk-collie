@@ -1,3 +1,4 @@
+import {verifyApplicationDataUi} from './application-data-smoke.mjs'
 import {startupLayout,verifyStartup} from './startup-smoke.mjs'
 import {verifyScanGames} from './scan-games-smoke.mjs'
 import {acknowledgeMessage} from './message-smoke.mjs'
@@ -234,6 +235,7 @@ try{
   await treeDirectoryTrash.click();await folderPage.getByRole('dialog').waitFor();assert.match(await folderPage.getByRole('dialog').innerText(),/\/Users\/alex\/Documents/);await folderPage.screenshot({path:`${directory}/space-directory-review.png`});await folderPage.getByRole('dialog').getByRole('button',{name:'移到废纸篓',exact:true}).click();await folderPage.getByRole('dialog').getByRole('button',{name:'完成',exact:true}).click()
   assert.equal(await folderTree.getByRole('button',{name:'移到废纸篓 Documents',exact:true}).count(),0);assert.equal(await folderMap.getByRole('button',{name:/Documents/}).count(),0);assert.equal(await folderPage.locator('.space-breadcrumbs button').last().innerText(),'alex','Deleting the current directory must return to its surviving parent');assert.equal(await folderMap.getByRole('button',{name:/其他项目/}).count(),0,'Deleted folder bytes must not reappear in Other')
   await navigate(folderPage,'大文件');await navigate(folderPage,'空间分析');assert.equal(await folderTree.getByRole('button',{name:'移到废纸篓 Documents',exact:true}).count(),0);await folderPage.screenshot({path:`${directory}/space-directory-removed.png`});await folderPage.close()
+  await verifyApplicationDataUi(browser,baseUrl,directory,viewports)
   await verifyStartup(browser,baseUrl,directory)
 await verifyScanGames(browser,baseUrl,directory)
   const advisor=await browser.newPage({viewport:viewports[0]});advisor.on('pageerror',error=>failures.push(error.message));await advisor.goto(baseUrl+'?noProvider=1');await navigate(advisor,'清理顾问');await advisor.locator('.advisor-start').waitFor();await verifyProfileLogo(advisor,'.advisor-mascot svg');assert.equal(await advisor.locator('.brand-mascot svg').innerHTML(),await advisor.locator('.advisor-mascot svg').innerHTML(),'Sidebar and advisor must share one profile');assert.equal(await advisor.locator('.agent-rail').count(),0);assert.equal(await advisor.locator('.advisor-intents>button').count(),3)

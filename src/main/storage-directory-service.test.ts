@@ -31,8 +31,24 @@ beforeEach(async()=>{
   entries=await Promise.all([folder,path.join(folder,'visible.txt'),path.join(folder,'.hidden'),path.join(folder,'.hidden/extra.txt')].map(async(target,index)=>{const stat=await lstat(target);return {id:index+1,parent:index===0?0:index===3?3:1,path:target,name:path.basename(target),directory:stat.isDirectory(),size:stat.isDirectory()?13:stat.size,allocated:stat.isDirectory()?8192:stat.blocks*512,modified:stat.mtimeMs*1e6,identity:`${stat.dev}:${stat.ino}`,links:stat.nlink}}))
   service=new StorageService(()=>'en-US',()=>state.excluded);await service.init();service.register()
 })
-afterEach(async()=>{for(const shutdown of state.shutdown.splice(0))shutdown();await rm(state.home,{recursive:true,force:true})})
+afterEach(async()=>{vi.unstubAllEnvs();for(const shutdown of state.shutdown.splice(0))shutdown();await rm(state.home,{recursive:true,force:true})})
 describe('registered directory Trash plans',()=>{
+  it.skipIf(process.platform!=='darwin')('requires explicit application-data acknowledgement over IPC and reconciles only the reviewed subtree',async()=>{
+    vi.stubEnv('DISKCOLLIE_TEST_RUN','1');vi.stubEnv('DISKCOLLIE_TEST_STORAGE_ROOT',state.home)
+    folder=path.join(state.home,'Library/Application Support/NoMachine')
+    await mkdir(path.join(folder,'.settings'),{recursive:true});await writeFile(path.join(folder,'server.log'),'owned log');await writeFile(path.join(folder,'.settings/private.key'),'owned key')
+    entries=await Promise.all([folder,path.join(folder,'server.log'),path.join(folder,'.settings'),path.join(folder,'.settings/private.key')].map(async(target,index)=>{const stat=await lstat(target);return {id:index+1,parent:index===0?0:index===3?3:1,path:target,name:path.basename(target),directory:stat.isDirectory(),size:stat.isDirectory()?18:stat.size,allocated:stat.isDirectory()?8192:stat.blocks*512,modified:stat.mtimeMs*1e6,identity:`${stat.dev}:${stat.ino}`,links:stat.nlink}}))
+    session('analysis',91)
+    const children=await state.handlers.get('diskcollie:storage:children')!(null,{generation:91,id:0})
+    expect(children.items[0]).toMatchObject({trashable:true,applicationData:true})
+    expect(children.items[1].trashable).toBe(false)
+    const plan=await service.directoryPlan({generation:91,id:1});expect(plan.applicationData).toBe(true)
+    const change=state.handlers.get('diskcollie:storage:trash')!,input={generation:91,ids:[1],kind:'analysis',directoryPlanId:plan.id}
+    await expect(change(null,input)).rejects.toThrow(/Confirm/);expect(state.calls).toEqual([])
+    const result=await change(null,{...input,acknowledgeApplicationData:true})
+    expect(result).toMatchObject({items:1,failures:0,removedPaths:[folder]})
+    expect(await readFile(path.join(state.trash,'NoMachine/.settings/private.key'),'utf8')).toBe('owned key')
+  })
   it('reviews the complete hidden tree, requires its exact token, and reconciles every retained index after Trash',async()=>{
     const analysis=session('analysis',31),large=session('large',32)
     const plan=await service.directoryPlan({generation:31,id:1})
