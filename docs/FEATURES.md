@@ -79,8 +79,18 @@ Space explorer can review an individual third-party Application Support folder, 
 
 File results share Show in folder, Ask AI and More actions (Add to ignore list and Properties); eligible Space explorer rows retain reviewed Trash. Properties read local full paths, type, creation/modification/access times, available sizes and permissions; unmeasured directory totals show unknown. The persistent ignore list accepts files and folders, immediately reconciles all file indexes and duplicate groups without counting cleanup, and skips them on later scans. Restore paths in Settings. macOS relocated Security system remnants, immutable files and files whose parent denies removal are omitted, while traversal continues into accessible descendants that may contain removable personal files. OS permissions can change after scanning; final mutation checks still apply.
 
-The sidebar now describes AI explanations and advice. Settings explains optional file-purpose and deletion-risk guidance, startup/process/terminal analysis and cleanup questions. Scanning and cleaning work without a model. Explicit AI requests send relevant metadata and concise context to the selected provider; file explanations do not read file contents, and provider usage is billed to the user's account.
+The model-provider help explains optional file-purpose and deletion-risk guidance, startup/process/terminal analysis and cleanup questions. Scanning and cleaning work without a model. Explicit AI requests send relevant metadata and concise context to the selected provider; file explanations do not read file contents, and provider usage is billed to the user's account.
 
 Complete project-folder review includes its own `.env`, built configuration copies and certificate/key files. Their names produce a review hint (count plus up to three relative paths), rather than blocking the whole project. Classification never reads their contents. The ordinary Trash confirmation includes them in the complete move; changed hidden files still invalidate the main-owned token. Actual system/credential stores, installed bundle roots, ignored descendants, mount boundaries and special files retain protection, with a specific blocking path and reason over IPC. Owned-fixture Electron tests execute cancel and real Trash, and the configuration-file review is checked at four viewports.
 
 ![Project-folder Trash review](screenshots/project-trash-review-zh.png)
+
+Settings has one entry at the sidebar footer, shown as the same icon on narrow windows. Model capabilities, optional setup, data sharing and billing live in the provider-heading help. Local AI discovery and CC Switch import buttons are directly visible above provider management.
+
+Startup groups and individual results can be ignored using main-owned stable registration identities. They stay hidden after scans and restarts and can be restored in the ignored-items list. Ignoring changes only DiskCollie's result visibility; it never disables or removes a registration, writes maintenance history or counts reclaimed space. Registry-backed and other non-file sources are supported.
+
+Scoped application, file/folder, startup and privacy explanations use the selected metadata and prompt without a health scan prerequisite. Their separate runtime has no maintenance tools or executable plans and retains cancellation, retry and persisted history. Scan-scope invalidation cannot cause a missing-health-scan failure. The maintenance advisor and process analysis still use registered operations and their verification.
+
+![Provider help and visible import actions](screenshots/settings-model-help-zh.png)
+
+![Ignored startup items and restore](screenshots/startup-ignored-zh.png)

@@ -1,3 +1,4 @@
+import {StartupIgnoreStore} from './startup-ignore-store'
 import {app,ipcMain,shell} from 'electron'
 import os from 'node:os'
 import path from 'node:path'
@@ -15,6 +16,7 @@ import {linuxStartup} from './startup/linux'
 import {windowsStartup} from './startup/windows'
 
 export class StartupService {
+  private readonly ignoreStore:StartupIgnoreStore
   private records=new Map<string,StartupRecord>()
   private ids=new Map<string,string>()
   private catalog:StartupCatalog|null=null
@@ -23,6 +25,7 @@ export class StartupService {
   private tail:Promise<unknown>=Promise.resolve()
   private readonly adapter:StartupAdapter
   constructor(private readonly options:{profile:string;language:()=>AppLanguage;ledger?:AgentStore;adapter?:StartupAdapter}){
+    this.ignoreStore=new StartupIgnoreStore(path.join(options.profile,'startup-ignored.json'))
     const fixture=process.env.DISKCOLLIE_TEST_RUN==='1'?process.env.DISKCOLLIE_TEST_STARTUP_ROOT:undefined
     const self=typeof app.getPath==='function'?app.getPath('exe'):''
     const settings={self:process.platform==='darwin'?/^(.+?\.app)(?:\/|$)/.exec(self)?.[1]:self,home:os.homedir(),profile:options.profile,trash:(file:string)=>shell.trashItem(file),fixture,language:options.language}
@@ -45,18 +48,41 @@ export class StartupService {
     }
     const coverage=targeted?result.coverage.map(source=>({...source,count:source.count+[...records.values()].filter(record=>record.item.kind===source.source).length-[...this.records.values()].filter(record=>record.item.kind===source.source).length})):result.coverage
     this.records=records
-    this.catalog={id:randomUUID(),scannedAt:new Date().toISOString(),elapsedMs:Date.now()-started,items:[...records.values()].map(record=>record.item),coverage}
-    this.snapshots.set(this.catalog.id,records)
+    return this.publish(coverage,Date.now()-started)
+  }
+  private async publish(coverage:StartupCatalog['coverage'],elapsedMs:number):Promise<StartupCatalog> {
+    const ignored=await this.ignoreStore.list(),keys=new Set(ignored.map(item=>item.key))
+    this.catalog={id:randomUUID(),scannedAt:new Date().toISOString(),elapsedMs,items:[...this.records.values()].filter(record=>!keys.has(record.key)).map(record=>record.item),coverage,ignored:ignored.map(({key,...item})=>{const current=[...this.records.values()].find(record=>record.key===key);return current?{...item,name:current.item.owner||current.item.name,configuration:current.item.configuration}:item})}
+    this.snapshots.set(this.catalog.id,new Map(this.records))
     while(this.snapshots.size>8)this.snapshots.delete(this.snapshots.keys().next().value!)
     return this.catalog
   }
+  ignore(input:{catalogId:string;ids:string[]}):Promise<StartupCatalog>{return this.serial(async()=>{
+    const snapshot=this.snapshots.get(input.catalogId)
+    if(!snapshot)throw new Error('startup.expired')
+    const records=[...new Set(input.ids)].map(id=>{const record=snapshot.get(id);if(!record)throw new Error('startup.expired');return record})
+    if(!records.length||records.length>100)throw new Error('startup.selectionInvalid')
+    const entries=await this.ignoreStore.list(),keys=new Set(entries.map(item=>item.key))
+    for(const record of records)if(!keys.has(record.key)){entries.push({id:randomUUID(),key:record.key,name:record.item.owner||record.item.name,configuration:record.item.configuration});keys.add(record.key)}
+    await this.ignoreStore.save(entries)
+    return this.publish(this.catalog?.coverage||[],this.catalog?.elapsedMs||0)
+  }).catch(error=>{throw new Error(this.message(errorKey(error)))})}
+  restoreIgnored(id:string):Promise<StartupCatalog>{return this.serial(async()=>{
+    const entries=await this.ignoreStore.list()
+    if(!entries.some(item=>item.id===id))throw new Error('startup.expired')
+    await this.ignoreStore.save(entries.filter(item=>item.id!==id))
+    return this.catalog?this.publish(this.catalog.coverage,this.catalog.elapsedMs):this.discover()
+  }).catch(error=>{throw new Error(this.message(errorKey(error)))})}
+
   scan():Promise<StartupCatalog>{return this.serial(()=>this.discover()).catch(error=>{throw new Error(this.message(errorKey(error)))})}
   change(input:StartupChange):Promise<StartupChangeResult>{return this.serial(async()=>{
     const snapshot=this.snapshots.get(input.catalogId)
     if(!snapshot)throw new Error(this.message('startup.expired'))
+    const ignoredKeys=new Set((await this.ignoreStore.list()).map(item=>item.key))
     const ids=[...new Set(input.ids)],records=ids.map(id=>{const record=snapshot.get(id);if(!record)throw new Error(this.message('startup.expired'));return record})
     if(!records.length||records.length>100)throw new Error(this.message('startup.selectionInvalid'))
     for(const record of records){
+      if(ignoredKeys.has(record.key))throw new Error(this.message('startup.ignoredSelection'))
       if(input.action==='remove'?!record.item.canRemove:!record.item.canToggle)throw new Error(this.message('startup.readonly'))
       try{if(await record.validate()!==record.signature)throw new Error('startup.changed')}catch(error){throw new Error(this.message(errorKey(error)))}
     }
@@ -106,6 +132,8 @@ export class StartupService {
   register():void{
     const id=z.string().uuid()
     ipcMain.handle('diskcollie:startup:scan',()=>this.scan())
+    ipcMain.handle('diskcollie:startup:ignore',(_event,input)=>this.ignore(z.object({catalogId:id,ids:z.array(id).min(1).max(100)}).strict().parse(input)))
+    ipcMain.handle('diskcollie:startup:restore-ignored',(_event,input)=>this.restoreIgnored(id.parse(input)))
     ipcMain.handle('diskcollie:startup:change',(_event,input)=>this.change(z.object({catalogId:id,ids:z.array(id).min(1).max(100),action:z.enum(['enable','disable','remove'])}).strict().parse(input)))
     ipcMain.handle('diskcollie:startup:reveal',(_event,input)=>this.reveal(id.parse(input)))
     ipcMain.handle('diskcollie:startup:icon',(_event,input)=>this.icon(id.parse(input)))

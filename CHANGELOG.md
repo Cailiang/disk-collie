@@ -4,6 +4,20 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.39 - 2026-11-28
+
+### English
+
+- Move model-use explanations into the provider heading help and expose local AI / CC Switch import buttons above the provider manager. Keep one Settings entry at the sidebar footer.
+- Add per-item and whole-group startup ignores with stable registration identities, immediate result updates, persistence across restarts and a restore list. Ignoring never changes the OS registration or records a cleanup operation.
+- Let application, file, startup and privacy explanations run directly from their scoped metadata without a computer health scan. Use a separate runtime with no maintenance tools or executable plan, retaining cancellation, errors and history.
+
+### 简体中文
+
+- 模型用途说明收进标题旁的帮助，本机 AI 配置扫描和 CC Switch 复制按钮移到供应商列表上方；侧栏底部只保留一个“设置”入口。
+- 启动项支持按单项或整组加入忽略列表，立即更新结果，按注册项稳定标识持久保存；可查看并恢复，不修改系统启动配置，也不计入清理记录。
+- 应用、文件、启动项和隐私来源的 AI 单项解读无需电脑体检，直接使用所选元数据；独立只读运行入口不提供维护工具或执行计划，保留取消、错误提示和历史。
+
 ## 1.0.38 - 2026-11-28
 
 ### English

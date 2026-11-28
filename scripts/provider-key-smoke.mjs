@@ -16,7 +16,7 @@ export async function verifyProviderKeyEditing(page) {
     const chunks = []
     for await (const chunk of request) chunks.push(chunk)
     const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : null
-    requests.push({ path: request.url, authorization: request.headers.authorization })
+    requests.push({ path: request.url, authorization: request.headers.authorization, body })
     response.setHeader('content-type', 'application/json')
     if (request.url === '/v1/models') {
       const delayed = request.headers.authorization === 'Bearer smoke-delayed-5555'
@@ -190,6 +190,31 @@ export async function verifyProviderKeyEditing(page) {
     assert.equal(preserved.type, imported.type, 'Editing an imported provider must preserve its protocol')
     assert.equal(preserved.keyHint, '••••6666')
     assert.equal(preserved.model, imported.model)
+    // Reproduce the stale Renderer/main scan split that used to reject app explanations.
+    const explanationProvider=await page.evaluate(input=>window.diskCollie.saveAgentProvider(input),{name:'Owned item explanation',type:'openai-compatible',baseUrl:`http://127.0.0.1:${server.address().port}/v1`,model:'smoke-model',apiKey:'smoke-explanation-7777'})
+    await page.evaluate(id=>window.diskCollie.setDefaultAgentProvider(id),explanationProvider.id)
+    await page.reload();await page.locator('.nav-button[title="首页"]').waitFor({timeout:60000})
+    const originalSettings=await page.evaluate(()=>window.diskCollie.getAppSettings())
+    assert(originalSettings.scanExcludedDirectories.length,'Owned exclusion fixture must exist')
+    try{
+      await page.evaluate(()=>window.diskCollie.updateAppSettings({scanExcludedDirectories:[]}))
+      const offset=requests.length
+      await page.locator('.nav-button[title="应用管理"]').click();await page.locator('.space-app-row').first().waitFor()
+      const names=await page.locator('.space-app-row .manager-app-name strong').allTextContents()
+      const appName=names.find(name=>name==='The Unarchiver')||names[0]
+      assert(appName,'Application inventory must supply the selected app metadata')
+      await page.getByRole('button',{name:'询问 AI '+appName,exact:true}).first().click()
+      const task=page.locator('.ai-task-row').filter({has:page.getByText(appName,{exact:true})})
+      await task.locator('.ai-task-copy small').filter({hasText:'分析完成'}).waitFor({timeout:30000})
+      assert.equal(await page.locator('.ai-task-row.phase-failed').count(),0)
+      const explanationRequests=requests.slice(offset).filter(request=>request.path==='/v1/chat/completions')
+      assert.equal(explanationRequests.length,1)
+      assert.equal(explanationRequests[0].body.tools?.length||0,0,'Scoped explanations must have no maintenance tools')
+      assert(JSON.stringify(explanationRequests[0].body.messages).includes(appName))
+      const runs=await page.evaluate(()=>window.diskCollie.listAgentRuns())
+      const run=runs.find(run=>run.prompt.includes(appName));assert.equal(run.status,'completed');assert.deepEqual(run.plan,[])
+      console.log('Application AI passed: selected real app, no health scan result, direct SDK explanation, no maintenance tools or plan')
+    }finally{await page.evaluate(directories=>window.diskCollie.updateAppSettings({scanExcludedDirectories:directories}),originalSettings.scanExcludedDirectories)}
     console.log('Provider regression passed: explicit custom setup, model selection, discovery race, endpoint isolation, encrypted key editing, reload, failure and blank-key preservation')
   } finally {
     releaseDelayedModels()

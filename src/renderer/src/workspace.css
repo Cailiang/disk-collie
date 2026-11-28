@@ -662,3 +662,10 @@ summary::-webkit-details-marker { display:none; }
 .space-directory-sensitive-note { margin:16px 0; padding:12px 14px; border-radius:8px; background:var(--surface-subtle); font-size:12px; line-height:1.6; }
 .space-directory-sensitive-note strong { font-weight:600; }.space-directory-sensitive-note p { margin:6px 0; }
 .space-directory-sensitive-note ul { padding-left:18px; margin:6px 0 0; }.space-directory-sensitive-note code { overflow-wrap:anywhere; white-space:pre-wrap; }
+
+.provider-state.settings-entry { grid-template-columns:20px minmax(0,1fr); padding:12px 10px; border:0; }
+.provider-state.settings-entry.is-active { background:var(--accent-soft); color:var(--accent); }
+.provider-state.settings-entry>svg { width:20px; height:20px; }
+@media(max-width:700px) { .provider-state.settings-entry { display:flex; align-items:center; justify-content:center; padding:0; } }
+
+@media(max-width:700px) { .provider-state.settings-entry { width:34px; height:34px; min-height:34px; }.provider-state.settings-entry>div { display:none; }.provider-state.settings-entry>svg { width:18px; height:18px; } }

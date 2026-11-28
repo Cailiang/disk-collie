@@ -68,7 +68,7 @@
   .startup-toolbar .space-search { flex-basis:100%; max-width:none; }
   .startup-toolbar>.space-inline-check { margin-left:0; }
   .startup-group-row { flex-wrap:wrap; gap:10px; padding:14px 0; }
-  .startup-group-name { flex-basis:calc(100% - 110px); gap:7px; }
+  .startup-group-name { flex-basis:calc(100% - 140px); gap:7px; }
   .startup-group-name strong { font-size:12px; }
   .startup-group-meta { order:3; max-width:none; margin-left:25px; }
   .startup-row-actions { gap:2px; }
@@ -82,3 +82,10 @@
   .startup-filters>button { font-size:10px; padding:7px 8px; }
   .startup-coverage p { flex-direction:column; gap:2px; }
 }
+
+.startup-ignored-button { margin-left:4px; }
+.startup-ignored-list { max-height:50dvh; overflow:auto; }
+.startup-ignored-list>div { display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid var(--line); }
+.startup-ignored-list>div>span { flex:1; min-width:0; }.startup-ignored-list strong { display:block; font-size:13px; }
+.startup-ignored-list code { display:block; margin-top:6px; font-size:11px; color:var(--text-secondary); overflow-wrap:anywhere; }
+.startup-ignored-list .space-button { flex-shrink:0; font-size:11px; }

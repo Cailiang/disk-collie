@@ -1,3 +1,6 @@
+import {mkdtemp,rm} from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import {describe,expect,it,vi} from 'vitest'
 import {baseItem,digest,type StartupAdapter,type StartupRecord,type StartupBatch} from './startup/common'
 import type {StartupCoverage,StartupItem} from '../shared/startup-types'
@@ -5,15 +8,40 @@ const handlers=vi.hoisted(()=>new Map<string,Function>())
 vi.mock('electron',()=>({app:{},ipcMain:{handle:(name:string,fn:Function)=>handlers.set(name,fn)},shell:{trashItem:vi.fn(),showItemInFolder:vi.fn()}}))
 vi.mock('./application-icon',()=>({readApplicationIcon:vi.fn()}))
 import {StartupService} from './startup-service'
-function harness(){
+function harness(profile='/unused-fixture'){
   const rows=new Map<string,StartupItem>([['one',baseItem({name:'One',kind:'agent',state:'enabled',canToggle:true,canRemove:true})],['two',baseItem({name:'Two',kind:'login',state:'disabled',canToggle:true,canRemove:true})],['system',baseItem({name:'Protected',kind:'daemon',scope:'system',state:'enabled',access:'protected'})]])
   const writes:string[]=[],fail=new Set<string>(),unchanged=new Set<string>()
   const coverage:StartupCoverage[]=[{source:'agent',status:'complete',message:'',count:1},{source:'login',status:'complete',message:'',count:1},{source:'daemon',status:'complete',message:'',count:1}]
   const adapter:StartupAdapter={scan:async()=>({coverage,records:[...rows].map(([key,item])=>({key,item:{...item},signature:digest(item),validate:async()=>digest(rows.get(key)),change:async action=>{writes.push(key+':'+action);if(fail.has(key))throw new Error('startup.permission');if(unchanged.has(key))return;if(action==='remove')rows.delete(key);else rows.set(key,{...item,state:action==='enable'?'enabled':'disabled'})}}))})}
-  const service=new StartupService({profile:'/unused-fixture',language:()=> 'en-US',adapter})
+  const service=new StartupService({profile,language:()=> 'en-US',adapter})
   return {service,rows,writes,fail,unchanged,coverage}
 }
 describe('registered startup changes',()=>{
+  it('persists stable startup identities across service restarts and restores them without changing registrations',async()=>{
+    const profile=await mkdtemp(path.join(os.tmpdir(),'diskcollie-startup-ignore-'))
+    try{
+      const first=harness(profile),catalog=await first.service.scan(),item=catalog.items[0]
+      const hidden=await first.service.ignore({catalogId:catalog.id,ids:[item.id]})
+      expect(hidden.items.map(item=>item.name)).toEqual(['Two','Protected']);expect(hidden.ignored).toHaveLength(1)
+      expect(first.writes).toEqual([])
+      await expect(first.service.change({catalogId:catalog.id,ids:[item.id],action:'disable'})).rejects.toThrow(/ignored/)
+      const restarted=harness(profile),next=await restarted.service.scan()
+      expect(next.items.map(item=>item.name)).toEqual(['Two','Protected']);expect(next.ignored).toEqual(hidden.ignored)
+      const restored=await restarted.service.restoreIgnored(next.ignored![0].id)
+      expect(restored.items.map(item=>item.name)).toEqual(['One','Two','Protected']);expect(restored.ignored).toEqual([])
+      expect(restarted.writes).toEqual([])
+      expect((await harness(profile).service.scan()).items).toHaveLength(3)
+    }finally{await rm(profile,{recursive:true,force:true})}
+  })
+  it('rejects unregistered IDs or renderer-supplied keys and paths before saving an ignore entry',async()=>{
+    const profile=await mkdtemp(path.join(os.tmpdir(),'diskcollie-startup-ignore-ipc-'))
+    try{
+      const {service,writes}=harness(profile),catalog=await service.scan();service.register()
+      await expect(service.ignore({catalogId:catalog.id,ids:[crypto.randomUUID()]})).rejects.toThrow(/expired/)
+      expect(()=>handlers.get('diskcollie:startup:ignore')!(null,{catalogId:catalog.id,ids:[catalog.items[0].id],key:'forged',path:'/outside'})).toThrow()
+      expect((await service.scan()).ignored).toEqual([]);expect(writes).toEqual([])
+    }finally{await rm(profile,{recursive:true,force:true})}
+  })
   it('rejects forged IDs, expired catalogs and protected selections before any write',async()=>{
     const {service,writes}=harness(),catalog=await service.scan()
     await expect(service.change({catalogId:'forged',ids:[catalog.items[0].id],action:'disable'})).rejects.toThrow(/expired/)

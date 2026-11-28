@@ -1340,5 +1340,17 @@
   "storage.directoryBlocked.excluded": "目录包含忽略列表中的路径，整体移走也会影响它。请先在设置中取消该忽略项，或只处理其他子项：{path}",
   "storage.directoryBlocked.application": "应用包请在“应用管理”中卸载：{path}",
   "storage.directoryBlocked.volume": "此路径位于磁盘挂载边界，无法安全执行整目录移动：{path}",
-  "storage.directoryBlocked.special": "目录包含无法完整核验的特殊文件，无法整体移到废纸篓：{path}"
+  "storage.directoryBlocked.special": "目录包含无法完整核验的特殊文件，无法整体移到废纸篓：{path}",
+  "settings.summary": "语言、外观与 AI 模型",
+  "tasks.demoExplanation": "这是 {name} 的演示解读。正式使用时，AI 会根据所选项目的信息说明用途、归属和风险。",
+  "startup.ignoredCount": "已忽略 {count} 项",
+  "startup.ignoreList": "启动项忽略列表",
+  "startup.ignoreHelp": "忽略只影响 DiskCollie 的扫描结果，不会禁用、移除或修改实际启动项。恢复后可重新查看和管理。",
+  "startup.noIgnored": "暂无忽略的启动项。",
+  "startup.restoreIgnore": "恢复显示",
+  "startup.ignoredDone": "已将 {count} 项加入忽略列表，重扫和重启后继续生效。",
+  "startup.restored": "已恢复显示此启动项。",
+  "startup.ignoredSelection": "此启动项已被忽略，请先恢复显示后再操作。",
+  "startup.ignoreUnavailable": "无法读写启动项忽略列表，请重试。",
+  "startup.ignoreLimit": "启动项忽略列表已达 200 项，请先恢复不需要忽略的项目。"
 }

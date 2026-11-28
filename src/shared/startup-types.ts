@@ -10,13 +10,16 @@ export interface StartupItem {
 }
 export interface StartupGroup {id:string;name:string;publisher:string;items:StartupItem[];state:StartupState|'mixed';system:boolean}
 export interface StartupCoverage {source:StartupKind;status:'complete'|'partial'|'unavailable';message:string;count:number}
-export interface StartupCatalog {id:string;scannedAt:string;items:StartupItem[];coverage:StartupCoverage[];elapsedMs:number}
+export interface StartupIgnoredItem {id:string;name:string;configuration:string}
+export interface StartupCatalog {ignored?:StartupIgnoredItem[];id:string;scannedAt:string;items:StartupItem[];coverage:StartupCoverage[];elapsedMs:number}
 export type StartupAction='enable'|'disable'|'remove'
 export interface StartupChange {catalogId:string;ids:string[];action:StartupAction}
 export interface StartupOutcome {id:string;name:string;ok:boolean;changed:boolean;message:string}
 export interface StartupChangeResult {results:StartupOutcome[];catalog:StartupCatalog}
 export interface StartupApi {
   startupScan:()=>Promise<StartupCatalog>
+  startupIgnore:(input:{catalogId:string;ids:string[]})=>Promise<StartupCatalog>
+  startupRestoreIgnored:(id:string)=>Promise<StartupCatalog>
   startupChange:(input:StartupChange)=>Promise<StartupChangeResult>
   startupReveal:(id:string)=>Promise<void>
   startupIcon:(id:string)=>Promise<string|null>

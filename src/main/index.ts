@@ -1942,6 +1942,9 @@ app.whenReady().then(async () => {
     shell.showItemInFolder(recovery.reference)
   })
   ipcMain.handle('diskcollie:agent:runs:start', async (event, input: StartAgentRunInput) => {
+    if(input?.readOnlyExplanation===true)return agentRuntime!.startExplanation(input,appSettings.language,(agentEvent)=>{
+      if(!event.sender.isDestroyed())event.sender.send('diskcollie:agent-run-event',agentEvent)
+    })
     if (!currentScanResult) {
       throw new Error(mainText('请先完成一次电脑体检', 'Complete a computer health scan first.'))
     }

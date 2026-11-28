@@ -223,6 +223,8 @@ export interface AgentRunRecord {
 
 export interface StartAgentRunInput {
   prompt: string
+  /** Scoped metadata explanation; has no maintenance tools or scan prerequisite. */
+  readOnlyExplanation?: boolean
   conversationId?: string
   diskUsageNodeId?: string
   process?: AgentProcessContext

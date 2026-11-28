@@ -885,17 +885,17 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
   }
 
   const startQueuedExplanation=async(task:AiTask,publish:(run:AgentRunRecord)=>void,signal:AbortSignal):Promise<AgentRunRecord>=>{
-    const evidence=resultRef.current||await scanNow()
+    const evidence=task.process?(resultRef.current||await scanNow()):null
     signal.throwIfAborted()
-    if(!evidence)throw new Error(appText('tasks.evidenceFailed'))
-    if(window.diskCollie)return window.diskCollie.startAgentRun({prompt:task.prompt,process:task.process})
+    if(task.process&&!evidence)throw new Error(appText('tasks.evidenceFailed'))
+    if(window.diskCollie)return window.diskCollie.startAgentRun({prompt:task.prompt,process:task.process,readOnlyExplanation:!task.process})
     if(!defaultProvider)throw new Error(appText('tasks.needs-provider'))
     const now=new Date().toISOString()
     const run:AgentRunRecord={id:crypto.randomUUID(),conversationId:crypto.randomUUID(),language:settings.language,prompt:task.prompt,status:'analyzing',providerId:defaultProvider.id,providerName:defaultProvider.name,model:defaultProvider.model,response:null,presentation:null,focus:[],plan:[],results:[],error:null,createdAt:now,updatedAt:now}
     const timeout=window.setTimeout(()=>{
       if(signal.aborted)return
-      const presentation=demoPresentation(evidence,task.prompt,settings.language,task.process)
-      publish({...run,status:'awaiting-confirmation',presentation,response:presentation.summary,plan:task.process?demoPlan(evidence,settings.language,task.process):[],updatedAt:new Date().toISOString()})
+      const presentation=evidence?demoPresentation(evidence,task.prompt,settings.language,task.process):null
+      publish({...run,status:task.process?'awaiting-confirmation':'completed',presentation,response:presentation?.summary||appText('tasks.demoExplanation',{name:task.title}),plan:task.process&&evidence?demoPlan(evidence,settings.language,task.process):[],updatedAt:new Date().toISOString()})
     },1100)
     signal.addEventListener('abort',()=>{clearTimeout(timeout);publish({...run,status:'cancelled',updatedAt:new Date().toISOString()})},{once:true})
     return run

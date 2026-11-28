@@ -1340,5 +1340,17 @@
   "storage.directoryBlocked.excluded": "The folder contains an ignored path. Moving it would also affect that path. Remove the ignore entry in Settings first, or handle other children separately: {path}",
   "storage.directoryBlocked.application": "Uninstall application bundles in Applications: {path}",
   "storage.directoryBlocked.volume": "This path is on a mount boundary and cannot be safely moved with the whole folder: {path}",
-  "storage.directoryBlocked.special": "The folder contains a special file that cannot be completely verified for a whole-folder Trash move: {path}"
+  "storage.directoryBlocked.special": "The folder contains a special file that cannot be completely verified for a whole-folder Trash move: {path}",
+  "settings.summary": "Language, appearance & AI models",
+  "tasks.demoExplanation": "This is a demo explanation of {name}. In the installed app, AI uses the selected item’s metadata to explain its purpose, ownership and risks.",
+  "startup.ignoredCount": "Ignored: {count}",
+  "startup.ignoreList": "Ignored startup items",
+  "startup.ignoreHelp": "Ignoring only hides DiskCollie scan results. It does not disable, remove or modify the actual startup registration. Restore an item to view and manage it again.",
+  "startup.noIgnored": "No ignored startup items.",
+  "startup.restoreIgnore": "Restore visibility",
+  "startup.ignoredDone": "Added {count} items to the ignore list. They stay hidden after scans and restarts.",
+  "startup.restored": "The startup item is visible again.",
+  "startup.ignoredSelection": "This startup item is ignored. Restore its visibility before making changes.",
+  "startup.ignoreUnavailable": "Could not read or save ignored startup items. Try again.",
+  "startup.ignoreLimit": "The startup ignore list has reached 200 items. Restore unused entries first."
 }

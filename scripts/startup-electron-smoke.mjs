@@ -53,6 +53,18 @@ export function startupFixture(){
 
 export async function verifyStartupFixture(page,fixture){
   let catalog=await page.evaluate(()=>window.diskCollie.startupScan())
+  const visible=catalog.items.find(item=>item.configuration===fixture.files.live||item.name===fixture.names.live)
+  assert(visible,'Owned startup entry must be discovered before ignoring it')
+  const sourceFile=fixture.files.live||fixture.program,original=readFileSync(sourceFile),historyBefore=(await page.evaluate(()=>window.diskCollie.listMaintenanceRuns())).length
+  const hidden=await page.evaluate(input=>window.diskCollie.startupIgnore(input),{catalogId:catalog.id,ids:[visible.id]})
+  assert(!hidden.items.some(item=>item.id===visible.id));assert.equal(hidden.ignored.length,1)
+  const rescanned=await page.evaluate(()=>window.diskCollie.startupScan())
+  assert(!rescanned.items.some(item=>item.configuration===visible.configuration&&item.name===visible.name))
+  assert.equal((await page.evaluate(()=>window.diskCollie.listMaintenanceRuns())).length,historyBefore)
+  assert.deepEqual(readFileSync(sourceFile),original,'Ignoring must preserve the startup definition')
+  catalog=await page.evaluate(id=>window.diskCollie.startupRestoreIgnored(id),hidden.ignored[0].id)
+  assert(catalog.items.some(item=>item.configuration===visible.configuration&&item.name===visible.name))
+
   const find=(name)=>catalog.items.find(item=>item.name.includes(name))
   let live=find(fixture.names.live),orphan=find(fixture.names.orphan),protectedItem=find(fixture.names.protected)
   assert(live&&orphan&&protectedItem,'All owned startup fixtures must be discovered: '+JSON.stringify({coverage:catalog.coverage,owned:catalog.items.filter(item=>item.name.includes('dev.diskcollie.smoke.')).map(item=>item.name)}))
