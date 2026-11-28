@@ -23,8 +23,17 @@ export async function existence(file:string):Promise<'present'|'missing'|'unknow
   if(!file||!path.isAbsolute(file))return 'unknown'
   try{await lstat(file);return 'present'}catch(error){return ['ENOENT','ENOTDIR'].includes((error as NodeJS.ErrnoException).code||'')?'missing':'unknown'}
 }
+export function startupText(value:unknown):string {
+  if(typeof value!=='string')return ''
+  const text=value.trim()
+  return /^(?:null|\(null\)|<null>|undefined)$/i.test(text)?'':text
+}
 export function baseItem(value:Partial<StartupItem>&Pick<StartupItem,'name'|'kind'>):StartupItem {
-  return {id:randomUUID(),owner:'',ownerId:'',publisher:'',description:'',scope:'user',state:'unknown',running:null,timing:['login'],configuration:'',target:'',orphan:false,issue:null,access:'readonly',canToggle:false,canRemove:false,icon:null,...value}
+  const item:StartupItem={id:randomUUID(),owner:'',ownerId:'',publisher:'',description:'',scope:'user',state:'unknown',running:null,timing:['login'],configuration:'',target:'',orphan:false,issue:null,access:'readonly',canToggle:false,canRemove:false,icon:null,...value}
+  for(const key of ['name','owner','ownerId','publisher','description','configuration','target'] as const)item[key]=startupText(item[key])
+  item.name||=path.basename(item.configuration||item.target)||'Startup item'
+  if(item.state==='unknown'&&!item.issue)item.issue='startup.stateUnavailable'
+  return item
 }
 export interface StartupRecord {item:StartupItem;signature:string;key:string;change:(action:StartupAction)=>Promise<void>;validate:()=>Promise<string>}
 export interface StartupDiscovery {records:StartupRecord[];coverage:StartupCoverage[]}

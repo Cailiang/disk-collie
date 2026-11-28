@@ -52,10 +52,21 @@ describe('registered startup changes',()=>{
     expect(result.results[0]).toMatchObject({ok:false,changed:false})
     expect(result.results[0].message).toMatch(/could not be verified/)
   })
-  it('serializes scanning with mutations so queued stale actions cannot authorize a newer catalog',async()=>{
+  it('keeps read-only rescans from expiring a displayed selection and still validates its original snapshot',async()=>{
     const {service,writes}=harness(),catalog=await service.scan()
     const refresh=service.scan(),change=service.change({catalogId:catalog.id,ids:[catalog.items[0].id],action:'disable'})
-    await refresh;await expect(change).rejects.toThrow(/expired/);expect(writes).toEqual([])
+    await refresh;expect((await change).results[0].ok).toBe(true);expect(writes).toEqual(['one:disable'])
+  })
+  it('revalidates and removes an unchanged displayed item after the page has been open for hours',async()=>{
+    const {service,writes}=harness(),catalog=await service.scan(),time=Date.now()
+    const clock=vi.spyOn(Date,'now').mockReturnValue(time+24*60*60000)
+    try{expect((await service.change({catalogId:catalog.id,ids:[catalog.items[0].id],action:'remove'})).results[0].ok).toBe(true);expect(writes).toEqual(['one:remove'])}finally{clock.mockRestore()}
+  })
+  it('rejects changed old selections after a newer scan instead of silently authorizing the new definition',async()=>{
+    const {service,rows,writes}=harness(),catalog=await service.scan()
+    rows.set('one',{...rows.get('one')!,target:'/different-program'});await service.scan()
+    await expect(service.change({catalogId:catalog.id,ids:[catalog.items[0].id],action:'remove'})).rejects.toThrow(/has changed/)
+    expect(writes).toEqual([])
   })
   it('accepts registered IDs only across IPC, never client-supplied paths or commands',async()=>{
     const {service}=harness();service.register()

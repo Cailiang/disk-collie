@@ -4,6 +4,20 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.32 - 2026-11-28
+
+### English
+
+- Clean native null placeholders from startup names and publishers. List registered macOS startup sources rather than treating every bundled helper as a startup registration, explain unavailable states, and retain known enabled evidence in mixed groups.
+- Keep displayed startup snapshots usable across idle time and read-only rescans, while revalidating the original selected definitions before any change.
+- Check GitHub on every launch and hourly; fall back to diskcollie.app only when GitHub version, manifest or download access fails. Use the website's verified local updater payloads and retain checksum/signature checks.
+
+### 简体中文
+
+- 清理启动项名称、发布者中的 null 占位值；macOS 只显示已有注册证据的启动来源，不再把应用内置辅助组件本身当作启动项，明确说明无法读取的状态。
+- 启动项页面停留或只读重扫描不再导致删除时报列表过期；所有调整仍在写入前复核原始配置，防止误操作已变化的项目。
+- 每次启动及每小时优先检查 GitHub；版本接口、更新清单或下载网络不可用时回退官网，并从官网的已校验镜像下载安装，保留哈希和签名校验。
+
 ## 1.0.31 - 2026-11-28
 
 ### English

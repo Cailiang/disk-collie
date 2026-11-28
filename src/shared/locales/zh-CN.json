@@ -1212,6 +1212,8 @@
   "startup.state.disabled": "已禁用",
   "startup.state.mixed": "部分启用",
   "startup.state.unknown": "状态未知",
+  "startup.stateUnavailable": "系统未提供可核验的启用状态；可在系统启动设置中确认。",
+  "startup.unknownHint": "部分项目的状态无法从系统读取，可在系统启动设置中查看。",
   "startup.orphan": "残留项",
   "startup.configurations": "{count} 条启动配置",
   "startup.source": "来源",

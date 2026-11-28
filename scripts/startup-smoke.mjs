@@ -8,6 +8,7 @@ export async function startupLayout(page){
   assert.equal(await code.locator('.startup-item').count(),2,'One app retains every startup source')
   assert.match(await code.innerText(),/部分启用/)
   assert.match(await code.innerText(),/当前未运行/,'Not running must remain distinct from disabled')
+  assert.match(await workspace.locator('.startup-state-note').innerText(),/无法从系统读取/)
   const box=await workspace.boundingBox()
   assert(box.x>=0&&box.x+box.width<=await page.evaluate(()=>innerWidth)+1)
   assert(await workspace.evaluate(element=>element.scrollWidth<=element.clientWidth+1),'Startup details must fit narrow windows')

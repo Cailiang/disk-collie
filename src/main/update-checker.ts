@@ -1,6 +1,9 @@
 import type { AppUpdateState } from '../shared/types'
 
 const LATEST_RELEASE_ENDPOINT = 'https://api.github.com/repos/Cailiang/disk-collie/releases/latest'
+export const WEBSITE_RELEASE_ENDPOINT='https://diskcollie.app/releases/latest.json'
+export const WEBSITE_UPDATE_FEED='https://diskcollie.app/updates'
+export type UpdateSource='github'|'website'
 
 interface GitHubRelease {
   tag_name?: unknown
@@ -93,6 +96,53 @@ export async function fetchLatestReleaseVersion(
     return latestVersion
   } finally {
     clearTimeout(timeout)
+  }
+}
+
+async function websiteReleaseVersion(currentVersion:string,fetchProvider:FetchProvider,timeoutMs:number):Promise<string>{
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),timeoutMs)
+  try{
+    const response=await fetchProvider(WEBSITE_RELEASE_ENDPOINT,{headers:{Accept:'application/json','User-Agent':`DiskCollie/${currentVersion}`},signal:controller.signal})
+    if(!response.ok)throw new Error(`Website Releases HTTP ${response.status}`)
+    const release=await response.json() as {repository?:unknown;version?:unknown;tag?:unknown}
+    if(release.repository!=='Cailiang/disk-collie'||typeof release.version!=='string'||!/^\d+\.\d+\.\d+$/.test(release.version)||release.tag!==`v${release.version}`)throw new Error('Website returned invalid stable release metadata')
+    return release.version
+  }finally{clearTimeout(timeout)}
+}
+
+export function isUpdateSourceUnavailable(error:unknown):boolean{
+  const value=error as Error&{code?:string}
+  return value?.name==='AbortError'||value?.name==='TimeoutError'||
+    /HTTP|HttpError|status|response/i.test(String(error))&&/\b(?:403|408|429|5\d\d)\b/.test(String(error))||
+    /(?:HTTP|status(?: code)?|response code)\s*[:=]?\s*(?:403|408|429|5\d\d)\b|\b(?:ENOTFOUND|EAI_AGAIN|ECONN\w*|ETIMEDOUT|ERR_NETWORK\w*|ERR_CONNECTION\w*|ERR_NAME_NOT_RESOLVED|ERR_INTERNET_DISCONNECTED)\b|fetch failed|socket hang up|network|timed? ?out/i.test(String(error)+' '+(value?.code||''))
+}
+
+interface UpdateClient {
+  disableDifferentialDownload:boolean
+  setFeedURL:(options:{provider:'github';owner:string;repo:string}|{provider:'generic';url:string;useMultipleRangeRequest:boolean})=>void
+  checkForUpdates:()=>Promise<{updateInfo:{version:string}}|null>
+  downloadUpdate:()=>Promise<unknown>
+}
+/** Retry only source-access failures; package/hash/signature failures stay errors. */
+export async function checkAndDownloadAppUpdate(options:{currentVersion:string;updater:UpdateClient;onCurrent:(version:string)=>void;fetchProvider?:FetchProvider;timeoutMs?:number}):Promise<void>{
+  const {currentVersion,updater,onCurrent,fetchProvider=fetch,timeoutMs=5000}=options
+  let observedVersion=''
+  for(const source of ['github','website'] as const){
+    try{
+      const version=source==='github'?await fetchLatestReleaseVersion(currentVersion,fetchProvider,timeoutMs):await websiteReleaseVersion(currentVersion,fetchProvider,timeoutMs)
+      if(source==='website'&&observedVersion&&isNewerVersion(observedVersion,version))throw new Error('Cannot find latest.yml for the newest known release on the website mirror')
+      observedVersion=version
+      if(!isNewerVersion(version,currentVersion)){onCurrent(version);return}
+      updater.setFeedURL(source==='github'?{provider:'github',owner:'Cailiang',repo:'disk-collie'}:{provider:'generic',url:WEBSITE_UPDATE_FEED,useMultipleRangeRequest:false})
+      // The fallback works without requesting GitHub-hosted differential blocks.
+      updater.disableDifferentialDownload=source==='website'
+      const result=await updater.checkForUpdates()
+      if(!result)throw new Error('Update source returned no release metadata')
+      if(isNewerVersion(version,result.updateInfo.version))throw new Error('Cannot find latest.yml for the announced release')
+      if(!isNewerVersion(result.updateInfo.version,currentVersion)){onCurrent(result.updateInfo.version);return}
+      await updater.downloadUpdate()
+      return
+    }catch(error){if(source==='github'&&isUpdateSourceUnavailable(error))continue;throw error}
   }
 }
 

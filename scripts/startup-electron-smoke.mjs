@@ -55,6 +55,8 @@ export async function verifyStartupFixture(page,fixture){
   assert.equal(protectedItem.canToggle,false)
   const change=async(action,item)=>{const result=await page.evaluate(input=>window.diskCollie.startupChange(input),{catalogId:catalog.id,ids:[item.id],action});assert(result.results.every(item=>item.ok),JSON.stringify(result));catalog=result.catalog;return result}
   const source=process.platform==='win32'?null:readFileSync(fixture.files.live,'utf8')
+  // A background read must not invalidate the list the user is still reviewing.
+  await page.evaluate(()=>window.diskCollie.startupScan())
   await change('disable',live);live=find(fixture.names.live);assert.equal(live.state,'disabled')
   if(source&&process.platform==='darwin')assert.equal(readFileSync(fixture.files.live,'utf8'),source,'launchctl overrides must preserve the plist')
   await change('enable',live);live=find(fixture.names.live);assert.equal(live.state,'enabled')

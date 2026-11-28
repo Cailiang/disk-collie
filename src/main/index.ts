@@ -100,9 +100,8 @@ import {
 } from './disk-usage-scanner'
 import {
   createUpdateState,
-  fetchLatestReleaseVersion,
+  checkAndDownloadAppUpdate,
   isMissingUpdateManifestError,
-  isNewerVersion,
   reduceUpdateState
 } from './update-checker'
 import {
@@ -648,7 +647,7 @@ function configureAppUpdater(): void {
     return
   }
 
-  autoUpdater.autoDownload = true
+  autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = false
   autoUpdater.allowPrerelease = false
   autoUpdater.on('checking-for-update', () => nextUpdateState({ type: 'checking' }))
@@ -665,7 +664,7 @@ function configureAppUpdater(): void {
     nextUpdateState({ type: 'downloaded', version: info.version })
   })
   autoUpdater.on('error', (error: Error) => {
-    nextUpdateState({ type: 'error', message: updaterErrorMessage(error) })
+    if(!updateCheckPromise)nextUpdateState({ type: 'error', message: updaterErrorMessage(error) })
   })
 }
 
@@ -679,12 +678,7 @@ async function checkForAppUpdate(): Promise<AppUpdateState> {
   updateCheckPromise = (async () => {
     nextUpdateState({ type: 'checking' })
     try {
-      const currentVersion = app.getVersion()
-      const latestVersion = await fetchLatestReleaseVersion(currentVersion)
-      if (!isNewerVersion(latestVersion, currentVersion)) {
-        return nextUpdateState({ type: 'not-available', version: latestVersion })
-      }
-      await autoUpdater.checkForUpdates()
+      await checkAndDownloadAppUpdate({currentVersion:app.getVersion(),updater:autoUpdater,onCurrent:version=>nextUpdateState({type:'not-available',version})})
     } catch (error) {
       if (updateState?.phase !== 'error') {
         nextUpdateState({ type: 'error', message: updaterErrorMessage(error) })

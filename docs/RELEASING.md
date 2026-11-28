@@ -124,3 +124,5 @@ APPLE_SIGNING_IDENTITY='Developer ID Application: Beijing Digital Union Network 
 ```
 
 `DISKCOLLIE_SMOKE_EXECUTABLE` can point `electron:smoke` at the packaged application executable. The smoke creates only its own test files and an isolated user profile. Local notarization is optional; public notarization and stapling remain mandatory.
+
+The app checks GitHub first on every launch and hourly. Network/source-access failures fall back to `https://diskcollie.app/releases/latest.json` and the generic feed `https://diskcollie.app/updates`. The website mirrors macOS ZIPs as well as Windows EXE and Linux AppImage payloads, validates SHA-512 from the official updater manifests, and publishes all four manifests only after their payloads are local. Website fallback uses full downloads; GitHub remains preferred on the next check. Hash/signature failures do not trigger source switching.

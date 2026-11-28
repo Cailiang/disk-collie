@@ -4,7 +4,7 @@ import path from 'node:path'
 import os from 'node:os'
 import {macStartup,backgroundRecords,disabledServices,launchTarget} from './macos'
 import {linuxStartup,desktopFields,hiddenDesktop} from './linux'
-import {digest,command} from './common'
+import {baseItem,digest,command} from './common'
 import {encodePowershell,startupWindowsProgram} from './windows'
 import {windowsStartupScript} from './windows-script'
 import {gunzipSync} from 'node:zlib'
@@ -12,6 +12,11 @@ const fixtures:string[]=[]
 async function fixture():Promise<string>{const root=await mkdtemp(path.join(os.tmpdir(),'diskcollie-startup-test-'));fixtures.push(root);return root}
 afterEach(async()=>{await Promise.all(fixtures.splice(0).map(root=>rm(root,{recursive:true,force:true})))})
 describe('startup source semantics',()=>{
+  it('removes native null placeholders before choosing names, owners and publishers',()=>{
+    expect(baseItem({name:'(null)',kind:'background',owner:'null',publisher:'<null>',description:'undefined',configuration:'/Library/LaunchAgents/dev.worker.plist'})).toMatchObject({name:'dev.worker.plist',owner:'',publisher:'',description:'',issue:'startup.stateUnavailable'})
+    const [row]=backgroundRecords('Records for UID 501 :\n#1:\n Name: (null)\n Developer Name: null\n Identifier: dev.worker\n URL: (null)\n Disposition: [enabled, allowed]',501)
+    expect(row).toMatchObject({name:'dev.worker',publisher:'',url:'',state:'enabled'})
+  })
   it('reads launchctl boolean and word overrides without equating loaded with enabled',()=>{
     expect([...disabledServices('"a" => true\n"b" => false\n"c" => disabled\n"d" => enabled')]).toEqual([['a',true],['b',false],['c',true],['d',false]])
     expect(launchTarget({ProgramArguments:['/bin/sh','/Users/owner/start.sh']})).toBe('/Users/owner/start.sh')

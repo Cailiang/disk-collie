@@ -1212,6 +1212,8 @@
   "startup.state.disabled": "Disabled",
   "startup.state.mixed": "Partly enabled",
   "startup.state.unknown": "Unknown",
+  "startup.stateUnavailable": "The system did not provide a verifiable enabled state. Check the system startup settings.",
+  "startup.unknownHint": "The system could not report the state of some entries. Check them in system startup settings.",
   "startup.orphan": "Leftover",
   "startup.configurations": "{count} startup entries",
   "startup.source": "Source",

@@ -11,7 +11,7 @@ export function startupGroups(catalog:StartupCatalog):StartupGroup[] {
   }
   for(const group of groups.values()){
     const states=new Set(group.items.map(item=>item.state))
-    group.state=states.size===1?group.items[0].state:states.has('unknown')?'unknown':'mixed'
+    group.state=states.size===1?group.items[0].state:states.has('enabled')?'mixed':'unknown'
   }
   return [...groups.values()].sort((a,b)=>a.name.localeCompare(b.name))
 }

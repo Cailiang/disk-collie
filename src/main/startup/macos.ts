@@ -3,7 +3,7 @@ import {mkdir,rename,writeFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import {lstat,readdir,readFile} from '../physical-fs'
 import type {StartupAction,StartupCoverage,StartupItem,StartupState} from '../../shared/startup-types'
-import {baseItem,command,digest,existence,fingerprint,inertRecord,shellQuote,type StartupAdapter,type StartupRecord} from './common'
+import {baseItem,command,digest,existence,fingerprint,inertRecord,shellQuote,startupText,type StartupAdapter,type StartupRecord} from './common'
 
 const plistReader=String.raw`ObjC.import('Foundation');function run(argv){return JSON.stringify(argv.map(function(p){try{var d=$.NSDictionary.dictionaryWithContentsOfFile($(p));return {path:p,data:d?ObjC.deepUnwrap(d):null}}catch(e){return {path:p,data:null}}}))}`
 const loginReader=String.raw`function run(){return JSON.stringify(Application('System Events').loginItems().map(function(i){try{return {name:i.name(),path:i.path(),hidden:i.hidden()}}catch(e){return {name:i.name(),path:''}}}))}`
@@ -28,7 +28,7 @@ export function backgroundRecords(text:string,uid:number):BackgroundRecord[] {
     const user=/Records for UID\s+(-?\d+)/i.exec(line),start=/^\s*#\d+\s*:/.test(line)
     if(user){finish();current=null;owner=Number(user[1])}
     else if(start){finish();current={}}
-    else if(current){const field=/^\s*([A-Za-z][A-Za-z ]+):\s*(.*)$/.exec(line);if(field)current[field[1].trim()]=field[2].trim()}
+    else if(current){const field=/^\s*([A-Za-z][A-Za-z ]+):\s*(.*)$/.exec(line);if(field)current[field[1].trim()]=startupText(field[2])}
   }
   finish();return records
 }
@@ -97,7 +97,7 @@ export function macStartup(options:MacOptions):StartupAdapter {
     try{dataByPath=await readPlists(files.map(row=>row.file))}catch{sourceErrors.add('agent');sourceErrors.add('daemon')}
     await preloadOwners([...dataByPath.values()].flatMap(data=>data?[launchTarget(data)]:[]))
     for(const {file,root:source} of files){
-      const data=dataByPath.get(file),label=typeof data?.Label==='string'?data.Label:path.basename(file,'.plist'),target=data?launchTarget(data):''
+      const data=dataByPath.get(file),label=startupText(data?.Label)||path.basename(file,'.plist'),target=data?launchTarget(data):''
       const isOwn=label.startsWith('com.fcl.diskcollie')||Boolean(options.self&&target.startsWith(options.self+'/'))
       const isProtected=source.scope==='system'||label.startsWith('com.apple.')
       const overridesForDomain=overrides.get(source.domain)
@@ -154,31 +154,14 @@ export function macStartup(options:MacOptions):StartupAdapter {
       for(const row of background){
         const configuration=localPath(row.url),target=localPath(row.executable)||configuration
         const matching=records.find(record=>record.item.configuration===configuration||record.item.kind==='login'&&record.item.target===target)
-        if(matching){if(row.publisher)matching.item.publisher=row.publisher;continue}
+        if(matching){if(row.publisher)matching.item.publisher=row.publisher;if(matching.item.state==='unknown'&&row.state!=='unknown')matching.item.state=row.state;continue}
         const parent=byIdentifier.get(row.parent),status=await existence(target),kind:StartupItem['kind']=/login item/i.test(row.type)?'login':/embedded|agent|daemon/i.test(row.type)?'embedded':'background'
         const owned=await owner(target),self=Boolean(options.self&&(target===options.self||target.startsWith(options.self+'/')))
         const item=baseItem({...owned,name:row.name||row.identifier,owner:owned.owner||parent?.name||'',ownerId:owned.ownerId||(parent?digest(parent.identifier):''),publisher:row.publisher,kind,configuration,target,state:row.state,orphan:status==='missing',issue:self?'startup.selfManaged':status==='missing'?'startup.targetMissing':status==='unknown'?'startup.targetUnknown':null,scope:self||row.uid===uid?'user':'system',timing:kind==='login'?['login']:['background'],access:'settings'})
         records.push(inertRecord(item,'btm:'+row.uid+':'+row.identifier+':'+row.url))
       }
-      // Bundled helpers can exist before their owning app registers them with macOS.
-      // Keep these visible as unknown rather than guessing that they are enabled.
-      let embeddedCount=0
-      const walk=async(directory:string,depth:number):Promise<string[]>=>{try{const result:string[]=[];for(const entry of await readdir(directory,{withFileTypes:true})){const next=path.join(directory,entry.name);if(entry.isDirectory()&&entry.name.endsWith('.app'))result.push(next);else if(entry.isDirectory()&&depth>0&&!entry.name.startsWith('.'))result.push(...await walk(next,depth-1))}return result}catch{return []}}
-      const applications=[...await walk('/Applications',1),...await walk(path.join(options.home,'Applications'),1)]
-      await preloadOwners(applications)
-      for(const application of applications){
-        for(const sub of ['LoginItems','LaunchAgents','LaunchDaemons'])try{
-          const directory=path.join(application,'Contents/Library',sub)
-          for(const entry of await readdir(directory)){
-            const target=path.join(directory,entry)
-            if(records.some(record=>record.item.target===target||record.item.configuration===target))continue
-            if(!entry.endsWith('.app')&&!entry.endsWith('.plist'))continue
-            const item=baseItem({name:entry.replace(/\.(app|plist)$/,''),kind:'embedded',configuration:target,target,state:'unknown',access:'settings',timing:['background'],...await owner(application)})
-            records.push(inertRecord(item,'embedded:'+target));embeddedCount++
-          }
-        }catch{/* An app need not bundle helpers. */}
-      }
-      coverage.push({source:'embedded',status:'complete',message:'',count:embeddedCount})
+      // A bundled helper alone is not proof of a registered startup item.
+      // Registered helpers are supplied by launchd or Background Task Management above.
     }
     return {records,coverage}
   }}

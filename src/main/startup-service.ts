@@ -9,7 +9,7 @@ import type {AppLanguage} from '../shared/app-settings'
 import {translate} from '../shared/localization'
 import type {AgentStore} from './agent/agent-store'
 import {readApplicationIcon} from './application-icon'
-import {command,errorKey,type StartupAdapter,type StartupRecord} from './startup/common'
+import {baseItem,command,errorKey,type StartupAdapter,type StartupRecord} from './startup/common'
 import {macStartup} from './startup/macos'
 import {linuxStartup} from './startup/linux'
 import {windowsStartup} from './startup/windows'
@@ -18,6 +18,7 @@ export class StartupService {
   private records=new Map<string,StartupRecord>()
   private ids=new Map<string,string>()
   private catalog:StartupCatalog|null=null
+  private snapshots=new Map<string,Map<string,StartupRecord>>()
   private tail:Promise<unknown>=Promise.resolve()
   private readonly adapter:StartupAdapter
   constructor(private readonly options:{profile:string;language:()=>AppLanguage;ledger?:AgentStore;adapter?:StartupAdapter}){
@@ -32,23 +33,26 @@ export class StartupService {
     const started=Date.now(),result=await this.adapter.scan(),records=new Map<string,StartupRecord>()
     for(const record of result.records){
       let id=this.ids.get(record.key);if(!id){id=randomUUID();this.ids.set(record.key,id)}
-      record.item={...record.item,id};records.set(id,record)
+      record.item=baseItem({...record.item,id});records.set(id,record)
     }
     this.records=records
     this.catalog={id:randomUUID(),scannedAt:new Date().toISOString(),elapsedMs:Date.now()-started,items:[...records.values()].map(record=>record.item),coverage:result.coverage}
+    this.snapshots.set(this.catalog.id,records)
+    while(this.snapshots.size>8)this.snapshots.delete(this.snapshots.keys().next().value!)
     return this.catalog
   }
   scan():Promise<StartupCatalog>{return this.serial(()=>this.discover()).catch(error=>{throw new Error(this.message(errorKey(error)))})}
   change(input:StartupChange):Promise<StartupChangeResult>{return this.serial(async()=>{
-    if(!this.catalog||this.catalog.id!==input.catalogId||Date.now()-Date.parse(this.catalog.scannedAt)>15*60000)throw new Error(this.message('startup.expired'))
-    const ids=[...new Set(input.ids)],records=ids.map(id=>{const record=this.records.get(id);if(!record)throw new Error(this.message('startup.expired'));return record})
+    const snapshot=this.snapshots.get(input.catalogId)
+    if(!snapshot)throw new Error(this.message('startup.expired'))
+    const ids=[...new Set(input.ids)],records=ids.map(id=>{const record=snapshot.get(id);if(!record)throw new Error(this.message('startup.expired'));return record})
     if(!records.length||records.length>100)throw new Error(this.message('startup.selectionInvalid'))
     for(const record of records){
       if(input.action==='remove'?!record.item.canRemove:!record.item.canToggle)throw new Error(this.message('startup.readonly'))
       try{if(await record.validate()!==record.signature)throw new Error('startup.changed')}catch(error){throw new Error(this.message(errorKey(error)))}
     }
     const title=this.message('startup.title')+' · '+this.message('startup.action.'+input.action)
-    const run=this.options.ledger?.createMaintenanceRun({source:'direct',scanId:this.catalog.id,title,operations:records.map(record=>({operationId:record.item.id,kind:'startup-'+input.action,title:record.item.name,reversible:input.action!=='remove'}))})
+    const run=this.options.ledger?.createMaintenanceRun({source:'direct',scanId:input.catalogId,title,operations:records.map(record=>({operationId:record.item.id,kind:'startup-'+input.action,title:record.item.name,reversible:input.action!=='remove'}))})
     const results:StartupOutcome[]=[]
     for(const record of records){
       const id=record.item.id,desired=input.action==='enable'?'enabled':'disabled'
