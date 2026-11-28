@@ -14,3 +14,8 @@ describe('native file mutation scope',()=>{
     for(const target of ['c:\\WINDOWS\\system.ini','C:\\Program Files\\App\\data','C:\\Users\\Test\\AppData\\Local\\data','C:\\Users\\Test\\.ssh\\key','D:\\file'])expect(allowed(target,'C:\\','win32',home,{}),target).toBe(false)
   })
 })
+
+it('protects relocated macOS system security data but leaves relocated personal configuration eligible',()=>{
+  expect(allowed('/Users/Shared/Previously Relocated Items 1/Security/System/file.dmg','/','darwin','/Users/test')).toBe(false)
+  expect(allowed('/Users/Shared/Previously Relocated Items 1/Configuration/personal.txt','/','darwin','/Users/test')).toBe(true)
+})

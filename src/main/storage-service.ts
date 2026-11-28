@@ -13,7 +13,7 @@ import {ApplicationInventoryCache} from './application-inventory-cache'
 import {storageScanScope} from './storage-scan-scope'
 import {duplicateRemovalGroups} from '../shared/duplicate-selection'
 import type {ApplicationInventoryState} from '../shared/storage-types'
-import type { CleanupItem, DuplicateGroup, RelatedApplicationFile, StorageActivity, StorageApplication, StorageEntry, StorageIndex, StorageMode } from '../shared/storage-types'
+import type { CleanupItem, DuplicateGroup, RelatedApplicationFile, StorageActivity, StorageApplication, StorageEntry, StorageIndex, StorageMode, StorageTarget, StorageProperties } from '../shared/storage-types'
 import { fileCategories } from '../shared/file-categories'
 import type { StorageScanOptions } from '../shared/storage-types'
 import { NativeEngine } from './native-engine'
@@ -42,6 +42,12 @@ const home = os.homedir()
 const int = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER)
 const scope = z.object({ generation: z.number().int().positive() })
 const entryInput = scope.extend({ id: int })
+const targetInput=z.discriminatedUnion('type',[
+  entryInput.extend({type:z.literal('entry')}),
+  z.object({type:z.literal('rule'),id:z.string().uuid(),path:z.string().max(10000)}),
+  z.object({type:z.literal('related'),id:z.string().uuid()}),
+  z.object({type:z.literal('application'),id:z.string().uuid()})
+])
 interface Snapshot { path: string; dev: number; ino: number; modified: number; size: number; directory: boolean }
 async function snapshot(target: string): Promise<Snapshot> {
   for (let current = target;; current = path.dirname(current)) {
@@ -59,7 +65,7 @@ async function unchanged(old: Snapshot): Promise<void> {
 }
 
 export class StorageService {
-  constructor(private readonly language:()=>AppLanguage=()=> 'zh-CN',private readonly excludedDirectories:()=>string[]=()=>[]) {}
+  constructor(private readonly language:()=>AppLanguage=()=> 'zh-CN',private readonly excludedDirectories:()=>string[]=()=>[],private readonly saveExclusion?:(location:string)=>void) {}
   getScanExclusions():string[]{return this.excludedDirectories()}
   private scopeEpoch=0
   invalidateScanScope():void {
@@ -520,7 +526,7 @@ export class StorageService {
       await unchanged(parent.snapshot)
       const names=(await readdir(parent.file.path)).sort(),offset=input.offset||0
       const valid:Array<{snapshot:Snapshot;path:string}>=[]
-      for(const name of names.slice(offset,offset+100)){try{const target=path.join(parent.file.path,name);valid.push({snapshot:await snapshot(target),path:target})}catch{/* Links and inaccessible entries cannot authorize removal. */}}
+      for(const name of names.slice(offset,offset+100)){try{const target=path.join(parent.file.path,name);if(isScanPathExcluded(target,this.getScanExclusions()))continue;valid.push({snapshot:await snapshot(target),path:target})}catch{/* Links and inaccessible entries cannot authorize removal. */}}
       const measured=await this.engine.request<Array<{path:string;size:number;errors:number}>>('measure',{paths:valid.map((v)=>v.path)})
       const items=valid.flatMap((value)=>{
         const size=measured.find((m)=>m.path===value.path);if(!size||size.errors)return []
@@ -546,7 +552,7 @@ export class StorageService {
         if (knownSupport[bundle]) targets.push({path:path.join(home,'Library/Application Support',knownSupport[bundle]),kind:'support'})
       }
       const valid: Array<{ path:string;kind:RelatedApplicationFile['kind'];snapshot:Snapshot }>=[]
-      for (const target of targets) { if (!target.path) continue; try { valid.push({...target,snapshot:await snapshot(target.path)}) } catch { continue } }
+      for (const target of targets) { if (!target.path||isScanPathExcluded(target.path,this.getScanExclusions())) continue; try { valid.push({...target,snapshot:await snapshot(target.path)}) } catch { continue } }
       if(!valid.some((value)=>value.kind==='application'))throw new Error(translate(this.language(),'apps.filesUnavailable'))
       const data=valid.filter((value)=>value.kind!=='application')
       const timeout=setTimeout(()=>this.engine.stop('Application detail measurement timed out'),8000);timeout.unref()
@@ -575,8 +581,8 @@ export class StorageService {
       const values=requested.filter((v)=>!requested.some((parent)=>parent!==v&&v.file.path.startsWith(parent.file.path+path.sep)))
       if (!values.some((v)=>v.file.kind==='application'&&v.file.path===application.location)) throw new Error('Select the application to uninstall')
       await this.requireBrowserClosed(application.location)
-      for (const value of values) await unchanged(value.snapshot)
-      const result=await this.activity('uninstall',values.map((v)=>({path:v.file.path,size:v.file.size,run:async()=>{await unchanged(v.snapshot); await shell.trashItem(v.file.path)}})))
+      for (const value of values) {if(scanPathsOverlap(value.file.path,this.getScanExclusions()))throw new Error('storage.excludedPath');await unchanged(value.snapshot)}
+      const result=await this.activity('uninstall',values.map((v)=>({path:v.file.path,size:v.file.size,run:async()=>{if(scanPathsOverlap(v.file.path,this.getScanExclusions()))throw new Error('storage.excludedPath');await unchanged(v.snapshot); await shell.trashItem(v.file.path)}})))
       for(const [id,value] of this.related)if(result.locations.includes(value.file.path))this.related.delete(id)
       if(result.locations.includes(application.location)){this.applications.delete(application.id);this.metadata.delete(application.id);this.applicationFingerprints.delete(application.id);this.measuredApplicationFingerprints.delete(application.id);this.updates.delete(application.id);this.publishApplications();await this.persistApplications().catch(()=>undefined)}
       return result
@@ -591,6 +597,41 @@ export class StorageService {
       try{await lstat(target);const icon=await readApplicationIcon(target,installed?.version);if(icon)return icon}catch{/* Try the next installed location. */}
     }
     return null
+  }
+  private async resolveTarget(target:StorageTarget):Promise<{path:string;size?:number;allocated?:number;root?:boolean}> {
+    if(target.type==='entry'){
+      const session=this.session(target.generation),entry=await session.engine.request<StorageEntry>('entry',target)
+      if(entry)return {path:entry.path,size:entry.size,allocated:entry.allocated,root:entry.id===0}
+    }else if(target.type==='rule'){
+      const rule=this.rules.get(target.id)
+      const location=rule?.snapshots.find((item)=>item.path===target.path)?.path||this.privacyService.paths(target.id).find((item)=>item===target.path)
+      if(location)return {path:location,...(rule?{size:rule.item.size}:{})}
+    }else if(target.type==='related'){
+      const entry=this.related.get(target.id);if(entry)return {path:entry.file.path,size:entry.file.size}
+    }else{
+      const entry=this.applications.get(target.id);if(entry?.location)return {path:entry.location,size:entry.size}
+    }
+    throw new Error('storage.itemUnavailable')
+  }
+  async properties(target:StorageTarget):Promise<StorageProperties> {
+    const item=await this.resolveTarget(target)
+    await snapshot(item.path)
+    const stat=await lstat(item.path),date=(milliseconds:number):string|null=>milliseconds>0?new Date(milliseconds).toISOString():null
+    return {name:path.basename(item.path)||item.path,path:item.path,directory:stat.isDirectory(),size:stat.isFile()?stat.size:item.size??null,allocated:stat.isFile()?(Number.isFinite(stat.blocks)?stat.blocks*512:null):item.allocated??null,createdAt:date(stat.birthtimeMs),modifiedAt:date(stat.mtimeMs),accessedAt:date(stat.atimeMs),permissions:process.platform==='win32'?null:(stat.mode&0o777).toString(8).padStart(3,'0')}
+  }
+  async ignore(target:StorageTarget):Promise<{path:string}> {
+    const item=await this.resolveTarget(target)
+    if(item.root||path.dirname(item.path)===item.path)throw new Error('storage.ignoreRoot')
+    if(!this.saveExclusion)throw new Error('storage.ignoreUnavailable')
+    // Persist only a main-owned registered path. Never treat renderer paths as authority.
+    this.saveExclusion(item.path)
+    this.invalidateDirectoryPlan()
+    for(const removed of this.scanRemovals.values())removed.add(item.path)
+    await this.reconcile([item.path])
+    for(const [id,rule] of this.rules)if(rule.snapshots.some((value)=>scanPathsOverlap(value.path,this.getScanExclusions())))this.rules.delete(id)
+    for(const [id,value] of this.related)if(isScanPathExcluded(value.file.path,this.getScanExclusions()))this.related.delete(id)
+    for(const window of BrowserWindow.getAllWindows())window.webContents.send('diskcollie:storage:ignored',{path:item.path})
+    return {path:item.path}
   }
   register(): void {
     const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`diskcollie:storage:${name}`,async(_event,input)=>{try{return await fn(input)}catch(error){const message=error instanceof Error?error.message:String(error);if(message.startsWith('privacy.')||message.startsWith('deep.')||message.startsWith('storage.')||message==='apps.operationInProgress')throw new Error(translate(this.language(),message));if(/Item changed since scan|item changed since it was inspected|Path changed or became a link/.test(message))throw new Error(translate(this.language(),'storage.changed'));throw error}})}
@@ -611,21 +652,9 @@ export class StorageService {
     handle('directory-plan',(v)=>this.directoryPlan(entryInput.parse(v)))
     handle('trash',(v)=>this.trash(scope.extend({ids:z.array(int).min(1).max(500).transform((v)=>[...new Set(v)]),kind:z.enum(['analysis','large','duplicates']),groupId:z.string().max(100).optional(),directoryPlanId:z.string().uuid().optional(),acknowledgeApplicationData:z.boolean().optional()}).parse(v)))
     handle('reveal',async(v)=>{const q=entryInput.parse(v);const entry=await this.session(q.generation).engine.request<StorageEntry>('entry',q);shell.showItemInFolder(entry.path)})
-    handle('reveal-target',async(v)=>{
-      const q=z.discriminatedUnion('type',[
-        entryInput.extend({type:z.literal('entry')}),
-        z.object({type:z.literal('rule'),id:z.string().uuid(),path:z.string()}),
-        z.object({type:z.literal('related'),id:z.string().uuid()}),
-        z.object({type:z.literal('application'),id:z.string().uuid()})
-      ]).parse(v)
-      let location:string|undefined
-      if(q.type==='entry')location=(await this.session(q.generation).engine.request<StorageEntry>('entry',q)).path
-      else if(q.type==='rule'){const rule=this.rules.get(q.id);location=rule?.snapshots.find((s)=>s.path===q.path)?.path||this.privacyService.paths(q.id).find((target)=>target===q.path)}
-      else if(q.type==='related')location=this.related.get(q.id)?.file.path
-      else location=this.applications.get(q.id)?.location
-      if(!location)throw new Error('The item is no longer available. Scan again.')
-      shell.showItemInFolder(location)
-    })
+    handle('reveal-target',async(v)=>{shell.showItemInFolder((await this.resolveTarget(targetInput.parse(v))).path)})
+    handle('properties',(v)=>this.properties(targetInput.parse(v)))
+    handle('ignore',(v)=>this.ignore(targetInput.parse(v)))
     handle('cleanup',(v)=>this.cleanup(z.boolean().parse(v)))
     handle('deep-scan',()=>this.scanDeep())
     handle('deep-preview',(v)=>{const q=z.object({id:z.string().uuid(),offset:int.max(200000).default(0)}).parse(v);return this.deepCleanService.preview(q.id,q.offset)})

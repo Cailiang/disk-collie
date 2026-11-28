@@ -1,3 +1,4 @@
+import {verifyFileActionsUi} from './file-actions-smoke.mjs'
 import {verifyApplicationDataUi} from './application-data-smoke.mjs'
 import {startupLayout,verifyStartup} from './startup-smoke.mjs'
 import {verifyScanGames} from './scan-games-smoke.mjs'
@@ -112,6 +113,7 @@ try{
       }
       if(name==='设置'){
         const settings=p.locator('.settings-page')
+        assert((await settings.locator('#provider-name').boundingBox()).width>=150,'Model fields must remain usable at every viewport')
         assert.equal(await settings.locator('.recommended-model,.provider-advanced,.default-provider-note,.ignored-setting-summary').count(),0)
         assert.equal(await settings.locator('.workspace-help-content').count(),0)
         await settings.getByRole('button',{name:'添加供应商',exact:true}).click()
@@ -137,6 +139,7 @@ try{
       await overflow(p,`${viewport.width}/${name}`)
       await p.screenshot({path:`${directory}/${viewport.width}-${String(i).padStart(2,'0')}.png`})
     }
+    await verifyFileActionsUi(p,directory,viewport.width)
     await p.close()
   }
   const p=await browser.newPage({viewport:viewports[0]});p.on('pageerror',e=>failures.push(e.message));await p.goto(baseUrl)
@@ -219,7 +222,7 @@ try{
   const exclusionSettings=p.locator('.scan-exclusion-settings')
   await exclusionSettings.getByRole('button',{name:'添加目录',exact:true}).click();await exclusionSettings.locator('.scan-directory-list code').filter({hasText:'/Users/alex/Private'}).waitFor()
   await navigate(p,'大文件');await navigate(p,'设置');assert.equal(await exclusionSettings.locator('.scan-directory-list code').innerText(),'/Users/alex/Private','Scan exclusions must survive navigation')
-  await exclusionSettings.getByRole('button',{name:'移除目录 /Users/alex/Private',exact:true}).click();await exclusionSettings.locator('.scan-directory-empty').waitFor();assert.equal(await exclusionSettings.locator('.scan-directory-list>li').count(),0)
+  await exclusionSettings.getByRole('button',{name:'从忽略列表移除 /Users/alex/Private',exact:true}).click();await exclusionSettings.locator('.scan-directory-empty').waitFor();assert.equal(await exclusionSettings.locator('.scan-directory-list>li').count(),0)
   await p.getByRole('combobox',{name:'Language',exact:true}).selectOption('en-US');await navigate(p,'Overview');assert.match(await p.locator(visible+' .space-heading').innerText(),/Device overview/)
   await navigate(p,'Settings');await p.locator('.theme-graphite').click();await navigate(p,'Space explorer');await p.locator(visible+' .space-heading .space-button.primary').click();await p.getByRole('group',{name:'Space map'}).waitFor();await p.screenshot({path:`directory/english-dark.png`.replace('directory',directory)});await overflow(p,'english-dark');assert.equal(await p.locator(visible).evaluate(e=>/[\u4e00-\u9fff]/.test(e.innerText)),false)
   await navigate(p,'Privacy');await p.locator('.privacy-workspace').waitFor();assert.equal(await p.locator('.space-privacy').evaluate(element=>/[\u4e00-\u9fff]/.test(element.innerText)),false);await p.screenshot({path:`${directory}/privacy-english-dark.png`});await p.locator('.privacy-categories button').filter({hasText:'System activity'}).click();const englishClipboard=await privacyPreview(p,'clipboard');assert.equal(await englishClipboard.locator('.privacy-record-item strong').innerText(),'Clipboard contents (not previewed)');assert.equal(await englishClipboard.evaluate(element=>/[\u4e00-\u9fff]/.test(element.innerText)),false);await p.screenshot({path:`${directory}/privacy-clipboard-english-dark.png`});await englishClipboard.getByRole('button',{name:'Close',exact:true}).click();

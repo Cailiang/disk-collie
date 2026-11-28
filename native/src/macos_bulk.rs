@@ -74,7 +74,7 @@ fn parse(record: &[u8], directory: &Path, parent: usize) -> Result<Option<Entry>
     let nanos = u64_at(record, 48)?;
     let flags = u32_at(record, 56)?;
     let file_id = u64_at(record, 60)?;
-    if flags & 0x40000000 != 0 || (kind != 1 && kind != 2) {
+    if flags & 0x40000000 != 0 || (kind == 1 && flags & (0x2 | 0x10 | 0x20000 | 0x100000) != 0) || (kind != 1 && kind != 2) {
         return Ok(None);
     }
     let mut cursor = 68;

@@ -49,6 +49,46 @@ describe('storage scan sessions and partial cleanup',()=>{
     vi.stubEnv('DISKCOLLIE_TEST_RUN','1');vi.stubEnv('DISKCOLLIE_TEST_STORAGE_ROOT',state.root)
   })
   afterEach(async()=>{for(const shutdown of state.shutdown.splice(0))shutdown();vi.unstubAllEnvs();await rm(fixture,{recursive:true,force:true})})
+  it('ignores a registered file persistently without rescanning, dropping other IDs or touching disk',async()=>{
+    let ignored:string[]=[]
+    const service=new StorageService(()=>'en-US',()=>ignored,(location)=>{ignored=[...new Set([...ignored,location])]})
+    await service.init();service.register()
+    const first=await service.scan({mode:'large'}),second=await service.scan({mode:'duplicates'})
+    await call('duplicates',second!.generation)
+    const target={type:'entry',generation:first!.generation,id:1}
+    const properties=await call('properties',target)
+    expect(properties).toMatchObject({name:'a.mov',path:path.join(state.root,'a.mov'),directory:false,size:2048})
+    expect(Date.parse(properties.createdAt)).toBeGreaterThan(0);expect(Date.parse(properties.modifiedAt)).toBeGreaterThan(0)
+    await expect(call('ignore',{...target,id:999,path:'/unregistered'})).rejects.toThrow()
+    expect(ignored).toEqual([])
+    await expect(call('ignore',{...target,id:0})).rejects.toThrow()
+    const result=await call('ignore',target)
+    expect(result).toEqual({path:path.join(state.root,'a.mov')});expect(ignored).toEqual([result.path])
+    for(const generation of [first!.generation,second!.generation])expect((await call('large',{generation,minimum:1,search:'',offset:0})).items.map((entry:StorageEntry)=>entry.id)).toEqual([2,3])
+    expect((await call('duplicates',second!.generation)).groups).toHaveLength(1)
+    expect((service as any).sessions.get('large').engine.stopped).toBe(false)
+    expect(await readFile(result.path)).toHaveLength(2048);expect((await call('state')).history).toEqual([])
+    // A new service reads the same durable settings; scanning receives that scope.
+    const restored=new StorageService(()=>'en-US',()=>ignored)
+    expect(restored.getScanExclusions()).toEqual(ignored)
+    await expect(call('properties',{...target,id:1})).rejects.toThrow()
+  })
+  it('reconciles ignored paths while another scan or duplicate hash is still running',async()=>{
+    let ignored:string[]=[]
+    const service=new StorageService(()=>'en-US',()=>ignored,(location)=>{ignored.push(location)})
+    await service.init();service.register()
+    const first=await service.scan({mode:'large'})
+    let releaseScan!:()=>void;state.scanGate=new Promise<void>((resolve)=>{releaseScan=resolve})
+    const scanning=service.scan({mode:'duplicates'});await new Promise((resolve)=>setTimeout(resolve,0))
+    await call('ignore',{type:'entry',generation:first!.generation,id:1})
+    releaseScan();const second=await scanning;state.scanGate=null
+    expect((await call('large',{generation:second!.generation,minimum:1,search:'',offset:0})).items.map((entry:StorageEntry)=>entry.id)).toEqual([2,3])
+    let releaseHash!:()=>void;state.hashGate=new Promise<void>((resolve)=>{releaseHash=resolve})
+    const hashing=call('duplicates',second!.generation);await new Promise((resolve)=>setTimeout(resolve,0))
+    await call('ignore',{type:'entry',generation:first!.generation,id:2})
+    releaseHash();expect((await hashing).groups).toEqual([])
+    expect((await call('state')).history).toEqual([])
+  })
   it('retains independent generations, removes only successful files from every session, and journals progress',async()=>{
     const service=new StorageService();await service.init();service.register()
     const first=await service.scan({mode:'large'}),second=await service.scan({mode:'duplicates'})

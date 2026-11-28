@@ -16,6 +16,7 @@ export function isStorageMutationAllowed(target:string,root:string,platform:Node
   const paths=platform==='win32'?path.win32:path.posix
   const normalize=(value:string):string=>platform==='win32'?paths.normalize(value.replace(/^\\\\\?\\/,'')).toLowerCase():paths.normalize(value)
   target=normalize(target);root=normalize(root);userHome=normalize(userHome)
+  if(platform==='darwin'&&/^\/Users\/Shared\/(?:Previously Relocated Items|Relocated Items)(?: \d+)?\/Security(?:\/|$)/.test(target))return false
   if(!paths.isAbsolute(target)||!paths.isAbsolute(root))return false
   const relative=paths.relative(root,target)
   if(!relative||relative==='..'||relative.startsWith(`..${paths.sep}`)||paths.isAbsolute(relative))return false

@@ -1,0 +1,57 @@
+import assert from 'node:assert/strict'
+import {acknowledgeMessage} from './message-smoke.mjs'
+const navigate=async(page,name)=>{await page.locator('.nav-button').filter({hasText:name}).filter({visible:true}).click()}
+export async function verifyFileActionsUi(page,directory,width){
+  await navigate(page,'大文件')
+  const row=page.locator('.space-large .space-file-row').first()
+  await row.waitFor()
+  const name=await row.locator('.space-file-info strong').innerText(),path=await row.locator('.space-file-info small').innerText()
+  await row.locator('.file-more').click()
+  const menu=page.getByRole('menu')
+  assert(await menu.getByRole('menuitem',{name:'加入忽略列表',exact:true}).isVisible())
+  await page.keyboard.press('ArrowDown');await page.keyboard.press('Enter')
+  const properties=page.locator('.file-properties-dialog')
+  await properties.waitFor();assert((await properties.innerText()).includes(path))
+  for(const label of ['完整路径','创建时间','修改时间','类型'])assert((await properties.innerText()).includes(label))
+  const box=await properties.locator('.space-dialog').boundingBox();assert(box.x>=0&&box.x+box.width<=width+1)
+  await page.screenshot({path:`${directory}/${width}-file-properties.png`})
+  await properties.getByRole('button',{name:'关闭',exact:true}).click()
+  assert(await row.locator('.file-more').evaluate(button=>button===document.activeElement))
+  await row.locator('.file-more').click();await page.keyboard.press('Escape');assert.equal(await menu.count(),0)
+  await row.locator('.file-more').click();await menu.getByRole('menuitem',{name:'加入忽略列表',exact:true}).click()
+  await acknowledgeMessage(page,/已加入忽略列表/)
+  assert.equal(await page.locator('.space-large .space-file-info strong').filter({hasText:name}).count(),0)
+  await page.locator('.space-large .space-heading .space-button.primary').click();await page.locator('.space-large .space-progress').waitFor({state:'hidden'})
+  assert.equal(await page.locator('.space-large .space-file-info strong').filter({hasText:name}).count(),0,'Ignored large files must stay hidden after a scan')
+  await navigate(page,'重复文件')
+  await page.locator('.space-duplicate-group').first().waitFor()
+  const duplicate=page.locator('.space-duplicate-row').first(),duplicatePath=await duplicate.locator('span[title]').innerText()
+  await duplicate.locator('.file-more').click();await page.getByRole('menuitem',{name:'加入忽略列表',exact:true}).click();await acknowledgeMessage(page,/已加入忽略列表/)
+  assert.equal(await page.locator('.space-duplicate-row span[title]').filter({hasText:duplicatePath}).count(),0)
+  await page.locator('.space-duplicates .space-heading .space-button.primary').click();await page.locator('.space-duplicates .space-progress').waitFor({state:'hidden'})
+  assert.equal(await page.locator('.space-duplicate-row span[title]').filter({hasText:duplicatePath}).count(),0,'Ignored duplicate files must stay hidden after a scan')
+  await navigate(page,'设置')
+  const settings=page.locator('.settings-page')
+  assert((await settings.locator('.provider-purpose').innerText()).includes('扫描和清理无需配置模型'))
+  assert((await settings.locator('.provider-purpose').innerText()).includes('询问 AI'))
+  for(const value of [path,duplicatePath])assert.equal(await settings.locator('.scan-directory-list code').filter({hasText:value}).count(),1)
+}
+
+export async function verifyFileActionsElectron(page,root){
+  const result=await page.evaluate(async root=>{
+    const index=await window.diskCollie.storageScan({mode:'analysis'}),children=await window.diskCollie.storageChildren({generation:index.generation,id:0})
+    const folder=children.items.find(item=>item.name==='ignore-owned-fixture'),files=await window.diskCollie.storageChildren({generation:index.generation,id:folder.id}),file=files.items.find(item=>item.name==='ignore-me.txt')
+    const target={type:'entry',generation:index.generation,id:file.id},properties=await window.diskCollie.storageProperties(target)
+    await window.diskCollie.storageIgnore(target)
+    const settings=await window.diskCollie.getAppSettings(),remaining=await window.diskCollie.storageChildren({generation:index.generation,id:folder.id})
+    const next=await window.diskCollie.storageScan({mode:'analysis'}),roots=await window.diskCollie.storageChildren({generation:next.generation,id:0}),nextFolder=roots.items.find(item=>item.name==='ignore-owned-fixture'),rescanned=await window.diskCollie.storageChildren({generation:next.generation,id:nextFolder.id})
+    await window.diskCollie.removeScanExcludedDirectory(settings.scanExcludedDirectories.find(path=>path.endsWith('/ignore-me.txt')||path.endsWith('\\ignore-me.txt')))
+    const restored=await window.diskCollie.storageScan({mode:'analysis'}),restoredRoots=await window.diskCollie.storageChildren({generation:restored.generation,id:0}),restoredFolder=restoredRoots.items.find(item=>item.name==='ignore-owned-fixture'),visible=await window.diskCollie.storageChildren({generation:restored.generation,id:restoredFolder.id})
+    return {properties,settings,remaining:remaining.items.map(item=>item.name),rescanned:rescanned.items.map(item=>item.name),restored:visible.items.map(item=>item.name)}
+  },root)
+  assert.equal(result.properties.name,'ignore-me.txt');assert.equal(result.properties.size,13)
+  assert(Date.parse(result.properties.createdAt)>0);assert(Date.parse(result.properties.modifiedAt)>0)
+  assert(result.settings.scanExcludedDirectories.includes(result.properties.path.replaceAll('\\','/').toLowerCase())||result.settings.scanExcludedDirectories.includes(result.properties.path))
+  assert.deepEqual(result.remaining,['keep-me.txt']);assert.deepEqual(result.rescanned,['keep-me.txt'])
+  assert.deepEqual(result.restored.sort(),['ignore-me.txt','keep-me.txt'])
+}

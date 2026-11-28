@@ -111,6 +111,18 @@ export type StorageTarget =
   | { type:'rule'; id:string; path:string }
   | { type:'related'; id:string }
   | { type:'application'; id:string }
+export interface StorageProperties {
+  name:string
+  path:string
+  directory:boolean
+  /** Directory totals come from the retained scan; absent when not measured. */
+  size:number|null
+  allocated:number|null
+  createdAt:string|null
+  modifiedAt:string|null
+  accessedAt:string|null
+  permissions:string|null
+}
 export interface StorageApi {
   storageState: () => Promise<{ index: StorageIndex | null; indexes: Partial<Record<StorageMode,StorageIndex>>; history: StorageActivity[]; home: string }>
   storageScan: (options?: StorageScanOptions) => Promise<StorageIndex | null>
@@ -123,6 +135,9 @@ export interface StorageApi {
   onStorageScopeChanged:(callback:()=>void)=>()=>void
   storageReveal: (input: { generation: number; id: number }) => Promise<void>
   storageRevealTarget: (target:StorageTarget) => Promise<void>
+  storageProperties: (target:StorageTarget) => Promise<StorageProperties>
+  storageIgnore: (target:StorageTarget) => Promise<{path:string}>
+  onStorageIgnored: (callback:(input:{path:string})=>void) => ()=>void
   storageCleanup: (privacy: boolean) => Promise<CleanupItem[]>
   storageDeepScan:()=>Promise<DeepCleanScan>
   storageDeepPreview:(input:{id:string;offset?:number})=>Promise<DeepCleanPreview>

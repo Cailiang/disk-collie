@@ -1,5 +1,5 @@
 import {StartupService} from './startup-service'
-import {normalizeScanExcludedDirectories} from '../shared/scan-exclusions'
+import {normalizeScanExcludedDirectories,isScanPathExcluded} from '../shared/scan-exclusions'
 import {migrateLegacyProfile} from './profile-migration'
 import {readApplicationIcon,clearApplicationIconCache} from './application-icon'
 import { applicationProcessBundle, terminateUserProcess } from './process-control'
@@ -1577,7 +1577,13 @@ app.whenReady().then(async () => {
   updateState = emptyUpdateState()
   configureAppUpdater()
 
-  storageService = new StorageService(() => appSettings.language, () => appSettings.scanExcludedDirectories)
+  storageService = new StorageService(() => appSettings.language, () => appSettings.scanExcludedDirectories, (location)=>{
+    const directories=normalizeScanExcludedDirectories([...appSettings.scanExcludedDirectories,location])
+    if(!isScanPathExcluded(location,directories))throw new Error('storage.ignoreLimit')
+    appSettings=agentStore!.updateAppSettings({scanExcludedDirectories:directories})
+    currentScanResult=null;registeredActions=new Map();registeredRevealTargets=new Map();registeredTerminalFixes=new Map()
+    registeredApplicationIconTargets=new Map();registeredDiskUsageTargets=new Map();registeredDiskUsageNodes=new Map();diskUsageScanner?.cancel()
+  })
   await storageService.init()
   storageService.register()
   new StartupService({profile:app.getPath('userData'),language:()=>appSettings.language,ledger:agentStore!}).register()

@@ -1,8 +1,8 @@
 import {AppWindow,ArrowDown,ArrowDownToLine,ArrowUp,ArrowUpDown,ChevronDown,ChevronRight,Clock3,Clipboard,Database,FileClock,Folder,Globe,History,KeyRound,LoaderCircle,LockKeyhole,Monitor,Search,Settings2,ShieldCheck,Terminal,UserRound,Wifi,X} from 'lucide-react'
 import {useEffect,useMemo,useRef,useState} from 'react'
-import type {PrivacyCategory} from '../../shared/storage-types'
+import type {PrivacyCategory,StorageTarget} from '../../shared/storage-types'
 import type {PrivacyItem,PrivacyKind,PrivacyPreview,PrivacyRecord,PrivacyTimeRange} from '../../shared/privacy-types'
-import {AiActionButton,readableTaskError} from './AiTasks'
+import {AiActionButton,readableTaskError,type AiRequest} from './AiTasks'
 import {WorkspaceDialog} from './WorkspaceDialog'
 import {useI18n} from './i18n'
 import {useMessages} from './Messages'
@@ -17,6 +17,7 @@ const sourceKey=(item:PrivacyItem):string=>item.source?.key||item.browser||'syst
 const sourceName=(items:PrivacyItem[],fallback:string):string=>items[0].source?.name||items[0].browser||fallback
 const sourceBytes=(items:PrivacyItem[]):number=>{const files=new Map<string,number>();for(const item of items){const key=item.path||item.id;files.set(key,Math.max(files.get(key)||0,item.size))}return [...files.values()].reduce((sum,size)=>sum+size,0)}
 export interface PrivacyWorkspaceProps {
+  actions:(file:{path:string;size:number},target:StorageTarget,request:AiRequest)=>React.ReactNode
   rules:PrivacyItem[]
   selected:Set<string>
   onToggle:(ids:string[],checked:boolean)=>void
@@ -48,7 +49,7 @@ function SourceLogo({rule}:{rule:PrivacyItem}):React.JSX.Element {
   return <span className="privacy-source-logo privacy-logo-fallback"><Icon size={23}/></span>
 }
 interface PreviewState {item:PrivacyItem;records:PrivacyRecord[];loading:boolean;error:string;nextOffset:number|null;total:number;limited:boolean;requestedOffset:number}
-export function PrivacyWorkspace({rules,selected,onToggle,bytes,loading,range,onRangeChange,onRefresh,onReview,onClear,preview,onPermissions,progress}:PrivacyWorkspaceProps):React.JSX.Element {
+export function PrivacyWorkspace({actions,rules,selected,onToggle,bytes,loading,range,onRangeChange,onRefresh,onReview,onClear,preview,onPermissions,progress}:PrivacyWorkspaceProps):React.JSX.Element {
   const {t,locale}=useI18n(),{show}=useMessages()
   const [category,setCategory]=useState<PrivacyCategory>('browser-activity'),[expanded,setExpanded]=useState<Record<string,boolean>>({}),[mode,setMode]=useState('manual'),[details,setDetails]=useState<PreviewState|null>(null)
   const [appSort,setAppSort]=useState<{key:'name'|'count';direction:'ascending'|'descending'}>({key:'name',direction:'ascending'})
@@ -114,7 +115,7 @@ export function PrivacyWorkspace({rules,selected,onToggle,bytes,loading,range,on
           return <section className={`privacy-source ${open?'is-open':''}`} key={key} data-privacy-source={key}><div className="privacy-source-heading"><GroupCheck items={list} selected={selected} onToggle={toggle} disabled={loading} label={t('privacy.selectSource',{name})}/><button className="privacy-source-toggle" aria-label={t('privacy.toggleSource',{name})} aria-expanded={open} onClick={()=>setExpanded((previous)=>({...previous,[key]:!open}))}><SourceLogo rule={list[0]}/><span><strong>{name}</strong>{profiles.size>1&&<small>{t('privacy.profiles',{count:profiles.size})}</small>}</span>{list.some((item)=>item.browserRunning)&&<em>{t('privacy.browserRunning')}</em>}<b>{t('privacy.traces',{count:count(list)})}</b><ChevronDown size={15}/></button></div>
             {open&&<div className="privacy-source-records">{[...profiles].map(([profile,items])=><div className={`privacy-profile ${profile?'has-name':''}`} key={profile||'local'}>{profile&&<div className="privacy-profile-heading"><GroupCheck items={items} selected={selected} onToggle={toggle} disabled={loading} label={t('privacy.selectProfile',{name:profile})}/><UserRound size={14}/><strong>{profile==='Default'?t('privacy.defaultProfile'):profile}</strong><span>{t('privacy.traces',{count:count(items)})}</span></div>}{items.map((item)=>{const Icon=kindIcons[item.kind]||History,available=canSelect(item),title=kindName(item),status=item.capability==='ready'?'':t(`privacy.capability.${item.capability}`);return <div className={`privacy-record-row space-cleanup-row capability-${item.capability} ${selected.has(item.id)?'is-selected':''}`} key={item.id} data-privacy-id={item.id} data-privacy-kind={item.kind}>
               <input type="checkbox" aria-label={title} checked={selected.has(item.id)&&available} disabled={loading||!available} onChange={(event)=>toggle([item.id],event.target.checked)}/><button className="privacy-type-action" disabled={loading||['unavailable','range-unsupported','empty'].includes(item.capability)} aria-label={t(item.capability==='permission-required'?'privacy.openPermissionsFor':'privacy.viewDetails',{name:title,source:name,profile:profile==='Default'?t('privacy.defaultProfile'):profile})} onClick={()=>openPreview(item)}><Icon size={17}/><span className="privacy-type-copy"><strong>{title}</strong>{status?<small className="privacy-capability-label">{status}</small>:risk(item)&&<small className={`privacy-risk risk-${item.risk}`}>{risk(item)}</small>}</span><span className="privacy-record-stat"><b>{item.count===null?'—':`${item.limited?'≥ ':''}${item.count.toLocaleString(locale)}`}</b>{item.size>0&&<small>{bytes(item.size)}</small>}</span>{item.capability==='permission-required'?<LockKeyhole size={14}/>:item.capability==='ready'?<ChevronRight size={14}/>:<span className="privacy-chevron-spacer"/>}</button>
-              <AiActionButton request={{key:`privacy:${item.id}`,title,prompt:t('privacy.aiPrompt',{name:title,source:name,count:item.count??t('file.unknown'),risk:risk(item)||t('privacy.risk.low'),range:t(`privacy.range.${range}`)})}}/>
+              {item.path?actions(item,{type:'rule',id:item.id,path:item.path},{key:`privacy:${item.id}`,title,prompt:t('privacy.aiPrompt',{name:title,source:name,count:item.count??t('file.unknown'),risk:risk(item)||t('privacy.risk.low'),range:t(`privacy.range.${range}`)})}):<AiActionButton request={{key:`privacy:${item.id}`,title,prompt:t('privacy.aiPrompt',{name:title,source:name,count:item.count??t('file.unknown'),risk:risk(item)||t('privacy.risk.low'),range:t(`privacy.range.${range}`)})}}/>}
             </div>})}</div>)}</div>}
           </section>
         })}

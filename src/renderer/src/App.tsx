@@ -724,6 +724,13 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     }
   }
 
+  useEffect(()=>{
+    const stop=window.diskCollie?.onStorageIgnored(()=>{void window.diskCollie!.getAppSettings().then(setSettings)})
+    const demoIgnored=(event:Event):void=>{const location=(event as CustomEvent<{path:string}>).detail.path;setSettings((previous)=>({...previous,scanExcludedDirectories:[...new Set([...previous.scanExcludedDirectories,location])]}))}
+    window.addEventListener('diskcollie:demo-ignored',demoIgnored)
+    return()=>{stop?.();window.removeEventListener('diskcollie:demo-ignored',demoIgnored)}
+  },[])
+
   useEffect(() => {
     if (started.current) return
     started.current = true

@@ -4,6 +4,20 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.37 - 2026-11-28
+
+### English
+
+- Skip macOS relocated system security remnants, immutable files and files whose parent denies removal, while preserving writable descendants and bulk scan performance.
+- Add persistent file/folder ignore actions to large files, duplicates, Space explorer and other file results. Reconcile existing indexes immediately without recording a deletion; manage or restore ignored paths in Settings.
+- Unify Show in folder, Ask AI and More actions, with local properties showing full path, type, size, creation and modification times. Explain the optional model's uses, data sharing and billing directly in Settings and clarify the sidebar entry.
+
+### 简体中文
+
+- 扫描跳过 macOS 系统迁移保护内容、不可移除标记的文件和父目录拒绝移除的文件，继续扫描可清理的子目录，保留批量扫描性能。
+- 大文件、重复文件、空间分析及其他文件结果支持加入持久化忽略列表，立即更新已有索引，不记为删除；可在设置中管理和恢复。
+- 统一打开所在位置、询问 AI 和更多操作；属性显示完整路径、类型、大小、创建及修改时间。模型入口和设置直接解释可选 AI 的用途、数据发送及费用。
+
 ## 1.0.36 - 2026-11-28
 
 ### English

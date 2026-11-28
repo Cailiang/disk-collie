@@ -33,6 +33,30 @@ mod macos_bulk;
 #[cfg(any(windows, test))]
 mod windows_bulk;
 
+// A readable directory can still deny removal of its children. Check once per
+// directory, preserving traversal into writable descendants (for example /Users).
+#[cfg(unix)]
+fn can_remove_children(directory: &Path) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    #[cfg(target_os="macos")]
+    {use std::os::macos::fs::MetadataExt;if fs::symlink_metadata(directory).map(|m|m.st_flags() & (0x2 | 0x20000) != 0).unwrap_or(true){return false;}}
+    let Ok(value) = std::ffi::CString::new(directory.as_os_str().as_bytes()) else { return false; };
+    // SAFETY: value is NUL terminated and access performs no mutation or prompting.
+    unsafe { libc::access(value.as_ptr(), libc::W_OK | libc::X_OK) == 0 }
+}
+#[cfg(not(unix))]
+fn can_remove_children(_directory: &Path) -> bool { true }
+
+fn relocated_system_path(value: &Path) -> bool {
+    let Ok(relative) = value.strip_prefix("/Users/Shared") else { return false; };
+    let mut parts = relative.components();
+    let Some(name) = parts.next().and_then(|part|part.as_os_str().to_str()) else {return false;};
+    let relocated = ["Previously Relocated Items", "Relocated Items"].iter().any(|prefix| {
+        name == *prefix || name.strip_prefix(prefix).is_some_and(|suffix| suffix.starts_with(' ') && suffix.trim().parse::<u32>().is_ok())
+    });
+    relocated && parts.next().is_some_and(|part|part.as_os_str() == "Security")
+}
+
 fn read_directory(directory: &Path, parent: usize, _minimum: Option<u64>) -> (Vec<Entry>, usize, usize) {
     #[cfg(windows)]
     if std::env::var_os("DISKCOLLIE_STANDARD_READDIR").is_none() {
@@ -137,6 +161,11 @@ fn inspect(path: &Path, id: usize, parent: Option<usize>) -> Result<Entry, Strin
     let m = fs::symlink_metadata(path).map_err(|e| e.to_string())?;
     if offline_or_link(&m) || !(m.is_file() || m.is_dir()) {
         return Err("link, placeholder or special file".into());
+    }
+    #[cfg(target_os="macos")]
+    if parent.is_some() && m.is_file() {
+        use std::os::macos::fs::MetadataExt;
+        if m.st_flags() & (0x2 | 0x10 | 0x20000 | 0x100000) != 0 {return Err("protected from removal".into());}
     }
     let (identity, links, allocated) = file_identity(path, &m)?;
     Ok(Entry {
@@ -298,6 +327,9 @@ impl Index {
         let excluded_names: Vec<_> = options["excludeNames"].as_array()
             .map(|names| names.iter().filter_map(|name| name.as_str()).collect())
             .unwrap_or_default();
+        if excluded.iter().any(|excluded|scan_path_key(&root).starts_with(excluded)) {
+            return Err("The scan root is ignored".into());
+        }
         self.entries.push(Record::from(&inspect(&root, 0, None)?));
         #[allow(unused_mut)] // mutated only for macOS system/Data firmlinks below
         let mut volumes = HashSet::from([self.entries[0].volume]);
@@ -320,14 +352,25 @@ impl Index {
                 .collect();
             let results: Vec<_> = batch
                 .par_iter()
-                .map(|(id, p)| read_directory(Path::new(p), *id, if self.mode == "analysis" { None } else { Some(minimum) }))
+                .map(|(id, p)| {
+                    let directory=Path::new(p);
+                    let (mut entries, errors, mut skipped)=read_directory(directory, *id, if self.mode == "analysis" { None } else { Some(minimum) });
+                    if !can_remove_children(directory) {
+                        let previous=entries.len();
+                        entries.retain(|entry|entry.directory);
+                        skipped+=previous-entries.len();
+                    }
+                    (entries, errors, skipped)
+                })
                 .collect();
             for (children, errors, skipped) in results {
                 self.errors += errors;
                 self.skipped += skipped;
                 for entry in children {
                     self.visited += 1;
-                    if excluded.contains(&scan_path_key(Path::new(&entry.path)))
+                    let entry_key=scan_path_key(Path::new(&entry.path));
+                    if (cfg!(target_os = "macos") && relocated_system_path(Path::new(&entry.path)))
+                        || excluded.iter().any(|root|entry_key.starts_with(root))
                         || excluded_names.iter().any(|name| if cfg!(windows) {entry.name.eq_ignore_ascii_case(name)} else {entry.name == *name}) {
                         self.skipped += 1;
                         continue;
@@ -852,6 +895,56 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn relocated_system_remnants_are_pruned_without_hiding_personal_relocated_files() {
+        for name in ["Previously Relocated Items", "Previously Relocated Items 1", "Relocated Items 42"] {
+            assert!(relocated_system_path(Path::new(&format!("/Users/Shared/{name}/Security"))));
+            assert!(relocated_system_path(Path::new(&format!("/Users/Shared/{name}/Security/System/image.dmg"))));
+            assert!(!relocated_system_path(Path::new(&format!("/Users/Shared/{name}/Configuration/file.txt"))));
+        }
+        assert!(!relocated_system_path(Path::new("/Users/alex/Previously Relocated Items 1/Security/file")));
+        assert!(!relocated_system_path(Path::new("/Users/Shared/Previously Relocated Items Backup/Security/file")));
+    }
+    #[cfg(target_os="macos")]
+    #[test]
+    fn immutable_owned_files_are_omitted_by_bulk_and_standard_inspection() {
+        use std::os::unix::ffi::OsStrExt;
+        let dir=tempfile::tempdir().unwrap();let file=dir.path().join("locked.dmg");
+        fs::write(&file,"owned fixture").unwrap();
+        let name=std::ffi::CString::new(file.as_os_str().as_bytes()).unwrap();
+        struct Reset(std::ffi::CString);
+        impl Drop for Reset {fn drop(&mut self){unsafe {libc::chflags(self.0.as_ptr(),0);}}}
+        let reset=Reset(name);
+        assert_eq!(unsafe {libc::chflags(reset.0.as_ptr(),0x2)},0);
+        let standard=inspect(&file,1,Some(0));
+        let bulk=macos_bulk::read(dir.path(),0);
+        drop(reset);
+        assert!(standard.is_err());assert!(bulk.unwrap().0.is_empty());
+    }
+    #[cfg(unix)]
+    #[test]
+    fn permission_filter_preserves_writable_descendants_and_readonly_files_in_writable_folders() {
+        use std::os::unix::fs::PermissionsExt;
+        if unsafe { libc::getuid() } == 0 {return;}
+        let dir=tempfile::tempdir().unwrap();
+        let child=dir.path().join("writable");fs::create_dir(&child).unwrap();
+        fs::write(dir.path().join("cannot-trash.dmg"),"owned fixture").unwrap();
+        fs::write(child.join("can-trash.dmg"),"owned fixture").unwrap();
+        fs::set_permissions(child.join("can-trash.dmg"),fs::Permissions::from_mode(0o444)).unwrap();
+        fs::set_permissions(dir.path(),fs::Permissions::from_mode(0o555)).unwrap();
+        let mut index=Index::default();
+        let result=index.scan_options(dir.path().to_str().unwrap(),1,&json!({"mode":"analysis"}));
+        fs::set_permissions(dir.path(),fs::Permissions::from_mode(0o755)).unwrap();
+        result.unwrap();
+        let names:Vec<_>=index.entries.iter().map(|entry|entry.name.as_ref()).collect();
+        assert!(!names.contains(&"cannot-trash.dmg"));assert!(names.contains(&"can-trash.dmg"));assert!(index.skipped>0);
+    }
+    #[test]
+    fn ignored_ancestor_also_excludes_a_scan_started_inside_it() {
+        let dir=tempfile::tempdir().unwrap();let child=dir.path().join("child");fs::create_dir(&child).unwrap();
+        let mut index=Index::default();
+        assert!(index.scan_options(child.to_str().unwrap(),1,&json!({"excludePaths":[dir.path()]})).unwrap_err().contains("ignored"));
+    }
     #[test]
     fn windows_exclusion_keys_match_case_and_verbatim_drive_and_unc_paths() {
         assert_eq!(windows_path_key(r"\\?\C:\Users\Test\AppData"),windows_path_key("c:/users/test/appdata"));
