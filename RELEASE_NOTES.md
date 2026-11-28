@@ -11,7 +11,7 @@
 
 [SHA-256 校验和 / Checksums](https://github.com/Cailiang/disk-collie/releases/download/v1.0.30/SHA256SUMS.txt) · [产品截图 / Screenshots](https://github.com/Cailiang/disk-collie#your-device-at-a-glance)
 
-本版本尚未公开发布，GitHub 下载地址将在发布后可用。本地开发安装包已签名，未公证。 / This version has not been published; GitHub downloads become available after publication. Local developer packages are signed and not notarized.
+macOS 安装包已完成 Developer ID 签名、公证与票据装订。 / macOS packages are Developer ID signed, notarized and stapled.
 
 ## 1.0.30 更新 / What's new
 
