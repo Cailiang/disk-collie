@@ -5,14 +5,12 @@ import {lstat,readdir,readFile} from '../physical-fs'
 import type {StartupAction,StartupCoverage,StartupItem,StartupState} from '../../shared/startup-types'
 import type {AppLanguage} from '../../shared/app-settings'
 import {applicationNamePlistPaths,plistApplicationName} from '../scanner'
-import {baseItem,command,digest,existence,fingerprint,inertRecord,shellQuote,startupText,type StartupAdapter,type StartupRecord} from './common'
+import {baseItem,command,digest,existence,fingerprint,inertRecord,startupText,type StartupAdapter,type StartupBatch,type StartupRecord} from './common'
+import {changeMacStartupBatch,type MacAdminTarget} from './macos-admin'
 
 const plistReader=String.raw`ObjC.import('Foundation');function run(argv){return JSON.stringify(argv.map(function(p){try{var d=$.NSDictionary.dictionaryWithContentsOfFile($(p));return {path:p,data:d?ObjC.deepUnwrap(d):null}}catch(e){return {path:p,data:null}}}))}`
 const loginReader=String.raw`function run(){return JSON.stringify(Application('System Events').loginItems().map(function(i){try{return {name:i.name(),path:i.path(),hidden:i.hidden()}}catch(e){return {name:i.name(),path:''}}}))}`
 const loginWriter=String.raw`function run(argv){var app=Application('System Events'),target=argv[0],action=argv[1],items=app.loginItems();for(var i=items.length-1;i>=0;i--){try{if(items[i].path()===target){if(action==='enable')return;app.delete(items[i])}}catch(e){throw e}}if(action==='enable')app.loginItems.push(app.LoginItem({path:target,hidden:argv[2]==='true'}));}`
-const elevate=String.raw`on run argv
-do shell script (item 1 of argv) with administrator privileges
-end run`
 
 export function disabledServices(output:string):Map<string,boolean> {
   return new Map([...output.matchAll(/"([^"\n]+)"\s*=>\s*(true|false|enabled|disabled)/g)].map(match=>[match[1],match[2]==='true'||match[2]==='disabled']))
@@ -83,12 +81,18 @@ export function macStartup(options:MacOptions):StartupAdapter {
     if(!appCache.has(app))await preloadOwners([target],language)
     return {owner:appCache.get(app)!,ownerId:digest(app),icon:await existence(app)==='present'?app:null}
   }
+  const adminTargets=new WeakMap<StartupRecord,MacAdminTarget>()
+  const batch:StartupBatch={token:{},apply:async(records,action)=>changeMacStartupBatch(records.map(record=>{
+    const target=adminTargets.get(record)
+    if(!target)throw new Error('startup.readonly')
+    return target
+  }),action,run)}
   return {async scan(){
     appCache.clear()
     const records:StartupRecord[]=[],coverage:StartupCoverage[]=[],root=options.fixture||options.home,language=options.language?.()||'zh-CN'
     const roots:Array<{path:string;kind:'agent'|'daemon';scope:StartupItem['scope'];domain:string}>=[
       {path:path.join(root,'Library/LaunchAgents'),kind:'agent',scope:'user',domain:`gui/${uid}`},
-      ...options.fixture?[]:[{path:'/Library/LaunchAgents',kind:'agent' as const,scope:'machine' as const,domain:`gui/${uid}`},{path:'/Library/LaunchDaemons',kind:'daemon' as const,scope:'machine' as const,domain:'system'},{path:'/System/Library/LaunchAgents',kind:'agent' as const,scope:'system' as const,domain:`gui/${uid}`},{path:'/System/Library/LaunchDaemons',kind:'daemon' as const,scope:'system' as const,domain:'system'}]
+      ...options.fixture?[{path:path.join(root,'Library/LaunchDaemons'),kind:'daemon' as const,scope:'machine' as const,domain:'system'}]:[{path:'/Library/LaunchAgents',kind:'agent' as const,scope:'machine' as const,domain:`gui/${uid}`},{path:'/Library/LaunchDaemons',kind:'daemon' as const,scope:'machine' as const,domain:'system'},{path:'/System/Library/LaunchAgents',kind:'agent' as const,scope:'system' as const,domain:`gui/${uid}`},{path:'/System/Library/LaunchDaemons',kind:'daemon' as const,scope:'system' as const,domain:'system'}]
     ]
     const overrides=new Map<string,Map<string,boolean>>()
     await Promise.all([...new Set(roots.map(root=>root.domain))].map(async domain=>{try{overrides.set(domain,disabledServices(await run('/bin/launchctl',['print-disabled',domain],5000)))}catch{/* Unknown overrides must not look enabled. */}}))
@@ -114,19 +118,28 @@ export function macStartup(options:MacOptions):StartupAdapter {
         const hash=await fingerprint(file,true),current=disabledServices(await run('/bin/launchctl',['print-disabled',source.domain],5000)),disabled=current.get(label)??data?.Disabled===true
         return digest([hash,disabled,await existence(target)])
       }
-      const change=async(action:StartupAction):Promise<void>=>{
-        if(action==='remove'){
+      const makeRecord=(current:StartupItem,status:typeof targetStatus):StartupRecord=>{
+        const record:StartupRecord={item:current,key:'launch:'+file,signature:digest([original,current.state==='disabled',status]),validate:fresh,change:async(action:StartupAction)=>{
+          if(!canChange)throw new Error('startup.readonly')
           if(source.scope==='machine'){
-            const script=`/bin/launchctl disable ${shellQuote(source.domain+'/'+label)} && /bin/rm -f ${shellQuote(file)}`
-            await run('/usr/bin/osascript',['-e',elevate,script],120000)
-          }else{await run('/bin/launchctl',['disable',source.domain+'/'+label]);try{await options.trash(file)}catch(error){if(state==='enabled')await run('/bin/launchctl',['enable',source.domain+'/'+label]).catch(()=>undefined);throw error}}
-        }else{
-          const args=[action,source.domain+'/'+label]
-          if(source.scope==='machine')await run('/usr/bin/osascript',['-e',elevate,'/bin/launchctl '+args.map(shellQuote).join(' ')],120000)
-          else await run('/bin/launchctl',args)
-        }
+            const [result]=await batch.apply([record],action)
+            if(result.error)throw result.error
+          }else if(action==='remove'){
+            await run('/bin/launchctl',['disable',source.domain+'/'+label])
+            try{await options.trash(file)}catch(error){if(current.state==='enabled')await run('/bin/launchctl',['enable',source.domain+'/'+label]).catch(()=>undefined);throw error}
+          }else await run('/bin/launchctl',[action,source.domain+'/'+label])
+        },readBack:async()=>{
+          // Only absence of the registration itself proves removal. A broken alias is still a registration.
+          try{await lstat(file)}catch(error){if(['ENOENT','ENOTDIR'].includes((error as NodeJS.ErrnoException).code||''))return null;throw error}
+          if(await fingerprint(file,true)!==original)throw new Error('startup.changed')
+          const overrides=disabledServices(await run('/bin/launchctl',['print-disabled',source.domain],5000)),status=await existence(target)
+          const state:StartupState=(overrides.get(label)??data?.Disabled===true)?'disabled':'enabled'
+          return makeRecord({...record.item,state,orphan:status==='missing',canToggle:canChange&&status==='present',issue:isOwn?'startup.selfManaged':!data?'startup.invalid':status==='unknown'?'startup.targetUnknown':status==='missing'?'startup.targetMissing':null},status)
+        }}
+        if(canChange&&source.scope==='machine'){record.batch=batch;adminTargets.set(record,{record,file,label,domain:source.domain})}
+        return record
       }
-      records.push({item,key:'launch:'+file,signature:digest([original,state==='disabled',targetStatus]),validate:fresh,change})
+      records.push(makeRecord(item,targetStatus))
     }
     for(const kind of ['agent','daemon'] as const)coverage.push({source:kind,status:sourceErrors.has(kind)||roots.some(root=>root.kind===kind&&!overrides.has(root.domain))?'partial':'complete',message:sourceErrors.has(kind)?'startup.permission':'',count:records.filter(record=>record.item.kind===kind).length})
 
@@ -139,13 +152,21 @@ export function macStartup(options:MacOptions):StartupAdapter {
         const enabled=available?logins.some(item=>item.path===login.path):null,state:StartupState=enabled===null?'unknown':enabled?'enabled':'disabled',status=await existence(login.path)
         const self=options.self===login.path
         const item=baseItem({name:login.name||path.basename(login.path),kind:'login',configuration:'System Events / Login Items',target:login.path,...await owner(login.path,language),state,orphan:status==='missing',canToggle:!self&&available&&status==='present',canRemove:!self&&available,access:self?'settings':available?'user':'settings',issue:self?'startup.selfManaged':status==='missing'?'startup.targetMissing':null})
-        const signature=()=>digest([login.path,state,status,Boolean(login.hidden)])
-        records.push({item,key:'login:'+login.path,signature:signature(),validate:async()=>{const live=await liveLogins(),found=live.find(row=>row.path===login.path),saved=(await savedLogins()).find(row=>row.path===login.path);return digest([login.path,found?'enabled':saved?'disabled':'missing',await existence(login.path),Boolean((found||saved)?.hidden)])},change:async action=>{
+        const makeLogin=(current:StartupItem,status:Awaited<ReturnType<typeof existence>>,login:Login):StartupRecord=>{
+          const record:StartupRecord={item:current,key:'login:'+login.path,signature:digest([login.path,current.state,status,Boolean(login.hidden)]),validate:async()=>{const live=await liveLogins(),found=live.find(row=>row.path===login.path),saved=(await savedLogins()).find(row=>row.path===login.path);return digest([login.path,found?'enabled':saved?'disabled':'missing',await existence(login.path),Boolean((found||saved)?.hidden)])},change:async action=>{
           await run('/usr/bin/osascript',['-l','JavaScript','-e',loginWriter,login.path,action,String(login.hidden===true)],30000)
           const next=(await savedLogins()).filter(row=>row.path!==login.path)
           if(action==='disable')next.push(login)
           await saveLogins(next)
-        }})
+          },readBack:async()=>{
+            const live=await liveLogins(),found=live.find(row=>row.path===login.path),saved=(await savedLogins()).find(row=>row.path===login.path),next=found||saved
+            if(!next)return null
+            const status=await existence(login.path)
+            return makeLogin({...record.item,state:found?'enabled':'disabled',orphan:status==='missing',canToggle:!self&&status==='present',issue:self?'startup.selfManaged':status==='missing'?'startup.targetMissing':status==='unknown'?'startup.targetUnknown':null},status,next)
+          }}
+          return record
+        }
+        records.push(makeLogin(item,status,login))
       }
       const unresolved=logins.filter(login=>!path.isAbsolute(login.path))
       for(const [index,login] of unresolved.entries())records.push(inertRecord(baseItem({name:login.name||'Login item',kind:'login',configuration:'System Events / Login Items',access:'settings',issue:'startup.targetUnknown'}),'unresolved-login:'+login.name+':'+index))

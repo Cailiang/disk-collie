@@ -86,6 +86,58 @@ describe('startup source semantics',()=>{
     await record.change('remove')
     expect(JSON.parse(await readFile(real,'utf8')).Program).toBe(program);expect(await readFile(program,'utf8')).toBe('owned program')
   })
+  it('reads back only the selected launch source after toggling/removal, with fresh rollback state and no osascript or sfltool probes',async()=>{
+    const root=await fixture(),directory=path.join(root,'Library/LaunchAgents'),config=path.join(directory,'dev.fixture.worker.plist'),program=path.join(root,'program')
+    await mkdir(directory,{recursive:true});await writeFile(program,'owned executable');await writeFile(config,JSON.stringify({Label:'dev.fixture.worker',Program:program}))
+    let disabled=false,discovered=false,trashFails=false
+    const run=vi.fn<typeof command>(async(file,args)=>{
+      if(file==='/usr/bin/osascript'&&!discovered)return JSON.stringify([{path:config,data:JSON.parse(await readFile(config,'utf8'))}])
+      if(file!=='/bin/launchctl')throw new Error('Unexpected permission probe: '+file)
+      if(args[0]==='print-disabled')return '"dev.fixture.worker" => '+disabled
+      if(args[0]==='list')return ''
+      disabled=args[0]==='disable';return ''
+    })
+    const adapter=macStartup({home:root,profile:root,fixture:root,uid:501,run,trash:async file=>{if(trashFails)throw new Error('Trash failed');await rm(file)}})
+    let [record]=(await adapter.scan()).records;discovered=true;run.mockClear()
+    await record.change('disable');record=(await record.readBack!())!
+    expect(record.item.state).toBe('disabled');expect(await record.validate()).toBe(record.signature)
+    trashFails=true;await expect(record.change('remove')).rejects.toThrow('Trash failed');expect(disabled).toBe(true)
+    await record.change('enable');record=(await record.readBack!())!
+    expect(record.item.state).toBe('enabled');expect(await record.validate()).toBe(record.signature)
+    await expect(record.change('remove')).rejects.toThrow('Trash failed');expect(disabled).toBe(false)
+    trashFails=false;await record.change('remove');expect(await record.readBack!()).toBeNull()
+    expect(run.mock.calls.every(([file])=>file==='/bin/launchctl')).toBe(true)
+    expect(await readFile(program,'utf8')).toBe('owned executable')
+  })
+  it('does not treat a surviving broken alias or changed definition as a verified removal',async()=>{
+    const root=await fixture(),directory=path.join(root,'Library/LaunchAgents'),config=path.join(directory,'dev.fixture.link.plist'),real=path.join(root,'outside.plist')
+    await mkdir(directory,{recursive:true});await writeFile(real,JSON.stringify({Label:'dev.fixture.link',Program:'/missing'}));await symlink(real,config)
+    const run:typeof command=async(file)=>file==='/usr/bin/osascript'?JSON.stringify([{path:config,data:JSON.parse(await readFile(real,'utf8'))}]):''
+    const [record]=(await macStartup({home:root,profile:root,fixture:root,uid:501,run,trash:async file=>rm(file)}).scan()).records
+    await writeFile(real,'changed definition');await expect(record.readBack!()).rejects.toThrow('startup.changed')
+    await rm(real);await expect(record.readBack!()).rejects.toMatchObject({code:'ENOENT'})
+    await rm(config);expect(await record.readBack!()).toBeNull()
+  })
+  it('binds only manageable machine records to one batch and reuses original snapshots safely across rescans',async()=>{
+    const root=await fixture(),directory=path.join(root,'Library/LaunchDaemons'),files=['dev.fixture.first','dev.fixture.second','com.apple.protected'].map(label=>path.join(directory,label+'.plist'))
+    await mkdir(directory,{recursive:true})
+    for(const file of files)await writeFile(file,JSON.stringify({Label:path.basename(file,'.plist'),Program:path.join(root,'missing-program')}))
+    const run=vi.fn<typeof command>(async(file,args)=>{
+      if(file==='/usr/bin/osascript'&&args[0]==='-l')return JSON.stringify(await Promise.all(args.slice(4).map(async file=>({path:file,data:JSON.parse(await readFile(file,'utf8'))}))))
+      if(file==='/usr/bin/osascript'&&args[0]==='-e'){await Promise.all(files.slice(0,2).map(file=>rm(file)));return 'DiskCollieStartupResult:0:ok\nDiskCollieStartupResult:1:ok\n'}
+      if(file==='/bin/launchctl')return ''
+      throw new Error('Unexpected permission probe')
+    })
+    const adapter=macStartup({home:root,profile:root,fixture:root,uid:501,run,trash:async()=>{throw new Error('Machine config uses authorized batch')}})
+    const first=await adapter.scan(),manageable=first.records.filter(record=>record.item.canRemove),protectedItem=first.records.find(record=>record.item.access==='protected')!
+    expect(manageable).toHaveLength(2);expect(manageable.every(record=>record.batch===manageable[0].batch)).toBe(true);expect(protectedItem.batch).toBeUndefined()
+    await adapter.scan();run.mockClear()
+    await expect(manageable[0].batch!.apply([protectedItem],'remove')).rejects.toThrow('startup.readonly')
+    expect((await manageable[0].batch!.apply(manageable,'remove')).every(result=>result.error===null)).toBe(true)
+    expect(run.mock.calls.filter(([file])=>file==='/usr/bin/osascript')).toHaveLength(1)
+    expect(await Promise.all(manageable.map(record=>record.readBack!()))).toEqual([null,null])
+    expect(await readFile(protectedItem.item.configuration,'utf8')).toContain('com.apple.protected')
+  })
   it('retains desktop keys, applies user overrides, and never deletes an executable',async()=>{
     const root=await fixture(),directory=path.join(root,'autostart'),target=path.join(root,'program'),file=path.join(directory,'fixture.desktop')
     await mkdir(directory);await writeFile(target,'owned executable')

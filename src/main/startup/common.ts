@@ -35,7 +35,8 @@ export function baseItem(value:Partial<StartupItem>&Pick<StartupItem,'name'|'kin
   if(item.state==='unknown'&&!item.issue)item.issue='startup.stateUnavailable'
   return item
 }
-export interface StartupRecord {item:StartupItem;signature:string;key:string;change:(action:StartupAction)=>Promise<void>;validate:()=>Promise<string>}
+export interface StartupBatch {token:object;apply:(records:StartupRecord[],action:StartupAction)=>Promise<Array<{key:string;error:unknown|null}>>}
+export interface StartupRecord {item:StartupItem;signature:string;key:string;change:(action:StartupAction)=>Promise<void>;validate:()=>Promise<string>;batch?:StartupBatch;readBack?:()=>Promise<StartupRecord|null>}
 export interface StartupDiscovery {records:StartupRecord[];coverage:StartupCoverage[]}
 export interface StartupAdapter {scan:()=>Promise<StartupDiscovery>}
 export const inertRecord=(item:StartupItem,key:string,signature=key):StartupRecord=>({item,key,signature,validate:async()=>signature,change:async()=>{throw new Error('startup.readonly')}})

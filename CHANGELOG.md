@@ -4,6 +4,20 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.34 - 2026-11-28
+
+### English
+
+- Combine selected macOS machine startup configurations into one administrator authorization per operation, with per-item outcomes and definition guards checked again inside the authorized command.
+- Verify only changed launch configurations or login items after a startup action. Do not run a full background-task scan or request unrelated System Events/sfltool access after deleting leftovers.
+- Preserve unrelated startup rows and native-state verification. Cover cancellation, partial failures, changed definitions, aliases and the authorization confirmation.
+
+### 简体中文
+
+- macOS 同批所选的机器级启动配置合并请求一次管理员授权，逐项记录结果，并在授权命令内再次检查配置是否变化。
+- 操作后只核验相关启动配置或登录项，删除残留后不再完整重扫，避免额外触发 System Events／sfltool 授权。
+- 保留其他启动项及原生结果核验，覆盖取消授权、部分失败、配置变化、别名与确认提示。
+
 ## 1.0.33 - 2026-11-28
 
 ### English

@@ -19,6 +19,7 @@ export class StartupService {
   private ids=new Map<string,string>()
   private catalog:StartupCatalog|null=null
   private snapshots=new Map<string,Map<string,StartupRecord>>()
+  private readBackKeys=new Set<string>()
   private tail:Promise<unknown>=Promise.resolve()
   private readonly adapter:StartupAdapter
   constructor(private readonly options:{profile:string;language:()=>AppLanguage;ledger?:AgentStore;adapter?:StartupAdapter}){
@@ -29,14 +30,22 @@ export class StartupService {
   }
   private serial<T>(work:()=>Promise<T>):Promise<T>{const next=this.tail.then(work);this.tail=next.catch(()=>undefined);return next}
   private message(key:string):string{return translate(this.options.language(),key)}
-  private async discover():Promise<StartupCatalog>{
-    const started=Date.now(),result=await this.adapter.scan(),records=new Map<string,StartupRecord>()
+  private async discover(changedRecords?:StartupRecord[]):Promise<StartupCatalog>{
+    const started=Date.now(),targeted=Boolean(changedRecords?.length&&changedRecords.every(record=>record.readBack)&&this.catalog),keys=new Set(changedRecords?.map(record=>record.key))
+    this.readBackKeys.clear()
+    const refreshed:StartupRecord[]=[]
+    if(targeted){for(const record of changedRecords!){const next=await record.readBack!();if(next){if(next.key!==record.key)throw new Error('startup.verificationFailed');refreshed.push(next)}}this.readBackKeys=new Set(keys)}
+    const result=targeted?{records:refreshed,coverage:this.catalog!.coverage}:await this.adapter.scan()
+    const records=targeted?new Map(this.records):new Map<string,StartupRecord>()
+    if(targeted)for(const [id,record] of records)if(keys.has(record.key)&&!refreshed.some(next=>next.key===record.key))records.delete(id)
     for(const record of result.records){
+      if(targeted&&!keys.has(record.key))continue
       let id=this.ids.get(record.key);if(!id){id=randomUUID();this.ids.set(record.key,id)}
       record.item=baseItem({...record.item,id});records.set(id,record)
     }
+    const coverage=targeted?result.coverage.map(source=>({...source,count:source.count+[...records.values()].filter(record=>record.item.kind===source.source).length-[...this.records.values()].filter(record=>record.item.kind===source.source).length})):result.coverage
     this.records=records
-    this.catalog={id:randomUUID(),scannedAt:new Date().toISOString(),elapsedMs:Date.now()-started,items:[...records.values()].map(record=>record.item),coverage:result.coverage}
+    this.catalog={id:randomUUID(),scannedAt:new Date().toISOString(),elapsedMs:Date.now()-started,items:[...records.values()].map(record=>record.item),coverage}
     this.snapshots.set(this.catalog.id,records)
     while(this.snapshots.size>8)this.snapshots.delete(this.snapshots.keys().next().value!)
     return this.catalog
@@ -53,23 +62,27 @@ export class StartupService {
     }
     const title=this.message('startup.title')+' · '+this.message('startup.action.'+input.action)
     const run=this.options.ledger?.createMaintenanceRun({source:'direct',scanId:input.catalogId,title,operations:records.map(record=>({operationId:record.item.id,kind:'startup-'+input.action,title:record.item.name,reversible:input.action!=='remove'}))})
-    const results:StartupOutcome[]=[]
+    const outcomes=new Map<string,StartupOutcome>()
+    const outcome=(record:StartupRecord,problem:unknown|null,changed=true):void=>{outcomes.set(record.item.id,{id:record.item.id,name:record.item.name,ok:problem===null,changed:problem===null&&changed,message:problem===null?changed?'':this.message('startup.unchanged'):this.message(errorKey(problem))})}
     for(const record of records){
-      const id=record.item.id,desired=input.action==='enable'?'enabled':'disabled'
-      if(input.action!=='remove'&&record.item.state===desired){results.push({id,name:record.item.name,ok:true,changed:false,message:this.message('startup.unchanged')});continue}
+      if(outcomes.has(record.item.id))continue
+      const desired=input.action==='enable'?'enabled':'disabled'
+      if(input.action!=='remove'&&record.item.state===desired){outcome(record,null,false);continue}
+      const group=record.batch?records.filter(candidate=>candidate.batch?.token===record.batch!.token&&!outcomes.has(candidate.item.id)&&(input.action==='remove'||candidate.item.state!==desired)):[record]
       try{
-        if(await record.validate()!==record.signature)throw new Error('startup.changed')
-        await record.change(input.action)
-        results.push({id,name:record.item.name,ok:true,changed:true,message:''})
-      }catch(error){results.push({id,name:record.item.name,ok:false,changed:false,message:this.message(errorKey(error))})}
+        for(const candidate of group)if(await candidate.validate()!==candidate.signature)throw new Error('startup.changed')
+        if(record.batch){const applied=await record.batch.apply(group,input.action);for(const candidate of group){const result=applied.find(result=>result.key===candidate.key);outcome(candidate,result?result.error:new Error('startup.verificationFailed'))}}
+        else{await record.change(input.action);outcome(record,null)}
+      }catch(error){for(const candidate of group)outcome(candidate,error)}
     }
+    const results=records.map(record=>outcomes.get(record.item.id)!)
     let catalog:StartupCatalog
     try{
-      catalog=await this.discover()
+      catalog=await this.discover(records)
       for(let n=0;n<records.length;n++)if(results[n].ok&&results[n].changed){
         const previous=records[n],next=[...this.records.values()].find(record=>record.key===previous.key)
         const sourceCoverage=catalog.coverage.filter(source=>source.source===previous.item.kind)
-        const verified=input.action==='remove'?!next&&sourceCoverage.length>0&&sourceCoverage.every(source=>source.status==='complete'):next?.item.state===(input.action==='enable'?'enabled':'disabled')
+        const verified=input.action==='remove'?!next&&(this.readBackKeys.has(previous.key)||sourceCoverage.length>0&&sourceCoverage.every(source=>source.status==='complete')):next?.item.state===(input.action==='enable'?'enabled':'disabled')
         if(!verified){results[n].ok=false;results[n].changed=false;results[n].message=this.message('startup.verificationFailed')}
       }
     }catch{

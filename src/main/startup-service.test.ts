@@ -1,5 +1,5 @@
 import {describe,expect,it,vi} from 'vitest'
-import {baseItem,digest,type StartupAdapter} from './startup/common'
+import {baseItem,digest,type StartupAdapter,type StartupRecord,type StartupBatch} from './startup/common'
 import type {StartupCoverage,StartupItem} from '../shared/startup-types'
 const handlers=vi.hoisted(()=>new Map<string,Function>())
 vi.mock('electron',()=>({app:{},ipcMain:{handle:(name:string,fn:Function)=>handlers.set(name,fn)},shell:{trashItem:vi.fn(),showItemInFolder:vi.fn()}}))
@@ -73,5 +73,61 @@ describe('registered startup changes',()=>{
     const invoke=handlers.get('diskcollie:startup:change')!
     expect(()=>invoke(null,{catalogId:crypto.randomUUID(),ids:[crypto.randomUUID()],action:'disable',path:'/outside'})).toThrow()
     expect(()=>invoke(null,{catalogId:crypto.randomUUID(),ids:[crypto.randomUUID()],action:'execute'})).toThrow()
+  })
+})
+
+function batchedHarness(){
+  const rows=new Map(['one','two','unchanged'].map(key=>[key,baseItem({name:key,kind:'agent',state:key==='unchanged'?'disabled':'enabled',access:'administrator',canRemove:true,canToggle:true})]))
+  const failures=new Map<string,unknown>(),readFailures=new Set<string>(),unrelated=baseItem({name:'Background registration',kind:'background',access:'settings'})
+  let cancel=false
+  const batch:StartupBatch={token:{},apply:vi.fn<StartupBatch['apply']>(async(records,action)=>{
+    if(cancel)throw new Error('User cancelled (-128)')
+    return records.map(record=>{const error=failures.get(record.key)||null;if(!error){if(action==='remove')rows.delete(record.key);else rows.get(record.key)!.state=action==='enable'?'enabled':'disabled'}return {key:record.key,error}})
+  })}
+  const make=(key:string):StartupRecord=>{
+    const item={...rows.get(key)!}
+    return {key,item,signature:digest(item),batch,validate:async()=>digest(rows.get(key)),change:async()=>{throw new Error('Must use batch')},readBack:async()=>{if(readFailures.has(key))throw new Error('Permission denied');return rows.has(key)?make(key):null}}
+  }
+  const adapter:StartupAdapter={scan:vi.fn<StartupAdapter['scan']>(async()=>({records:[...rows.keys()].map(make).concat({key:'btm',item:unrelated,signature:'btm',validate:async()=> 'btm',change:async()=>{throw new Error('readonly')}}),coverage:[{source:'agent',status:'partial',count:3,message:'startup.partial'},{source:'background',status:'complete',count:8,message:''}]}))}
+  const service=new StartupService({profile:'/unused-fixture',language:()=> 'en-US',adapter})
+  return {service,adapter,rows,batch,failures,readFailures,cancel:()=>{cancel=true}}
+}
+describe('one authorization with targeted native verification',()=>{
+  it('authorizes a batch once, excludes unchanged items, retains unrelated rows/coverage and verifies native states without a full scan',async()=>{
+    const {service,adapter,batch}=batchedHarness(),catalog=await service.scan(),ids=catalog.items.filter(item=>item.canToggle).map(item=>item.id)
+    const result=await service.change({catalogId:catalog.id,ids,action:'disable'})
+    expect(batch.apply).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(batch.apply).mock.calls[0][0].map(record=>record.key)).toEqual(['one','two'])
+    expect(result.results.map(item=>[item.ok,item.changed])).toEqual([[true,true],[true,true],[true,false]])
+    expect(result.catalog.items.map(item=>[item.id,item.state])).toEqual(catalog.items.map(item=>[item.id,item.canToggle?'disabled':item.state]))
+    expect(result.catalog.coverage).toEqual(catalog.coverage)
+    expect(adapter.scan).toHaveBeenCalledTimes(1)
+  })
+  it('requires whole-selection preflight before authorizing any batch',async()=>{
+    const {service,rows,batch}=batchedHarness(),catalog=await service.scan()
+    rows.get('two')!.target='/changed'
+    await expect(service.change({catalogId:catalog.id,ids:catalog.items.slice(0,2).map(item=>item.id),action:'remove'})).rejects.toThrow(/has changed/)
+    expect(batch.apply).not.toHaveBeenCalled()
+  })
+  it('preserves per-item outcomes and order, using proven absence even with partial source coverage',async()=>{
+    const {service,adapter,failures}=batchedHarness(),catalog=await service.scan();failures.set('one',new Error('startup.permission'))
+    const result=await service.change({catalogId:catalog.id,ids:[catalog.items[1].id,catalog.items[0].id],action:'remove'})
+    expect(result.results.map(item=>[item.name,item.ok])).toEqual([['two',true],['one',false]])
+    expect(result.catalog.items.map(item=>item.name)).toEqual(['one','unchanged','Background registration'])
+    expect(result.catalog.coverage[0]).toMatchObject({status:'partial',count:2})
+    expect(result.catalog.coverage[1].count).toBe(8)
+    expect(adapter.scan).toHaveBeenCalledTimes(1)
+  })
+  it('reports authorization cancellation for every batch item without rescanning or claiming changes',async()=>{
+    const {service,cancel,rows,adapter}=batchedHarness(),catalog=await service.scan();cancel()
+    const result=await service.change({catalogId:catalog.id,ids:catalog.items.slice(0,2).map(item=>item.id),action:'remove'})
+    expect(result.results.every(item=>!item.ok&&!item.changed&&/cancelled/.test(item.message))).toBe(true)
+    expect(rows.size).toBe(3);expect(adapter.scan).toHaveBeenCalledTimes(1)
+  })
+  it('does not claim success when native readback fails and never falls back to unrelated permission probes',async()=>{
+    const {service,readFailures,adapter}=batchedHarness(),catalog=await service.scan();readFailures.add('two')
+    const result=await service.change({catalogId:catalog.id,ids:catalog.items.slice(0,2).map(item=>item.id),action:'remove'})
+    expect(result.results.every(item=>!item.ok&&!item.changed&&/could not be verified/.test(item.message))).toBe(true)
+    expect(adapter.scan).toHaveBeenCalledTimes(1)
   })
 })
