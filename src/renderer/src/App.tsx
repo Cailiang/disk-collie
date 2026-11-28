@@ -1,3 +1,4 @@
+import {StartupWorkspace} from './StartupWorkspace'
 import {MessageProvider,useMessages} from './Messages'
 import { ProcessWorkspace } from './ProcessWorkspace'
 import { StorageWorkspace, type StorageView } from './StorageWorkspace'
@@ -1877,6 +1878,7 @@ function AppContent({ onLanguageChange }: { onLanguageChange: (language: AppSett
     >
       {<div hidden={view!=='processes'}><ProcessWorkspace entry={processEntry} metrics={overviewMetrics} paused={overviewPaused} error={overviewError} onPause={setOverviewPaused} onAsk={(p) => void askOverviewProcess(p)} onCopyName={(name) => void copyOverviewProcessName(name)} onCopyPid={(pid) => void copyOverviewProcessPid(pid)} onTerminate={terminateOverviewProcess} /></div>}
       {view === 'agent' && <AgentPage scan={result} run={activeRun} conversationRuns={conversationRuns} workspaceRuns={workspaceRuns} statusMessage={runStatusMessage} selectedPlanIds={selectedPlanIds} providerConfigured={Boolean(defaultProvider)} addingOperationId={addingOperationId} openingApplicationId={openingApplicationId} returnLabel={agentOriginLabel} preparing={scanBusy} draft={advisorDraft} onDraftChange={setAdvisorDraft} onNavigate={setView} onSubmit={submitAdvisor} onSelectWorkspaceRun={selectWorkspaceRun} onCloseWorkspaceRun={closeWorkspaceRun} onNewTask={() => { setActiveRun(null); activeRunId.current = null; setSelectedPlanIds(new Set()); setRunStatusMessage(''); setAgentOrigin(null) }} onOpenHistory={() => setView('history')} onOpenSettings={()=>{setAiSetupOrigin({source:'agent',scrollTop:0});setView('settings')}} onReturn={returnToAgentOrigin} onOpenApplication={openAgentApplication} onAddPlanItem={(id) => void addAgentPlanItem(id)} onTogglePlanItem={(id) => setSelectedPlanIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next })} onExecutePlan={() => void executePlan()} onDiscardPlan={discardPlan} />}
+      <div hidden={view!=='startup'}><StartupWorkspace active={view==='startup'} onSettings={()=>setView('settings')}/></div>
       {view === 'terminal' && <HealthPage
         standaloneTerminal
         result={result}

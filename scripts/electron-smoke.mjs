@@ -1,3 +1,4 @@
+import {startupFixture,verifyStartupFixture} from './startup-electron-smoke.mjs'
 import {acknowledgeMessage} from './message-smoke.mjs'
 import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync, mkdirSync, realpathSync, copyFileSync } from 'node:fs'
 import { tmpdir, homedir } from 'node:os'
@@ -82,9 +83,10 @@ const ownedSupport=ownedApp?path.join(homedir(),'Library/Application Support',ow
 if(ownedApp){mkdirSync(path.join(ownedApp,'Contents'),{recursive:true});writeFileSync(path.join(ownedApp,'Contents/Info.plist'),`<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>CFBundleName</key><string>${ownedAppName}</string><key>CFBundleIdentifier</key><string>${ownedBundleId}</string><key>CFBundleShortVersionString</key><string>1.0</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>`)}
 const first=path.join(fixture,'diskcollie-smoke-copy-a.bin'), second=path.join(fixture,'diskcollie-smoke-copy-b.bin'), third=path.join(fixture,'diskcollie-smoke-copy-c.bin'), fourth=path.join(fixture,'diskcollie-smoke-copy-d.bin'), unique=path.join(fixture,'diskcollie-smoke-unique.bin')
 writeFileSync(first,Buffer.alloc(12*1024*1024,23));writeFileSync(second,Buffer.alloc(12*1024*1024,23));writeFileSync(unique,Buffer.alloc(12*1024*1024,47));writeFileSync(third,Buffer.alloc(12*1024*1024,91));writeFileSync(fourth,Buffer.alloc(12*1024*1024,91))
+const ownedStartup=startupFixture()
 let electronApp, ownedWorker
 try{
-  const launch=(privacyHome)=>electronLauncher.launch({...(process.env.DISKCOLLIE_SMOKE_EXECUTABLE?{executablePath:process.env.DISKCOLLIE_SMOKE_EXECUTABLE}:{}),args:[...(process.env.DISKCOLLIE_SMOKE_EXECUTABLE?[]:['.']),`--user-data-dir=${profile}`],env:{...process.env,DISKCOLLIE_TEST_RUN:'1',DISKCOLLIE_TEST_STORAGE_ROOT:fixture,DISKCOLLIE_TEST_PRIVACY_HOME:privacyHome||''}})
+  const launch=(privacyHome)=>electronLauncher.launch({...(process.env.DISKCOLLIE_SMOKE_EXECUTABLE?{executablePath:process.env.DISKCOLLIE_SMOKE_EXECUTABLE}:{}),args:[...(process.env.DISKCOLLIE_SMOKE_EXECUTABLE?[]:['.']),`--user-data-dir=${profile}`],env:{...process.env,DISKCOLLIE_TEST_RUN:'1',DISKCOLLIE_TEST_STARTUP_ROOT:ownedStartup.root,DISKCOLLIE_TEST_STORAGE_ROOT:fixture,DISKCOLLIE_TEST_PRIVACY_HOME:privacyHome||''}})
   electronApp=await launch()
   const p=await electronApp.firstWindow();const errors=[];p.on('pageerror',e=>errors.push(e.message))
   await p.locator('.nav-button[title="首页"]').waitFor({timeout:20000})
@@ -223,6 +225,7 @@ try{
   const windowsBrowserIcons=[...beforeApps.filter(application=>/chrome/i.test(application.name)).map(application=>application.iconPath),...[process.env.ProgramFiles,process.env['ProgramFiles(x86)'],process.env.LOCALAPPDATA,'C:\\Program Files','C:\\Program Files (x86)'].filter(Boolean).map(root=>path.join(root,'Google/Chrome/Application/chrome.exe'))]
   // Old browser profiles can remain after uninstall; OS artwork requires an installed executable.
   if(sourceRule&&(process.platform!=='win32'||windowsBrowserIcons.some(filename=>filename&&existsSync(filename)))){const icon=await p.evaluate(id=>window.diskCollie.storageCleanupIcon(id),sourceRule.id);assert(icon?.startsWith('data:image/'),'Privacy applications must expose complete OS icons: '+JSON.stringify(beforeApps.filter(application=>/chrome|safari/i.test(application.name)).map(({name,location,iconPath})=>({name,location,iconPath}))))}
+  await verifyStartupFixture(p,ownedStartup)
   await verifyProviderKeyEditing(p)
   assert.deepEqual(errors,[])
   await electronApp.close();const ownedPrivacy=privacyFixture();electronApp=await launch(smokePrivacyRoot);const restarted=await electronApp.firstWindow();restarted.on('pageerror',e=>errors.push(e.message));await restarted.locator('.nav-button[title="首页"]').waitFor({timeout:20000});assert((await restarted.evaluate(()=>window.diskCollie.getAppSettings())).scanExcludedDirectories.some(directory=>samePath(directory,excludedFolder)),'Excluded directories must persist after restart');const restoredInventory=await restarted.evaluate(()=>window.diskCollie.storageApplicationState());assert(restoredInventory.applications.some(application=>application.id===beforeApps[0].id),'Warm launch must restore stable application IDs without opening Applications');const restoredHistory=await restarted.evaluate(()=>window.diskCollie.storageState());assert.equal(restoredHistory.history.filter(record=>record.id===legacyActivity.id).length,1);assert(restoredHistory.history.some(record=>record.kind==='analysis'&&record.items===1),'Explorer cleanup must survive restart');assert.equal(await restarted.locator('.overview-recent').count(),0)
@@ -230,6 +233,7 @@ try{
   await electronApp.close();electronApp=await launch(smokePrivacyRoot);const privacyRestarted=await electronApp.firstWindow();await privacyRestarted.locator('.nav-button[title="首页"]').waitFor({timeout:20000});const persistedPrivacy=await privacyRestarted.evaluate(()=>window.diskCollie.storageState());assert(persistedPrivacy.history.some(record=>record.kind==='privacy'&&record.items===privacyOutcome.selected&&record.traces===privacyOutcome.traces),'Verified privacy outcomes must persist after restart')
   console.log(`Electron smoke passed: production IPC, native scan (${state.index.elapsedMs}ms), tree file actions, physical ASAR directory review and changed-archive rejection, cross-group duplicate batch guard and real Trash operations on owned fixtures, persisted activity, ${metrics.processes.length} processes, ${applicationCount} applications, registered application actions, queued app/config uninstall with hidden explorer reconciliation, read-only real privacy scan, ${privacyOutcome.traces} owned privacy traces, encrypted provider editing. Version ${version}.`)
 }finally{
+  ownedStartup.cleanup()
   if(ownedWorker?.exitCode===null&&!ownedWorker.signalCode)ownedWorker.kill('SIGKILL')
   await electronApp?.close().catch(()=>undefined)
   rmSync(profile,{recursive:true,force:true});rmSync(fixture,{recursive:true,force:true});rmSync(smokePrivacyRoot,{recursive:true,force:true});if(ownedAppRoot)rmSync(ownedAppRoot,{recursive:true,force:true});if(ownedSupport)rmSync(ownedSupport,{recursive:true,force:true});if(ownedPreferences)rmSync(ownedPreferences,{force:true})

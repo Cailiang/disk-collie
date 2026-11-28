@@ -1,3 +1,4 @@
+import {StartupService} from './startup-service'
 import {normalizeScanExcludedDirectories} from '../shared/scan-exclusions'
 import {migrateLegacyProfile} from './profile-migration'
 import {readApplicationIcon,clearApplicationIconCache} from './application-icon'
@@ -1585,6 +1586,7 @@ app.whenReady().then(async () => {
   storageService = new StorageService(() => appSettings.language, () => appSettings.scanExcludedDirectories)
   await storageService.init()
   storageService.register()
+  new StartupService({profile:app.getPath('userData'),language:()=>appSettings.language,ledger:agentStore!}).register()
   storageService.startApplicationInventory()
   app.on('before-quit', stopPortableOverview)
 

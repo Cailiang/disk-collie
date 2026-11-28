@@ -1,3 +1,4 @@
+import type {StartupApi} from './startup-types'
 import type { StorageApi } from './storage-types'
 export type ScanSection = 'services' | 'storage' | 'applications' | 'terminal'
 
@@ -369,7 +370,7 @@ export interface AppUpdateState {
   error: string | null
 }
 
-export interface DiskCollieApi extends DiskCollieAgentApi, DiskCollieSettingsApi, StorageApi {
+export interface DiskCollieApi extends DiskCollieAgentApi, DiskCollieSettingsApi, StorageApi, StartupApi {
   getVersion: () => Promise<string>
   getUpdateState: () => Promise<AppUpdateState>
   checkForUpdates: () => Promise<AppUpdateState>

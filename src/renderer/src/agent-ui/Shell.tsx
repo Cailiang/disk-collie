@@ -6,7 +6,7 @@ import type { AppUpdateState } from '../../../shared/types'
 import {AiTaskToolbar} from '../AiTasks'
 import { useI18n } from '../i18n'
 
-export type AgentViewKey = 'overview' | 'health' | 'large' | 'duplicates' | 'privacy' | 'processes' | 'apps' | 'disk' | 'terminal' | 'agent' | 'history' | 'settings'
+export type AgentViewKey = 'overview' | 'health' | 'large' | 'duplicates' | 'privacy' | 'processes' | 'apps' | 'disk' | 'terminal' | 'startup' | 'agent' | 'history' | 'settings'
 
 export function Shell({ activeView, provider, appVersion, updateState, hostname, osVersion, onNavigate, onInstallUpdate, children }: {
   activeView: AgentViewKey; provider: AgentProvider | null; healthCount:number; applicationCount:number; terminalCount:number;
@@ -15,7 +15,7 @@ export function Shell({ activeView, provider, appVersion, updateState, hostname,
 }):React.JSX.Element {
   const {t}=useI18n()
   const storage=[{id:'large',key:'large'},{id:'duplicates',key:'duplicates'},{id:'disk',key:'disk'},{id:'privacy',key:'privacy'}] as const
-  const tools=[{id:'apps',key:'apps'},{id:'processes',key:'processes'},{id:'terminal',key:'terminal'},{id:'agent',key:'agent'}] as const
+  const tools=[{id:'apps',key:'apps'},{id:'processes',key:'processes'},{id:'startup',key:'startup'},{id:'terminal',key:'terminal'},{id:'agent',key:'agent'}] as const
   const utility=[{id:'settings',key:'settings'}] as const
   const nav=(item:{id:AgentViewKey;key:string}):React.JSX.Element=><button key={item.id} type="button" className={`nav-button ${activeView===item.id?'is-active':''}`} title={t(`nav.${item.key}`)} aria-current={activeView===item.id?'page':undefined} onClick={()=>onNavigate(item.id)}><NavigationIcon kind={item.id}/><span>{t(`nav.${item.key}`)}</span>{activeView===item.id&&<i/>}</button>
   const platform=window.diskCollie?.platform

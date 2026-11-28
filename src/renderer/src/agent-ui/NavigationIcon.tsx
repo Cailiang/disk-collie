@@ -10,6 +10,7 @@ export function NavigationIcon({kind,size=20}:{kind:AgentViewKey;size?:number}):
     privacy:<><path d="M4 13c0-6 2-10 8-10 4 0 8 3 8 8M7 16V11a5 5 0 0 1 10 0v3c0 3-1 5-3 7M10 19c1-2 1-4 1-7a1 1 0 0 1 2 0c0 3 0 5-1 8M4 17l1 3M20 15c0 3-1 5-2 6"/></>,
     apps:<><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7M17.5 14v7"/></>,
     processes:<><path d="M4 20V9h3v11M10 20V3h4v17M17 20V6h3v14M2 21h20"/><path d="M2 5h4m-2-2v4"/></>,
+    startup:<><path d="M12 3v8M6.4 5.7a9 9 0 1 0 11.2 0"/><path d="m17 16 2 2 3-4"/></>,
     terminal:<><rect x="2.5" y="4" width="19" height="16" rx="2.5"/><path d="m7 9 4 3-4 3m7 1h3"/></>,
     agent:<><path d="M8 19H6l-4 3V6a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v10"/><circle cx="16" cy="17" r="5"/><path d="m14 17 1.5 1.5 2.5-3M6 8h11M6 12h4"/></>,
     history:<><path d="M4 8a9 9 0 1 1-1 6M3 3v6h6M12 7v6l4 2"/></>,

@@ -4,6 +4,22 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.31 - 2026-11-28
+
+### English
+
+- Add Startup optimization under Utilities, following MangoDisk’s grouped startup management behavior with independent code: search, status/leftover filters, expanded source/trigger/path details, system visibility, enable/disable and registration-only removal.
+- Add macOS launch/login/background/helper discovery, Windows registry/folder/task/service/packaged/advanced discovery, and Linux XDG/systemd discovery. Preserve unknown, protected and unavailable states explicitly.
+- Revalidate registered definitions before changes, verify resulting native state, preserve application files, and retain local startup operation history and existing provider-based AI explanations.
+- Cover owned startup fixtures through production Electron and include the new page in all four UI viewports.
+
+### 简体中文
+
+- 在实用工具下增加“启动项优化”，参考 MangoDisk 的功能独立实现应用分组、搜索、状态／残留筛选、来源／时机／路径详情、系统项显示、启停和仅移除启动配置。
+- 新增 macOS 启动代理／守护进程／登录／后台与帮助程序发现，Windows 注册表／启动文件夹／任务／服务／打包与高级来源发现，以及 Linux XDG／systemd 发现；明确保留未知、受保护及权限不足状态。
+- 操作前复核登记的配置，操作后读取原生状态，不删除应用和个人文件；增加启动项操作记录，并接入既有自选模型的 AI 说明。
+- 真实 Electron 仅操作测试自有启动配置，四种界面尺寸同步覆盖新页面及功能流程。
+
 ## 1.0.30 - 2026-11-28
 
 ### English

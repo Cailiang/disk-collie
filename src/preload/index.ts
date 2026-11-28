@@ -24,6 +24,11 @@ if (bootTheme && allowedBootThemes.has(bootTheme)) {
 }
 
 const api: DiskCollieApi = {
+  startupScan:()=>ipcRenderer.invoke('diskcollie:startup:scan'),
+  startupChange:(input)=>ipcRenderer.invoke('diskcollie:startup:change',input),
+  startupReveal:(id)=>ipcRenderer.invoke('diskcollie:startup:reveal',id),
+  startupIcon:(id)=>ipcRenderer.invoke('diskcollie:startup:icon',id),
+  startupSettings:(section)=>ipcRenderer.invoke('diskcollie:startup:settings',section),
   storageState: () => ipcRenderer.invoke('diskcollie:storage:state'),
   storageScan: (options) => ipcRenderer.invoke('diskcollie:storage:scan', options),
   storageCancel: (scope) => ipcRenderer.invoke('diskcollie:storage:cancel',scope),

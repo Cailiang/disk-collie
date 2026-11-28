@@ -1,3 +1,4 @@
+import {startupLayout,verifyStartup} from './startup-smoke.mjs'
 import {verifyScanGames} from './scan-games-smoke.mjs'
 import {acknowledgeMessage} from './message-smoke.mjs'
 import { chromium } from 'playwright-core'
@@ -11,7 +12,7 @@ const executable=process.env.CHROME_PATH||'/Applications/Google Chrome.app/Conte
 const browser=await chromium.launch({headless:true,...(existsSync(executable)?{executablePath:executable}:{channel:'chrome'})})
 const failures=[]
 const visible='.space-workspace:visible'
-const pages=['首页','大文件','重复文件','空间分析','隐私清理','应用管理','进程管理','终端优化','清理顾问','设置']
+const pages=['首页','大文件','重复文件','空间分析','隐私清理','应用管理','进程管理','启动项优化','终端优化','清理顾问','设置']
 const viewports=[{width:1440,height:900},{width:1024,height:768},{width:820,height:1180},{width:390,height:844}]
 async function navigate(page,name){await page.locator('.nav-button').filter({hasText:name}).filter({visible:true}).click();await page.waitForTimeout(170)}
 async function verifyProfileLogo(page,selector='.brand-mascot svg'){
@@ -69,7 +70,7 @@ async function overflow(page,label){const amount=await page.evaluate(()=>documen
 try{
   for(const viewport of viewports){
     const p=await browser.newPage({viewport});p.on('pageerror',e=>failures.push(`${viewport.width}: ${e.message}`))
-    await p.goto(baseUrl);await p.locator('.device-health').waitFor();const navIcons=await p.locator('.nav-button [data-nav-icon]').evaluateAll(icons=>icons.map(icon=>icon.innerHTML));assert.equal(new Set(navIcons).size,10);assert.equal(await p.locator('.nav-button').filter({hasText:'深度清理'}).count(),0);assert.equal(await p.locator('.deep-clean-page').count(),0);await verifyProfileLogo(p)
+    await p.goto(baseUrl);await p.locator('.device-health').waitFor();const navIcons=await p.locator('.nav-button [data-nav-icon]').evaluateAll(icons=>icons.map(icon=>icon.innerHTML));assert.equal(new Set(navIcons).size,11);assert.equal(await p.locator('.nav-button').filter({hasText:'深度清理'}).count(),0);assert.equal(await p.locator('.deep-clean-page').count(),0);await verifyProfileLogo(p)
     for(const [i,name]of pages.entries()){
       await navigate(p,name)
       if(name==='重复文件'){await p.getByRole('button',{name:'查找重复文件',exact:true}).click();await p.locator('.space-duplicate-group').first().waitFor();await p.getByRole('button',{name:'选择所有多余副本',exact:true}).click();const bar=p.getByRole('region',{name:'批量操作',exact:true});await bar.waitFor();const box=await bar.boundingBox();assert(box.y>=0&&box.y+box.height<=viewport.height+1,'Batch actions must stay visible');assert.match(await bar.innerText(),/已选 2/);await overflow(p,`${viewport.width}/batch actions`);await p.screenshot({path:`${directory}/${viewport.width}-batch.png`});await bar.getByRole('button',{name:'清空选择',exact:true}).click()}
@@ -93,6 +94,7 @@ try{
         assert.equal(await row.getAttribute('aria-selected'),'true','Cancelling review must retain the tree selection')
         await overflow(p,`${viewport.width}/tree actions`);await p.screenshot({path:`${directory}/${viewport.width}-space-tree-actions.png`})
       }
+      if(name==='启动项优化'){await startupLayout(p)}
       if(name==='隐私清理'){
         const privacy=p.locator('.space-privacy');await privacy.locator('[data-privacy-id="browser-history"]').waitFor()
         assert.equal(await privacy.locator('.privacy-categories button').count(),4)
@@ -232,7 +234,8 @@ try{
   await treeDirectoryTrash.click();await folderPage.getByRole('dialog').waitFor();assert.match(await folderPage.getByRole('dialog').innerText(),/\/Users\/alex\/Documents/);await folderPage.screenshot({path:`${directory}/space-directory-review.png`});await folderPage.getByRole('dialog').getByRole('button',{name:'移到废纸篓',exact:true}).click();await folderPage.getByRole('dialog').getByRole('button',{name:'完成',exact:true}).click()
   assert.equal(await folderTree.getByRole('button',{name:'移到废纸篓 Documents',exact:true}).count(),0);assert.equal(await folderMap.getByRole('button',{name:/Documents/}).count(),0);assert.equal(await folderPage.locator('.space-breadcrumbs button').last().innerText(),'alex','Deleting the current directory must return to its surviving parent');assert.equal(await folderMap.getByRole('button',{name:/其他项目/}).count(),0,'Deleted folder bytes must not reappear in Other')
   await navigate(folderPage,'大文件');await navigate(folderPage,'空间分析');assert.equal(await folderTree.getByRole('button',{name:'移到废纸篓 Documents',exact:true}).count(),0);await folderPage.screenshot({path:`${directory}/space-directory-removed.png`});await folderPage.close()
-  await verifyScanGames(browser,baseUrl,directory)
+  await verifyStartup(browser,baseUrl,directory)
+await verifyScanGames(browser,baseUrl,directory)
   const advisor=await browser.newPage({viewport:viewports[0]});advisor.on('pageerror',error=>failures.push(error.message));await advisor.goto(baseUrl+'?noProvider=1');await navigate(advisor,'清理顾问');await advisor.locator('.advisor-start').waitFor();await verifyProfileLogo(advisor,'.advisor-mascot svg');assert.equal(await advisor.locator('.brand-mascot svg').innerHTML(),await advisor.locator('.advisor-mascot svg').innerHTML(),'Sidebar and advisor must share one profile');assert.equal(await advisor.locator('.agent-rail').count(),0);assert.equal(await advisor.locator('.advisor-intents>button').count(),3)
   const advisorInput=advisor.getByRole('textbox',{name:'输入任务',exact:true});await advisorInput.fill('这个文件能否删除：/Users/alex/Downloads/archive.zip');await advisor.getByRole('button',{name:'发送',exact:true}).click();await advisor.locator('.settings-page').waitFor();await advisor.getByRole('button',{name:'返回清理顾问',exact:true}).click();assert.equal(await advisorInput.inputValue(),'这个文件能否删除：/Users/alex/Downloads/archive.zip','Advisor drafts must survive provider setup');await advisor.locator('.advisor-source-links').getByRole('button',{name:'大文件',exact:true}).click();await advisor.getByRole('searchbox',{name:'搜索文件'}).waitFor();await advisor.close()
   const batch=await browser.newPage({viewport:viewports[0]});batch.on('pageerror',e=>failures.push(e.message));await batch.goto(baseUrl);await navigate(batch,'重复文件');assert.equal(await batch.getByRole('checkbox',{name:'包含隐藏目录',exact:true}).isChecked(),false);await batch.getByRole('button',{name:'查找重复文件',exact:true}).click();await batch.getByRole('button',{name:'选择所有多余副本',exact:true}).click();const batchBar=batch.getByRole('region',{name:'批量操作',exact:true});assert.match(await batchBar.innerText(),/涉及 2 个重复组/);await batchBar.getByRole('button',{name:'移走所选副本',exact:true}).click();assert.equal(await batch.locator('.space-dialog-files>div').count(),2);await batch.getByRole('dialog').getByRole('button',{name:'取消',exact:true}).click();assert.equal(await batch.locator('.space-duplicate-row input:checked').count(),2);await batchBar.getByRole('button',{name:'移走所选副本',exact:true}).click();await batch.getByRole('dialog').getByRole('button',{name:'移到废纸篓',exact:true}).click();await batch.getByRole('dialog').getByRole('button',{name:'完成',exact:true}).click();assert.equal(await batch.locator('.space-duplicate-group').count(),0);await batch.close()
