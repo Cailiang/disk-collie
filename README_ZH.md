@@ -8,11 +8,11 @@
 
 | 平台 | 下载安装包 |
 | --- | --- |
-| macOS | [Apple 芯片](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-arm64.dmg) · [Intel](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-x64.dmg) |
-| Windows | [x64](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-x64.exe) · [arm64](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-arm64.exe) |
-| Linux | x64: [AppImage](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-x86_64.AppImage) · [DEB](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-amd64.deb) / arm64: [AppImage](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-arm64.AppImage) · [DEB](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-arm64.deb) |
+| macOS | [Apple 芯片](https://github.com/Cailiang/disk-collie/releases/download/v1.0.39/DiskCollie-1.0.39-arm64.dmg) · [Intel](https://github.com/Cailiang/disk-collie/releases/download/v1.0.39/DiskCollie-1.0.39-x64.dmg) |
+| Windows | [x64](https://github.com/Cailiang/disk-collie/releases/download/v1.0.39/DiskCollie-1.0.39-x64.exe) · [arm64](https://github.com/Cailiang/disk-collie/releases/download/v1.0.39/DiskCollie-1.0.39-arm64.exe) |
+| Linux | x64: [AppImage](https://github.com/Cailiang/disk-collie/releases/download/v1.0.39/DiskCollie-1.0.39-x86_64.AppImage) · [DEB](https://github.com/Cailiang/disk-collie/releases/download/v1.0.39/DiskCollie-1.0.39-amd64.deb) / arm64: [AppImage](https://github.com/Cailiang/disk-collie/releases/download/v1.0.39/DiskCollie-1.0.39-arm64.AppImage) · [DEB](https://github.com/Cailiang/disk-collie/releases/download/v1.0.39/DiskCollie-1.0.39-arm64.deb) |
 
-macOS 安装包已签名并公证。[SHA-256 校验和](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/SHA256SUMS.txt)。
+macOS 安装包已签名并公证。[SHA-256 校验和](https://github.com/Cailiang/disk-collie/releases/download/v1.0.39/SHA256SUMS.txt)。
 
 ## 设备状态，一目了然
 
