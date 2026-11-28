@@ -1254,7 +1254,7 @@
   "startup.readonly": "此项目由系统或应用管理，无法直接调整",
   "startup.admin": "需要管理员权限",
   "startup.adminEffect": "这些项目需要系统管理员授权，系统会在执行时请求授权。",
-  "startup.adminBatchEffect": "本次所选的受保护配置将合并请求一次管理员授权，取消授权则不执行。",
+  "startup.adminBatchEffect": "本批受保护配置合并请求一次管理员授权；取消则不处理本批。以后处理其他批次时，系统仍可能再次询问。",
   "startup.effect": "只调整自动启动设置，不会卸载应用或立即结束已运行的程序。通常在下次开机或登录后生效。",
   "startup.removeEffect": "只移除列出的启动配置，不删除程序、工作目录或个人文件。若需恢复，请通过应用自身设置重新添加。",
   "startup.otherTriggers": "此配置还包含定时或其他触发条件，调整会同时影响这些触发条件。",
@@ -1291,5 +1291,12 @@
   "startup.historyEmpty": "还没有启动项操作记录。",
   "startup.historyDone": "已完成",
   "startup.historyFailed": "未完成",
-  "startup.automationSettings": "检查自动化权限"
+  "startup.automationSettings": "检查自动化权限",
+  "startup.authorization.remove": "DiskCollie 要移除 {count} 项启动配置（{names}）。这些是所有用户的启动设置，需要管理员权限；应用和个人文件会保留。",
+  "startup.authorization.enable": "DiskCollie 要启用 {count} 项启动配置（{names}）。这些是所有用户的启动设置，需要管理员权限；应用和个人文件会保留。",
+  "startup.authorization.disable": "DiskCollie 要禁用 {count} 项启动配置（{names}）。这些是所有用户的启动设置，需要管理员权限；应用和个人文件会保留。",
+  "startup.authorization.more": "等",
+  "startup.authorization.title": "系统授权说明",
+  "startup.authorization.system": "接下来 macOS 的密码框可能仍显示“osascript”。这是 DiskCollie 使用的系统执行工具，上面的说明会同时显示在密码框中。",
+  "startup.authorizing": "正在请求系统授权并核验…"
 }

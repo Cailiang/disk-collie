@@ -86,7 +86,7 @@ export function macStartup(options:MacOptions):StartupAdapter {
     const target=adminTargets.get(record)
     if(!target)throw new Error('startup.readonly')
     return target
-  }),action,run)}
+  }),action,run,options.language?.()||'zh-CN')}
   return {async scan(){
     appCache.clear()
     const records:StartupRecord[]=[],coverage:StartupCoverage[]=[],root=options.fixture||options.home,language=options.language?.()||'zh-CN'

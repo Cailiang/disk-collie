@@ -2,26 +2,22 @@
 
 | 平台 / Platform | 架构 / Architecture | 安装包 / Installer |
 | --- | --- | --- |
-| macOS | Apple Silicon / arm64 | [下载 DMG / Download](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-arm64.dmg) |
-| macOS | Intel / x64 | [下载 DMG / Download](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-x64.dmg) |
-| Windows | x64 | [下载 EXE / Download](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-x64.exe) |
-| Windows | arm64 | [下载 EXE / Download](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-arm64.exe) |
-| Linux | x64 | [AppImage](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-x86_64.AppImage) · [DEB](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-amd64.deb) |
-| Linux | arm64 | [AppImage](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-arm64.AppImage) · [DEB](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-arm64.deb) |
+| macOS | Apple Silicon / arm64 | [下载 DMG / Download](https://github.com/Cailiang/disk-collie/releases/download/v1.0.35/DiskCollie-1.0.35-arm64.dmg) |
+| macOS | Intel / x64 | [下载 DMG / Download](https://github.com/Cailiang/disk-collie/releases/download/v1.0.35/DiskCollie-1.0.35-x64.dmg) |
+| Windows | x64 | [下载 EXE / Download](https://github.com/Cailiang/disk-collie/releases/download/v1.0.35/DiskCollie-1.0.35-x64.exe) |
+| Windows | arm64 | [下载 EXE / Download](https://github.com/Cailiang/disk-collie/releases/download/v1.0.35/DiskCollie-1.0.35-arm64.exe) |
+| Linux | x64 | [AppImage](https://github.com/Cailiang/disk-collie/releases/download/v1.0.35/DiskCollie-1.0.35-x86_64.AppImage) · [DEB](https://github.com/Cailiang/disk-collie/releases/download/v1.0.35/DiskCollie-1.0.35-amd64.deb) |
+| Linux | arm64 | [AppImage](https://github.com/Cailiang/disk-collie/releases/download/v1.0.35/DiskCollie-1.0.35-arm64.AppImage) · [DEB](https://github.com/Cailiang/disk-collie/releases/download/v1.0.35/DiskCollie-1.0.35-arm64.deb) |
 
-[SHA-256 校验和 / Checksums](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/SHA256SUMS.txt) · [产品截图 / Screenshots](https://github.com/Cailiang/disk-collie#your-device-at-a-glance)
+[SHA-256 校验和 / Checksums](https://github.com/Cailiang/disk-collie/releases/download/v1.0.35/SHA256SUMS.txt) · [产品截图 / Screenshots](https://github.com/Cailiang/disk-collie#your-device-at-a-glance)
 
-macOS 安装包已签名并公证。 / macOS packages are signed and notarized.
+本版本尚未公开发布，GitHub 下载地址将在发布后可用。本地测试包已签名，未公证。 / This version is not yet published. Local test packages are signed and not notarized.
 
-## 1.0.34 更新 / What's new
+## 1.0.35 更新 / What's new
 
-- 新增“启动项优化”：按应用查看启用、禁用和残留项目，支持搜索、启停、移除启动配置与操作记录。
-- 显示软件的本地化名称，修复 null、状态说明及删除时列表过期的问题。
-- macOS 同批受保护配置合并请求一次管理员授权；删除后只核验相关项目，避免额外的 System Events／sfltool 扫描授权。
-- 每次启动优先从 GitHub 检查更新，网络不可用时切换到 diskcollie.app 官网数据源。
-- Add Startup optimization with grouped applications, status/leftover filters, enable/disable, registration-only removal and local operation history.
-- Show localized app names and fix null metadata, unavailable-state explanations and expired selections.
-- Share one macOS administrator authorization per protected batch and verify affected registrations without unrelated System Events/sfltool scans.
-- Check GitHub for updates on every launch and use diskcollie.app when GitHub cannot be reached.
+- 管理员密码框直接说明 DiskCollie 正在启用、禁用或移除哪些启动配置、共几项，以及需要权限的原因。
+- 确认页同步展示授权说明，解释 osascript，并明确不同批次可能再次询问；保留应用和个人文件。
+- Show the exact DiskCollie startup action, configuration count, application names and permission reason in the macOS administrator password dialog.
+- Keep the confirmation consistent, explain osascript and clarify that later batches can require authorization again.
 
 [完整更新记录 / Full changelog](https://github.com/Cailiang/disk-collie/blob/main/CHANGELOG.md)

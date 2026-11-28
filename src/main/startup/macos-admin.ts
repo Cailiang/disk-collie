@@ -1,15 +1,17 @@
 import {createHash} from 'node:crypto'
 import {lstat,readFile} from '../physical-fs'
 import type {StartupAction} from '../../shared/startup-types'
+import type {AppLanguage} from '../../shared/app-settings'
+import {startupAuthorizationMessage} from '../../shared/startup-permissions'
 import {command,shellQuote,type StartupRecord} from './common'
 
-const elevate=String.raw`on run argv
-do shell script (item 1 of argv) with administrator privileges
+export const macStartupElevationScript=String.raw`on run argv
+do shell script (item 1 of argv) with administrator privileges with prompt (item 2 of argv)
 end run`
 export interface MacAdminTarget {record:StartupRecord;file:string;label:string;domain:string}
 
 /** A single authorized operation contains only registered, snapshot-checked configurations. */
-export async function changeMacStartupBatch(targets:MacAdminTarget[],action:StartupAction,run:typeof command=command):Promise<Array<{key:string;error:unknown|null}>>{
+export async function changeMacStartupBatch(targets:MacAdminTarget[],action:StartupAction,run:typeof command=command,language:AppLanguage='zh-CN'):Promise<Array<{key:string;error:unknown|null}>>{
   const commands:string[]=[]
   for(const [index,target] of targets.entries()){
     const stat=await lstat(target.file,{bigint:true}),hash=createHash('sha256').update(await readFile(target.file)).digest('hex')
@@ -24,7 +26,8 @@ export async function changeMacStartupBatch(targets:MacAdminTarget[],action:Star
   if(!commands.length)return []
   const script=`/usr/bin/env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin /bin/sh -c ${shellQuote(commands.join('\n'))}`
   if(Buffer.byteLength(script,'utf8')>128*1024)throw new Error('startup.selectionInvalid')
-  const output=await run('/usr/bin/osascript',['-e',elevate,script],120000)
+  const prompt=startupAuthorizationMessage(targets.map(target=>target.record.item),action,language)
+  const output=await run('/usr/bin/osascript',['-e',macStartupElevationScript,script,prompt],120000)
   return targets.map((target,index)=>{
     const state=new RegExp(`^DiskCollieStartupResult:${index}:(ok|changed|failed)$`,'m').exec(output)?.[1]
     return {key:target.record.key,error:state==='ok'?null:new Error(state==='changed'?'startup.changed':'startup.failed')}

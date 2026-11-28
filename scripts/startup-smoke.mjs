@@ -12,6 +12,15 @@ export async function startupLayout(page){
   const box=await workspace.boundingBox()
   assert(box.x>=0&&box.x+box.width<=await page.evaluate(()=>innerWidth)+1)
   assert(await workspace.evaluate(element=>element.scrollWidth<=element.clientWidth+1),'Startup details must fit narrow windows')
+  const admin=workspace.locator('[data-startup-group="worker"]')
+  await admin.locator('.startup-group-row').getByRole('button',{name:'移除启动配置 Build worker',exact:true}).click()
+  const dialog=page.getByRole('dialog')
+  assert.match(await dialog.locator('.startup-authorization-message').innerText(),/DiskCollie 要移除 1 项启动配置（Build worker）/)
+  assert.match(await dialog.innerText(),/osascript/)
+  assert.match(await dialog.innerText(),/其他批次.*再次询问/)
+  const authorization=await dialog.locator('.startup-authorization').boundingBox()
+  assert(authorization.width>0&&authorization.x>=0&&authorization.x+authorization.width<=await page.evaluate(()=>innerWidth)+1,'Authorization explanation must fit the window')
+  await dialog.getByRole('button',{name:'取消',exact:true}).click()
   return workspace
 }
 export async function verifyStartup(browser,baseUrl,directory){
@@ -44,6 +53,7 @@ export async function verifyStartup(browser,baseUrl,directory){
     assert.equal(await group('vscode').getByText('已禁用',{exact:true}).count(),3,'Group changes must update each source and the aggregate')
     await group('worker').locator('.startup-group-row').getByRole('button',{name:'移除启动配置 Build worker',exact:true}).click()
     assert.match(await page.getByRole('dialog').locator('.startup-admin-note').innerText(),/合并请求一次管理员授权/)
+    await page.screenshot({path:`${directory}/startup-authorization.png`})
     await page.getByRole('dialog').getByRole('button',{name:'取消',exact:true}).click();assert.equal(await group('worker').count(),1)
     await filters.getByRole('button',{name:/残留项/}).click();assert.equal(await workspace.locator('.startup-group').count(),2)
     assert(await group('embedded').getByRole('switch').isDisabled(),'Unknown/read-only leftovers cannot be toggled')

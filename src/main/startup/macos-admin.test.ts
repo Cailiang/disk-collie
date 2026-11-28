@@ -3,7 +3,7 @@ import {mkdtemp,writeFile,rm,readFile,chmod,symlink} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import {baseItem,command,fingerprint,shellQuote} from './common'
-import {changeMacStartupBatch,type MacAdminTarget} from './macos-admin'
+import {changeMacStartupBatch,macStartupElevationScript,type MacAdminTarget} from './macos-admin'
 
 const roots:string[]=[]
 afterEach(async()=>{await Promise.all(roots.splice(0).map(root=>rm(root,{recursive:true,force:true})))})
@@ -24,9 +24,27 @@ describe('bounded macOS administrator batches',()=>{
     expect(run.mock.calls[0]).toMatchObject({0:'/usr/bin/osascript',2:120000})
     const args=run.mock.calls[0][1]
     expect(args[1]).toContain('with administrator privileges')
+    expect(args[1]).toContain('with prompt (item 2 of argv)')
+    expect(args[3]).toContain('DiskCollie 要移除 2 项启动配置')
+    expect(args[1]).not.toContain(rows[0].record.item.name)
     expect(args[2]).toContain('/usr/bin/env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin')
     expect(result[0]).toEqual({key:rows[0].record.key,error:null})
     expect(String(result[1].error)).toContain('startup.failed')
+  })
+  it('uses the requested action and current UI language in a separate native password-dialog argument',async()=>{
+    const {targets:rows}=await targets(),run=vi.fn<typeof command>(async()=> 'DiskCollieStartupResult:0:ok\n')
+    rows[0].record.item.owner='Localized App'
+    for(const action of ['enable','disable','remove'] as const){
+      await changeMacStartupBatch([rows[0]],action,run,'en-US')
+      const args=run.mock.lastCall![1]
+      expect(args[1]).toBe(macStartupElevationScript)
+      expect(args[3]).toContain(`DiskCollie needs to ${action} 1 startup configurations (Localized App)`)
+      expect(args[3]).toContain('Administrator permission')
+    }
+  })
+  it.skipIf(process.platform!=='darwin')('compiles the real password-prompt syntax without executing or requesting authorization',async()=>{
+    const {root}=await targets()
+    await command('/usr/bin/osacompile',['-o',path.join(root,'elevate.scpt'),'-e',macStartupElevationScript])
   })
   it('rejects definition drift before elevation, propagates cancellation and requires a result marker for each item',async()=>{
     const {targets:rows}=await targets(),run=vi.fn<typeof command>(async()=> '')

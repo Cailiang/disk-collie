@@ -4,6 +4,20 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.35 - 2026-11-28
+
+### English
+
+- Replace the generic startup administrator password message with DiskCollie's operation, selected configuration count, application names, permission reason and preservation scope, using the current UI language.
+- Show the same explanation before authorization and identify osascript as the system execution tool. Clarify that a later protected batch may require another authorization.
+- Keep prompts as bounded data arguments, retain one request per protected batch, and verify the real AppleScript prompt syntax without requesting privileges.
+
+### 简体中文
+
+- 启动项管理员密码框显示 DiskCollie、具体操作、配置数量、软件名称、授权原因及保留范围，跟随当前界面语言。
+- 确认页展示相同说明，解释系统为何显示 osascript，并明确以后处理其他批次时仍可能再次授权。
+- 提示文字作为有长度限制的数据参数传入，保持同批一次授权，编译核验真实提示语法且不触发管理员授权。
+
 ## 1.0.34 - 2026-11-28
 
 ### English

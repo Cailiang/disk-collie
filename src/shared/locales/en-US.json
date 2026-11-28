@@ -1254,7 +1254,7 @@
   "startup.readonly": "Managed by the system or app; direct changes are unavailable",
   "startup.admin": "Administrator required",
   "startup.adminEffect": "The operating system will request administrator authorization for these entries.",
-  "startup.adminBatchEffect": "The selected protected configurations share one administrator authorization for this operation. Cancelling leaves them unchanged.",
+  "startup.adminBatchEffect": "This protected batch shares one administrator authorization. Cancelling preserves the batch. macOS may ask again for a later batch.",
   "startup.effect": "Changes affect automatic startup and take effect at the next boot or login. Applications and running processes are preserved.",
   "startup.removeEffect": "Only the listed startup registrations are removed. Programs, working folders and personal files are preserved. Use the app settings to register them again if needed.",
   "startup.otherTriggers": "These entries also have scheduled or other triggers; changing them affects those triggers too.",
@@ -1291,5 +1291,12 @@
   "startup.historyEmpty": "No startup changes have been recorded.",
   "startup.historyDone": "Completed",
   "startup.historyFailed": "Not completed",
-  "startup.automationSettings": "Review Automation access"
+  "startup.automationSettings": "Review Automation access",
+  "startup.authorization.remove": "DiskCollie needs to remove {count} startup configurations ({names}). Administrator permission is required for these all-user startup settings. Applications and personal files are preserved.",
+  "startup.authorization.enable": "DiskCollie needs to enable {count} startup configurations ({names}). Administrator permission is required for these all-user startup settings. Applications and personal files are preserved.",
+  "startup.authorization.disable": "DiskCollie needs to disable {count} startup configurations ({names}). Administrator permission is required for these all-user startup settings. Applications and personal files are preserved.",
+  "startup.authorization.more": " and others",
+  "startup.authorization.title": "System authorization",
+  "startup.authorization.system": "The macOS password dialog may still be titled “osascript”, the system tool used by DiskCollie. It will also show the operation described above.",
+  "startup.authorizing": "Requesting system authorization and verifying…"
 }

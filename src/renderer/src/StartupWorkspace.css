@@ -50,7 +50,10 @@
 .startup-coverage>div { padding:0 13px 12px; }
 .startup-coverage p { display:flex; gap:12px; line-height:1.6; }
 .startup-coverage p>strong { min-width:90px; color:var(--text); }
-.startup-admin-note { display:flex; align-items:center; gap:8px; }
+.startup-authorization { padding:12px 14px; border:1px solid var(--line); border-radius:6px; background:var(--surface-subtle); margin:14px 0; font-size:12px; line-height:1.7; overflow-wrap:anywhere; }
+.startup-authorization>strong { display:flex; align-items:center; gap:7px; }
+.startup-authorization>p { margin:8px 0 0; }
+.startup-authorization>p:not(.startup-authorization-message) { color:var(--text-secondary); font-size:11px; }
 .startup-history { max-height:55dvh; overflow:auto; }
 .startup-history article { padding:12px 0; border-bottom:1px solid var(--line); }
 .startup-history article>span { display:block; margin:6px 0; color:var(--text-secondary); font-size:11px; }
