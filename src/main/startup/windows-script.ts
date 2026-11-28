@@ -51,7 +51,7 @@ function Approval($hive,$view,$subkey,$name) {
 }
 function RegistryRows {
   $before=$records.Count;$partial=$false
-  foreach($hive in @('CurrentUser','LocalMachine')){foreach($view in @('Registry64','Registry32')){foreach($leaf in @('Run','RunOnce')){
+  foreach($hive in @('CurrentUser','LocalMachine')){foreach($view in @('Registry64','Registry32')){foreach($leaf in @('Run','RunOnce','Policies\Explorer\Run')){
     if($hive -eq 'CurrentUser' -and $view -eq 'Registry32'){continue}
     $sub='Software\Microsoft\Windows\CurrentVersion\'+$leaf
     try{
@@ -62,10 +62,10 @@ function RegistryRows {
           if($valueKind -notin @('String','ExpandString')){continue}
           $approvalSub='Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\'+$(if($view -eq 'Registry32'){'Run32'}else{'Run'})
           $approval=Approval $hive 'Registry64' $approvalSub $name
-          $state=if($leaf -eq 'RunOnce'){'enabled'}else{$approval.state}
+          $state=if($leaf -ne 'Run'){'enabled'}else{$approval.state}
           $native=@{hive=$hive;view=$view;sub=$sub;name=$name;approvalSub=$approvalSub;data=$data;valueKind=$valueKind;leaf=$leaf}
           $snap=@{data=$data;valueKind=$valueKind;approval=$approval.value}
-          Emit ('registry:'+$hive+':'+$view+':'+$leaf+':'+$name) $name 'registry' $(if($hive -eq 'CurrentUser'){'user'}else{'machine'}) $state ($hive+'\'+$sub+'\'+$name) (Target $data) $native $snap $null @('login') $(if($hive -eq 'LocalMachine'){'administrator'}else{'user'}) ($leaf -eq 'Run') $true
+          Emit ('registry:'+$hive+':'+$view+':'+$leaf+':'+$name) $name 'registry' $(if($leaf.StartsWith('Policies')){'system'}elseif($hive -eq 'CurrentUser'){'user'}else{'machine'}) $state ($hive+'\'+$sub+'\'+$name) (Target $data) $native $snap $null @('login') $(if($hive -eq 'LocalMachine'){'administrator'}else{'user'}) ($leaf -eq 'Run') $true
         }}finally{$reg.Dispose()}
       }finally{$base.Dispose()}
     }catch{$partial=$true}
@@ -139,13 +139,82 @@ function PackageRows {
 }
 function AdvancedRows {
   $before=$records.Count;$partial=$false
-  foreach($entry in @(@{path='Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon';names=@('Shell','Userinit')},@{path='Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows';names=@('AppInit_DLLs')},@{path='Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager';names=@('BootExecute')})){
-    try{$data=Get-ItemProperty -LiteralPath $entry.path
-      foreach($name in $entry.names){$value=$data.$name;if(!$value){continue};Emit ('advanced:'+$entry.path+':'+$name) $name 'advanced' 'system' 'unknown' ($entry.path+'\'+$name) '' @{} @{value=$value} $null @('boot') 'protected' $false $false}
-    }catch{$partial=$true}
+  function Base($hive,$view){return [Microsoft.Win32.RegistryKey]::OpenBaseKey(([Enum]::Parse([Microsoft.Win32.RegistryHive],$hive)),([Enum]::Parse([Microsoft.Win32.RegistryView],$view)))}
+  function DllTarget($value,$view){
+    $value=[Environment]::ExpandEnvironmentVariables([string]$value).Trim().Trim('"')
+    if(!$value){return ''}
+    if($value -match '[,;]' -or $value -match '\.(?:dll|acm|drv)\s+\S'){return ''}
+    if(![IO.Path]::GetExtension($value)){$value+='.dll'}
+    if([IO.Path]::IsPathRooted($value)){return $value}
+    $directory=if($view -eq 'Registry32' -and [Environment]::Is64BitOperatingSystem){'SysWOW64'}else{'System32'}
+    return Join-Path (Join-Path $env:SystemRoot $directory) $value
   }
+  function ComTarget($id,$view){
+    if($id -notmatch '^\{[0-9a-fA-F-]{36}\}$'){return ''}
+    $base=Base 'ClassesRoot' $view
+    try{foreach($leaf in @('InprocServer32','LocalServer32')){$key=$base.OpenSubKey('CLSID\'+$id+'\'+$leaf);if($key){try{$value=[string]$key.GetValue('');if($value){return $(if($leaf -eq 'InprocServer32'){DllTarget $value $view}else{Target $value})}}finally{$key.Dispose()}}}}finally{$base.Dispose()}
+    return ''
+  }
+  # These are OS persistence locations. They are inventoried but never modified.
+  $specs=@(
+    @{h='LocalMachine';p='SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon';n=@('Shell','Userinit','TaskMan','VMApplet');k='command'},
+    @{h='CurrentUser';p='SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon';n=@('Shell','Userinit');k='command'},
+    @{h='LocalMachine';p='SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows';n=@('AppInit_DLLs');k='dll'},
+    @{h='LocalMachine';p='SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows';n=@('Load','Run');k='command'},
+    @{h='CurrentUser';p='SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows';n=@('Load','Run');k='command'},
+    @{h='LocalMachine';p='SYSTEM\CurrentControlSet\Control\Session Manager';n=@('BootExecute');k='list'},
+    @{h='LocalMachine';p='SYSTEM\CurrentControlSet\Control\Lsa';n=@('Authentication Packages','Security Packages','Notification Packages');k='dll'},
+    @{h='LocalMachine';p='SYSTEM\CurrentControlSet\Control\SecurityProviders';n=@('SecurityProviders');k='dll'},
+    @{h='LocalMachine';p='SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs';n=@();k='dll'},
+    @{h='LocalMachine';p='SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\ShellExecuteHooks';n=@();k='clsidName'},
+    @{h='LocalMachine';p='SOFTWARE\Microsoft\Windows\CurrentVersion\ShellServiceObjectDelayLoad';n=@();k='clsid'},
+    @{h='CurrentUser';p='SOFTWARE\Microsoft\Windows\CurrentVersion\ShellServiceObjectDelayLoad';n=@();k='clsid'},
+    @{h='LocalMachine';p='SOFTWARE\Microsoft\Windows NT\CurrentVersion\Drivers32';n=@();k='dll'},
+    @{h='CurrentUser';p='SOFTWARE\Microsoft\Windows NT\CurrentVersion\Drivers32';n=@();k='dll'},
+    @{h='LocalMachine';p='SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved';n=@();k='clsidName'},
+    @{h='CurrentUser';p='SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved';n=@();k='clsidName'}
+  )
+  foreach($view in @('Registry64','Registry32')){foreach($spec in $specs){
+    if($spec.p.StartsWith('SYSTEM') -and $view -eq 'Registry32'){continue}
+    $base=Base $spec.h $view
+    try{$key=$base.OpenSubKey($spec.p);if(!$key){continue}
+      try{$names=if($spec.n.Count){$spec.n}else{$key.GetValueNames()}
+        foreach($name in $names){
+          if($name -eq 'DllDirectory'){continue}
+          $value=$key.GetValue($name,$null,[Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames);if($null -eq $value -or [string]$value -eq ''){continue}
+          $text=([string]$value).Trim().TrimEnd(',')
+          $target=if($spec.k -eq 'clsid'){ComTarget ([string]$value) $view}elseif($spec.k -eq 'clsidName'){ComTarget $name $view}elseif($spec.k -eq 'dll' -and $value -is [string]){DllTarget $value $view}elseif($spec.k -eq 'command' -and $text -notmatch ','){Target $text}else{''}
+          Emit ('advanced:'+$spec.h+':'+$view+':'+$spec.p+':'+$name) $name 'advanced' 'system' 'unknown' ($spec.h+'\'+$spec.p+'\'+$name) $target @{} @{data=$value} $null @('event') 'protected' $false $false
+        }
+      }finally{$key.Dispose()}
+    }catch{$partial=$true}finally{$base.Dispose()}
+  }}
+  $children=@(
+    @{p='SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options';v='Debugger';k='command'},
+    @{p='SOFTWARE\Microsoft\Windows NT\CurrentVersion\SilentProcessExit';v='MonitorProcess';k='command'},
+    @{p='SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\Notify';v='DLLName';k='dll'},
+    @{p='SYSTEM\CurrentControlSet\Control\Print\Monitors';v='Driver';k='dll'},
+    @{p='SYSTEM\CurrentControlSet\Services';v='ServiceDll';suffix='Parameters';k='dll'},
+    @{p='SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Browser Helper Objects';v='';k='clsid'}
+  )
+  foreach($view in @('Registry64','Registry32')){foreach($spec in $children){
+    if($spec.p.StartsWith('SYSTEM') -and $view -eq 'Registry32'){continue}
+    $base=Base 'LocalMachine' $view
+    try{$key=$base.OpenSubKey($spec.p);if(!$key){continue}
+      try{foreach($name in $key.GetSubKeyNames()){
+        $sub=$key.OpenSubKey($name+$(if($spec.suffix){'\'+$spec.suffix}else{''}));if(!$sub){continue}
+        try{$value=$sub.GetValue($spec.v,$null,[Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+          if($spec.k -eq 'clsid'){$value=$name}
+          if(!$value){continue}
+          $target=if($spec.k -eq 'clsid'){ComTarget $name $view}elseif($spec.k -eq 'dll'){DllTarget $value $view}else{Target $value}
+          Emit ('advanced:LocalMachine:'+$view+':'+$spec.p+':'+$name) ($name+' · '+$spec.v) 'advanced' 'system' 'unknown' ('LocalMachine\'+$spec.p+'\'+$name) $target @{} @{data=$value} $null @('event') 'protected' $false $false
+        }finally{$sub.Dispose()}
+      }}finally{$key.Dispose()}
+    }catch{$partial=$true}finally{$base.Dispose()}
+  }}
   Cov 'advanced' $(if($partial){'partial'}else{'complete'}) ($records.Count-$before) $(if($partial){'startup.permission'}else{''})
 }
+
 function Scan {
   if(Allowed 'registry'){RegistryRows};if(Allowed 'folder'){FolderRows};if(Allowed 'task'){TaskRows};if(Allowed 'service'){ServiceRows};if(Allowed 'package'){PackageRows};if(Allowed 'advanced'){AdvancedRows}
 }

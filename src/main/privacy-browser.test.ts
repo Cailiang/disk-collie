@@ -200,7 +200,7 @@ describe('browser privacy SQLite adapters',()=>{
     }finally{writer.exec('ROLLBACK');writer.close()}
     expect(query(filename,'SELECT title FROM urls WHERE id=2')).toEqual([{title:'Visit 2'}])
     expect(query(filename,"SELECT COUNT(*) AS count FROM meta WHERE key LIKE 'uncommitted-%'")).toEqual([{count:0}])
-  })
+  },15000) // Exclusive-lock retries and isolated recovery can exceed 5s on Windows CI.
 
   it('rejects sources changed after scanning and rejects symbolic links',async()=>{
     chromeHistory()
