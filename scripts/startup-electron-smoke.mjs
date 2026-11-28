@@ -49,7 +49,7 @@ export async function verifyStartupFixture(page,fixture){
   let catalog=await page.evaluate(()=>window.diskCollie.startupScan())
   const find=(name)=>catalog.items.find(item=>item.name.includes(name))
   let live=find(fixture.names.live),orphan=find(fixture.names.orphan),protectedItem=find(fixture.names.protected)
-  assert(live&&orphan&&protectedItem,'All owned startup fixtures must be discovered')
+  assert(live&&orphan&&protectedItem,'All owned startup fixtures must be discovered: '+JSON.stringify({coverage:catalog.coverage,owned:catalog.items.filter(item=>item.name.includes('dev.diskcollie.smoke.')).map(item=>item.name)}))
   assert.equal(live.state,'enabled');assert(live.canToggle,'An enabled but non-running fixture must be manageable')
   assert(orphan.orphan&&orphan.canRemove&&!orphan.canToggle,'A missing exact target is a removable leftover')
   assert.equal(protectedItem.canToggle,false)

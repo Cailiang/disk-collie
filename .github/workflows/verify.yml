@@ -22,6 +22,9 @@ jobs:
       - run: npm ci
       - run: npm run native:test
       - run: npm test -- --maxWorkers=2
+      - name: Windows native startup smoke
+        if: runner.os == 'Windows'
+        run: npx vite-node scripts/startup-windows-native-smoke.ts
       - run: npm run build
       - run: node scripts/native-smoke.mjs
       - name: Real Electron smoke
