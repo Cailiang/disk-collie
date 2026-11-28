@@ -64,7 +64,8 @@ export class StartupService {
       catalog=await this.discover()
       for(let n=0;n<records.length;n++)if(results[n].ok&&results[n].changed){
         const previous=records[n],next=[...this.records.values()].find(record=>record.key===previous.key)
-        const verified=input.action==='remove'?!next:next?.item.state===(input.action==='enable'?'enabled':'disabled')
+        const sourceCoverage=catalog.coverage.filter(source=>source.source===previous.item.kind)
+        const verified=input.action==='remove'?!next&&sourceCoverage.length>0&&sourceCoverage.every(source=>source.status==='complete'):next?.item.state===(input.action==='enable'?'enabled':'disabled')
         if(!verified){results[n].ok=false;results[n].changed=false;results[n].message=this.message('startup.verificationFailed')}
       }
     }catch{
