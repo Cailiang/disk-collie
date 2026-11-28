@@ -26,6 +26,10 @@ macOS packages are signed and notarized. [SHA-256 checksums](https://github.com/
 
 ![Application manager with installed apps, sizes and update controls](docs/screenshots/applications-en.png)
 
-Screenshots use demo data. Also includes large files, duplicate search, privacy cleanup, app management and an optional AI advisor.
+## Manage what starts automatically
+
+![Startup optimization with grouped applications, enabled and disabled states, and leftover registrations](docs/screenshots/startup-en.png)
+
+Screenshots use demo data. Also includes large files, duplicate search, privacy cleanup, startup optimization and an optional AI advisor.
 
 [Feature guide](docs/FEATURES.md) · [Development](docs/LOCAL_AGENT_DEVELOPMENT.md) · [Release process](docs/RELEASING.md) · [Changelog](CHANGELOG.md) · [MIT license](LICENSE)

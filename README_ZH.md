@@ -26,6 +26,10 @@ macOS 安装包已签名并公证。[SHA-256 校验和](https://github.com/Caili
 
 ![应用管理：查看已安装应用、体积与更新操作](docs/screenshots/applications-zh.png)
 
-截图使用演示数据。还支持大文件、重复文件、隐私清理、应用管理与可选的 AI 清理顾问。
+## 启动了什么，一眼看清
+
+![启动项优化：按应用查看启用、禁用和残留的启动配置](docs/screenshots/startup-zh.png)
+
+截图使用演示数据。还支持大文件、重复文件、隐私清理、启动项优化与可选的 AI 清理顾问。
 
 [详细功能](docs/FEATURES_ZH.md) · [开发文档](docs/LOCAL_AGENT_DEVELOPMENT.md) · [发布流程](docs/RELEASING.md) · [更新记录](CHANGELOG.md) · [MIT 许可](LICENSE)
