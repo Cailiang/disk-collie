@@ -10,15 +10,16 @@ export function startupFixture(){
   writeFileSync(program,'#!/bin/sh\nexit 0\n');chmodSync(program,0o700)
   const files={}
   const ps=source=>execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from("$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';"+source,'utf16le').toString('base64')],{timeout:15000,windowsHide:true,encoding:'utf8'})
+  const setRunRows=rows=>{
+    const payload=Buffer.from(JSON.stringify(rows)).toString('base64')
+    ps(`$rows=ConvertFrom-Json ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}')));$key=[Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Software\\Microsoft\\Windows\\CurrentVersion\\Run');try{foreach($r in $rows){$key.SetValue($r.name,$r.data,[Microsoft.Win32.RegistryValueKind]::String)}}finally{$key.Dispose()}`)
+  }
   const escape=value=>value.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
   const realTarget=process.platform==='win32'?process.execPath:program
   const writeLive=target=>{
     if(process.platform==='darwin')writeFileSync(files.live,`<?xml version="1.0"?><plist version="1.0"><dict><key>Label</key><string>${names.live}</string><key>Program</key><string>${escape(target)}</string><key>RunAtLoad</key><false/></dict></plist>`)
     else if(process.platform==='linux')writeFileSync(files.live,`[Desktop Entry]\nType=Application\nName=${names.live}\nExec="${target}"\nX-Owned=retain\n`)
-    else{
-      const payload=Buffer.from(JSON.stringify({name:names.live,data:'"'+target+'" --version'})).toString('base64')
-      ps(`$p=ConvertFrom-Json ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}')));New-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Force|Out-Null;Set-ItemProperty -LiteralPath 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name $p.name -Value $p.data -Type String`)
-    }
+    else setRunRows([{name:names.live,data:'"'+target+'" --version'}])
   }
   if(process.platform==='darwin'){
     mkdirSync(path.join(root,'Library/LaunchAgents'),{recursive:true})
@@ -32,8 +33,7 @@ export function startupFixture(){
     mkdirSync(path.join(root,'autostart'))
     for(const kind of ['live','orphan','protected']){files[kind]=path.join(root,'autostart',names[kind]+'.desktop');writeFileSync(files[kind],`[Desktop Entry]\nType=Application\nName=${names[kind]}\nExec="${kind==='orphan'?missing:kind==='protected'?'/usr/lib/diskcollie-protected-fixture':program}"\n`)}
   }else{
-    const rows=[{name:names.orphan,data:'"'+missing+'.exe"'},{name:names.protected,data:'"'+path.join(process.env.SystemRoot,'System32/cmd.exe')+'" /c exit'}],payload=Buffer.from(JSON.stringify(rows)).toString('base64')
-    ps(`New-Item -Path 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Force|Out-Null;$rows=ConvertFrom-Json ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${payload}')));foreach($r in $rows){Set-ItemProperty -LiteralPath 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -Name $r.name -Value $r.data -Type String}`)
+    setRunRows([{name:names.orphan,data:'"'+missing+'.exe"'},{name:names.protected,data:'"'+path.join(process.env.SystemRoot,'System32/cmd.exe')+'" /c exit'}])
   }
   writeLive(realTarget)
   return {root,names,program,files,realTarget,writeLive,cleanup(){
