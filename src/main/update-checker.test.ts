@@ -124,10 +124,11 @@ describe('GitHub-first app updates with a website fallback',()=>{
     await checkAndDownloadAppUpdate({currentVersion:'1.0.33',updater,fetchProvider,onCurrent})
     expect(fetchProvider).toHaveBeenCalledTimes(1);expect(updater.checkForUpdates).not.toHaveBeenCalled();expect(onCurrent).toHaveBeenCalledWith('1.0.33')
   })
-  it.each(['api','manifest','download'])('falls back for a GitHub %s network failure and downloads entirely from the website feed',async phase=>{
+  it.each(['api','manifest','download','body'])('falls back for a GitHub %s network failure and downloads entirely from the website feed',async phase=>{
     const updater=client(),onCurrent=vi.fn(),fetchProvider=vi.fn(async(input:string|URL|Request)=>{
       if(String(input)===WEBSITE_RELEASE_ENDPOINT)return website()
       if(phase==='api')throw new TypeError('fetch failed')
+      if(phase==='body')throw new TypeError('terminated',{cause:Object.assign(new Error('other side closed'),{code:'UND_ERR_SOCKET'})})
       return github()
     })
     if(phase==='manifest')updater.checkForUpdates.mockRejectedValueOnce(new Error('HttpError: 503 unavailable'))

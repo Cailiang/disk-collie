@@ -111,10 +111,15 @@ async function websiteReleaseVersion(currentVersion:string,fetchProvider:FetchPr
 }
 
 export function isUpdateSourceUnavailable(error:unknown):boolean{
-  const value=error as Error&{code?:string}
-  return value?.name==='AbortError'||value?.name==='TimeoutError'||
-    /HTTP|HttpError|status|response/i.test(String(error))&&/\b(?:403|408|429|5\d\d)\b/.test(String(error))||
-    /(?:HTTP|status(?: code)?|response code)\s*[:=]?\s*(?:403|408|429|5\d\d)\b|\b(?:ENOTFOUND|EAI_AGAIN|ECONN\w*|ETIMEDOUT|ERR_NETWORK\w*|ERR_CONNECTION\w*|ERR_NAME_NOT_RESOLVED|ERR_INTERNET_DISCONNECTED)\b|fetch failed|socket hang up|network|timed? ?out/i.test(String(error)+' '+(value?.code||''))
+  let candidate=error
+  for(let depth=0;candidate&&depth<5;depth++){
+    const value=candidate as Error&{code?:string;cause?:unknown},text=String(candidate)+' '+(value.code||'')
+    if(value.name==='AbortError'||value.name==='TimeoutError'||
+      /HTTP|HttpError|status|response/i.test(text)&&/\b(?:403|408|429|5\d\d)\b/.test(text)||
+      /\b(?:ENOTFOUND|EAI_AGAIN|ECONN\w*|ETIMEDOUT|UND_ERR_(?:SOCKET|\w*TIMEOUT)|ERR_(?:NETWORK\w*|CONNECTION\w*|NAME_NOT_RESOLVED|INTERNET_DISCONNECTED|TIMED_OUT|PROXY_CONNECTION_FAILED|TUNNEL_CONNECTION_FAILED|ADDRESS_UNREACHABLE))\b|fetch failed|failed to fetch|socket hang up|network|timed? ?out/i.test(text))return true
+    candidate=value.cause
+  }
+  return false
 }
 
 interface UpdateClient {
