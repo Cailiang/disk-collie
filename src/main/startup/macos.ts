@@ -39,7 +39,17 @@ function localPath(value:string):string {
 export function launchTarget(data:Record<string,unknown>):string {
   const args=Array.isArray(data.ProgramArguments)?data.ProgramArguments.filter((value):value is string=>typeof value==='string'):[]
   const program=typeof data.Program==='string'?data.Program:args[0]||''
-  if(['/bin/sh','/bin/bash','/bin/zsh','/usr/bin/python3','/usr/bin/perl','/usr/bin/ruby','/usr/bin/osascript'].includes(program)&&args[1]&&!args[1].startsWith('-')&&path.isAbsolute(args[1]))return args[1]
+  const interpreter=(value:string):boolean=>/^(?:node|nodejs|python(?:\d+(?:\.\d+)?)?|perl|ruby|bash|sh|zsh|osascript)$/.test(path.basename(value))
+  if(interpreter(program)&&args[1]&&!args[1].startsWith('-')&&path.isAbsolute(args[1]))return args[1]
+  if(program==='/usr/bin/env'){
+    const rest=args.slice(1)
+    while(rest[0]&&/^[A-Za-z_]\w*=/.test(rest[0]))rest.shift()
+    if(rest[0]==='--')rest.shift()
+    if(rest[0]&&!rest[0].startsWith('-')){
+      if(interpreter(rest[0])&&rest[1]&&path.isAbsolute(rest[1]))return rest[1]
+      if(path.isAbsolute(rest[0]))return rest[0]
+    }
+  }
   return path.isAbsolute(program)?program:''
 }
 interface MacOptions {home:string;profile:string;trash:(file:string)=>Promise<void>;fixture?:string;run?:typeof command;uid?:number;self?:string}

@@ -16,6 +16,9 @@ describe('startup source semantics',()=>{
     expect([...disabledServices('"a" => true\n"b" => false\n"c" => disabled\n"d" => enabled')]).toEqual([['a',true],['b',false],['c',true],['d',false]])
     expect(launchTarget({ProgramArguments:['/bin/sh','/Users/owner/start.sh']})).toBe('/Users/owner/start.sh')
     expect(launchTarget({ProgramArguments:['/bin/sh','-c','echo /missing'] })).toBe('/bin/sh')
+    expect(launchTarget({ProgramArguments:['/opt/tools/node','/Users/owner/missing-main.js']})).toBe('/Users/owner/missing-main.js')
+    expect(launchTarget({ProgramArguments:['/usr/bin/env','PATH=/usr/bin','node','/Users/owner/missing-main.js']})).toBe('/Users/owner/missing-main.js')
+    expect(launchTarget({ProgramArguments:['/usr/bin/env','-S','node /Users/owner/main.js']})).toBe('/usr/bin/env')
     expect(launchTarget({ProgramArguments:['relative-program']})).toBe('')
   })
   it('parses background records for the current user and machine without inventing missing states',()=>{
