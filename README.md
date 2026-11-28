@@ -8,11 +8,11 @@ See what uses your disk. Review what to clean.
 
 | Platform | Download |
 | --- | --- |
-| macOS | [Apple Silicon](https://github.com/Cailiang/disk-collie/releases/download/v1.0.30/DiskCollie-1.0.30-arm64.dmg) · [Intel](https://github.com/Cailiang/disk-collie/releases/download/v1.0.30/DiskCollie-1.0.30-x64.dmg) |
-| Windows | [x64](https://github.com/Cailiang/disk-collie/releases/download/v1.0.30/DiskCollie-1.0.30-x64.exe) · [arm64](https://github.com/Cailiang/disk-collie/releases/download/v1.0.30/DiskCollie-1.0.30-arm64.exe) |
-| Linux | x64: [AppImage](https://github.com/Cailiang/disk-collie/releases/download/v1.0.30/DiskCollie-1.0.30-x86_64.AppImage) · [DEB](https://github.com/Cailiang/disk-collie/releases/download/v1.0.30/DiskCollie-1.0.30-amd64.deb) / arm64: [AppImage](https://github.com/Cailiang/disk-collie/releases/download/v1.0.30/DiskCollie-1.0.30-arm64.AppImage) · [DEB](https://github.com/Cailiang/disk-collie/releases/download/v1.0.30/DiskCollie-1.0.30-arm64.deb) |
+| macOS | [Apple Silicon](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-arm64.dmg) · [Intel](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-x64.dmg) |
+| Windows | [x64](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-x64.exe) · [arm64](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-arm64.exe) |
+| Linux | x64: [AppImage](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-x86_64.AppImage) · [DEB](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-amd64.deb) / arm64: [AppImage](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-arm64.AppImage) · [DEB](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/DiskCollie-1.0.34-arm64.deb) |
 
-macOS packages are signed and notarized. [SHA-256 checksums](https://github.com/Cailiang/disk-collie/releases/download/v1.0.30/SHA256SUMS.txt).
+macOS packages are signed and notarized. [SHA-256 checksums](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/SHA256SUMS.txt).
 
 ## Your device at a glance
 

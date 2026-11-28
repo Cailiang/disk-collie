@@ -11,14 +11,17 @@
 
 [SHA-256 校验和 / Checksums](https://github.com/Cailiang/disk-collie/releases/download/v1.0.34/SHA256SUMS.txt) · [产品截图 / Screenshots](https://github.com/Cailiang/disk-collie#your-device-at-a-glance)
 
-本版本尚未公开发布，GitHub 下载地址将在发布后可用。本地测试安装包已签名，未公证。 / This version has not been published; GitHub downloads become available after publication. Local test packages are signed and not notarized.
+macOS 安装包已签名并公证。 / macOS packages are signed and notarized.
 
 ## 1.0.34 更新 / What's new
 
-- macOS 同批受保护启动配置合并请求一次管理员授权；取消授权则不修改该批配置。
-- 删除残留后只核验相关项目，避免完整重扫再次触发 System Events／sfltool 授权。
-- 保留逐项结果、配置变化检查和原生状态核验；后续新的管理员操作仍可能需要系统授权。
-- Selected macOS machine startup configurations share one administrator authorization per operation.
-- Verify affected registrations directly after changes, avoiding unrelated System Events/sfltool scans while retaining per-item results and native verification.
+- 新增“启动项优化”：按应用查看启用、禁用和残留项目，支持搜索、启停、移除启动配置与操作记录。
+- 显示软件的本地化名称，修复 null、状态说明及删除时列表过期的问题。
+- macOS 同批受保护配置合并请求一次管理员授权；删除后只核验相关项目，避免额外的 System Events／sfltool 扫描授权。
+- 每次启动优先从 GitHub 检查更新，网络不可用时切换到 diskcollie.app 官网数据源。
+- Add Startup optimization with grouped applications, status/leftover filters, enable/disable, registration-only removal and local operation history.
+- Show localized app names and fix null metadata, unavailable-state explanations and expired selections.
+- Share one macOS administrator authorization per protected batch and verify affected registrations without unrelated System Events/sfltool scans.
+- Check GitHub for updates on every launch and use diskcollie.app when GitHub cannot be reached.
 
 [完整更新记录 / Full changelog](https://github.com/Cailiang/disk-collie/blob/main/CHANGELOG.md)
