@@ -4,6 +4,20 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.33 - 2026-11-28
+
+### English
+
+- Use Applications' localized macOS bundle-name rules for startup application groups, including `InfoPlist.strings`, so Chinese names such as 迅雷 replace internal bundle names such as Thunder.
+- Refresh startup names when the interface language changes, retain native registration identifiers and paths for search, and localize applications linked through explicit background-task parent records.
+- Batch localized metadata reads and cover Chinese/English names, nested helpers, stable native identities, search and the production Electron fixture.
+
+### 简体中文
+
+- 启动项应用分组复用应用管理的 macOS 本地化名称规则，读取 InfoPlist.strings 等资源，将 Thunder 等内部包名正确显示为“迅雷”等软件名称。
+- 切换界面语言后刷新启动项名称，保留原始配置标识和路径供搜索；后台任务通过明确的父应用记录获取本地化名称。
+- 保持批量读取，补充中英文名称、内嵌辅助程序、原始身份不变、搜索及真实 Electron 覆盖。
+
 ## 1.0.32 - 2026-11-28
 
 ### English

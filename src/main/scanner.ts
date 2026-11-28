@@ -1932,7 +1932,7 @@ export function plistApplicationName(info: Record<string, unknown>): string | nu
     const value = info[key]
     if (typeof value !== 'string') continue
     const name = value.trim()
-    if (name && !name.includes('$(')) return name
+    if (name && !name.includes('$(') && !/^(?:null|\(null\)|<null>|undefined)$/i.test(name)) return name
   }
   return null
 }

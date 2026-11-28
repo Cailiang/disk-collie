@@ -64,6 +64,7 @@ describe('application cleanup threshold', () => {
     expect(plistApplicationName({ CFBundleDisplayName: '$(PRODUCT_NAME)', CFBundleName: 'Visual Studio Code' }))
       .toBe('Visual Studio Code')
     expect(plistApplicationName({ CFBundleName: '' })).toBeNull()
+    expect(plistApplicationName({CFBundleDisplayName:'(null)',CFBundleName:'Valid app name'})).toBe('Valid app name')
   })
 
   it('extracts background helper and URL-handler capabilities for Agent analysis', () => {

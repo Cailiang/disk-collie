@@ -24,7 +24,7 @@ export class StartupService {
   constructor(private readonly options:{profile:string;language:()=>AppLanguage;ledger?:AgentStore;adapter?:StartupAdapter}){
     const fixture=process.env.DISKCOLLIE_TEST_RUN==='1'?process.env.DISKCOLLIE_TEST_STARTUP_ROOT:undefined
     const self=typeof app.getPath==='function'?app.getPath('exe'):''
-    const settings={self:process.platform==='darwin'?/^(.+?\.app)(?:\/|$)/.exec(self)?.[1]:self,home:os.homedir(),profile:options.profile,trash:(file:string)=>shell.trashItem(file),fixture}
+    const settings={self:process.platform==='darwin'?/^(.+?\.app)(?:\/|$)/.exec(self)?.[1]:self,home:os.homedir(),profile:options.profile,trash:(file:string)=>shell.trashItem(file),fixture,language:options.language}
     this.adapter=options.adapter||(process.platform==='darwin'?macStartup(settings):process.platform==='win32'?windowsStartup(settings):linuxStartup(settings))
   }
   private serial<T>(work:()=>Promise<T>):Promise<T>{const next=this.tail.then(work);this.tail=next.catch(()=>undefined);return next}

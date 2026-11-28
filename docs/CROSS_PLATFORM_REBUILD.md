@@ -256,3 +256,7 @@ Fixture coverage exercises enable/disable readback, aliases, configuration drift
 ## Startup and update reliability — 1.0.32
 
 Startup snapshots are bounded, main-owned registrations retained across read-only rescans and idle time; their native signatures are revalidated before every write. Native placeholder text is normalized, speculative bundled-helper entries are excluded, and unknown state reasons stay visible. The app updater checks GitHub first per launch/hourly and retries source-access failures against the official website generic feed. Website downloads remain on diskcollie.app and pass the updater's original integrity checks; integrity failures are not retried through another source.
+
+## Localized startup application names — 1.0.33
+
+macOS startup discovery shares the application manager's localized name-resource selection. It batches all candidate resource reads, resolves nested helpers to the outer application bundle, and localizes explicitly linked background-task parents. UI language changes refresh metadata while retaining filters and original registration identities; names never authorize mutations. Native and Renderer coverage includes Chinese/English names, original-name/path search and a UTF-16 InfoPlist.strings fixture in production Electron.

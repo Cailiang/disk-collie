@@ -8,10 +8,29 @@ import {baseItem,digest,command} from './common'
 import {encodePowershell,startupWindowsProgram} from './windows'
 import {windowsStartupScript} from './windows-script'
 import {gunzipSync} from 'node:zlib'
+import type {AppLanguage} from '../../shared/app-settings'
 const fixtures:string[]=[]
 async function fixture():Promise<string>{const root=await mkdtemp(path.join(os.tmpdir(),'diskcollie-startup-test-'));fixtures.push(root);return root}
 afterEach(async()=>{await Promise.all(fixtures.splice(0).map(root=>rm(root,{recursive:true,force:true})))})
 describe('startup source semantics',()=>{
+  it.skipIf(process.platform==='win32')('uses localized app names for main and nested startup helpers, preserving native identities when language changes',async()=>{
+    const root=await fixture(),app=path.join(root,'Thunder.app'),directory=path.join(root,'Library/LaunchAgents'),main=path.join(app,'Contents/MacOS/main'),helper=path.join(app,'Contents/Library/LoginItems/Helper.app/Contents/MacOS/helper')
+    await mkdir(directory,{recursive:true});await mkdir(path.dirname(main),{recursive:true});await mkdir(path.dirname(helper),{recursive:true});await mkdir(path.join(app,'Contents/Resources'),{recursive:true})
+    await writeFile(main,'owned main');await writeFile(helper,'owned helper')
+    await writeFile(path.join(app,'Contents/Info.plist'),JSON.stringify({CFBundleName:'Thunder',CFBundleDisplayName:'Thunder'}))
+    await writeFile(path.join(app,'Contents/Resources/InfoPlist.strings'),JSON.stringify({CFBundleDisplayName:'(null)',CFBundleName:'迅雷'}))
+    for(const [name,program] of [['main',main],['helper',helper]])await writeFile(path.join(directory,`dev.fixture.${name}.plist`),JSON.stringify({Label:`dev.fixture.${name}`,Program:program}))
+    const run=vi.fn<typeof command>(async(file,args)=>file==='/usr/bin/osascript'?JSON.stringify(await Promise.all(args.slice(4).map(async file=>{try{return {path:file,data:JSON.parse(await readFile(file,'utf8'))}}catch{return {path:file,data:null}}}))):'')
+    let language:AppLanguage='zh-CN'
+    const adapter=macStartup({home:root,profile:root,fixture:root,uid:501,run,language:()=>language,trash:async()=>{throw new Error('Read-only fixture')}})
+    const chinese=(await adapter.scan()).records
+    expect(chinese.map(record=>record.item.owner)).toEqual(['迅雷','迅雷'])
+    expect(new Set(chinese.map(record=>record.item.ownerId)).size).toBe(1)
+    language='en-US';const english=(await adapter.scan()).records
+    expect(english.map(record=>record.item.owner)).toEqual(['Thunder','Thunder'])
+    expect(english.map(record=>[record.key,record.signature,record.item.target])).toEqual(chinese.map(record=>[record.key,record.signature,record.item.target]))
+    expect(run.mock.calls.filter(([file])=>file==='/usr/bin/osascript')).toHaveLength(4)
+  })
   it('removes native null placeholders before choosing names, owners and publishers',()=>{
     expect(baseItem({name:'(null)',kind:'background',owner:'null',publisher:'<null>',description:'undefined',configuration:'/Library/LaunchAgents/dev.worker.plist'})).toMatchObject({name:'dev.worker.plist',owner:'',publisher:'',description:'',issue:'startup.stateUnavailable'})
     const [row]=backgroundRecords('Records for UID 501 :\n#1:\n Name: (null)\n Developer Name: null\n Identifier: dev.worker\n URL: (null)\n Disposition: [enabled, allowed]',501)

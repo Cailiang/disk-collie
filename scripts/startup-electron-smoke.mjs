@@ -6,7 +6,13 @@ import {execFileSync} from 'node:child_process'
 import {randomUUID} from 'node:crypto'
 
 export function startupFixture(){
-  const root=mkdtempSync(path.join(tmpdir(),'diskcollie-startup-smoke-')),prefix='dev.diskcollie.smoke.'+randomUUID().replaceAll('-',''),names={live:prefix+'.live',orphan:prefix+'.orphan',protected:prefix+'.protected'},program=path.join(root,process.platform==='win32'?'keep-program.txt':'keep-program.sh'),missing=path.join(root,'missing-program')
+  const root=mkdtempSync(path.join(tmpdir(),'diskcollie-startup-smoke-')),prefix='dev.diskcollie.smoke.'+randomUUID().replaceAll('-',''),names={live:prefix+'.live',orphan:prefix+'.orphan',protected:prefix+'.protected'},program=path.join(root,process.platform==='darwin'?'OwnedThunder.app/Contents/MacOS/worker':process.platform==='win32'?'keep-program.txt':'keep-program.sh'),missing=path.join(root,'missing-program')
+  mkdirSync(path.dirname(program),{recursive:true})
+  if(process.platform==='darwin'){
+    writeFileSync(path.join(root,'OwnedThunder.app/Contents/Info.plist'),'<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleName</key><string>Thunder Fixture</string><key>CFBundleDisplayName</key><string>Thunder Fixture</string><key>CFBundleIdentifier</key><string>'+prefix+'</string></dict></plist>')
+    const resources=path.join(root,'OwnedThunder.app/Contents/Resources');mkdirSync(resources)
+    writeFileSync(path.join(resources,'InfoPlist.strings'),Buffer.concat([Buffer.from([0xff,0xfe]),Buffer.from('"CFBundleDisplayName" = "迅雷测试应用";','utf16le')]))
+  }
   writeFileSync(program,'#!/bin/sh\nexit 0\n');chmodSync(program,0o700)
   const files={}
   const ps=source=>execFileSync('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from("$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';"+source,'utf16le').toString('base64')],{timeout:15000,windowsHide:true,encoding:'utf8'})
@@ -51,6 +57,7 @@ export async function verifyStartupFixture(page,fixture){
   let live=find(fixture.names.live),orphan=find(fixture.names.orphan),protectedItem=find(fixture.names.protected)
   assert(live&&orphan&&protectedItem,'All owned startup fixtures must be discovered: '+JSON.stringify({coverage:catalog.coverage,owned:catalog.items.filter(item=>item.name.includes('dev.diskcollie.smoke.')).map(item=>item.name)}))
   assert.equal(live.state,'enabled');assert(live.canToggle,'An enabled but non-running fixture must be manageable')
+  if(process.platform==='darwin')assert.equal(live.owner,'迅雷测试应用','Startup owners must use the same localized name resources as Applications')
   assert(orphan.orphan&&orphan.canRemove&&!orphan.canToggle,'A missing exact target is a removable leftover')
   assert.equal(protectedItem.canToggle,false)
   const change=async(action,item)=>{const result=await page.evaluate(input=>window.diskCollie.startupChange(input),{catalogId:catalog.id,ids:[item.id],action});assert(result.results.every(item=>item.ok),JSON.stringify(result));catalog=result.catalog;return result}
@@ -71,6 +78,7 @@ export async function verifyStartupFixture(page,fixture){
   await page.locator('.nav-button[title="启动项优化"]').click();await page.locator('.space-startup .startup-group').first().waitFor({timeout:60000})
   const workspace=page.locator('.space-startup');await workspace.getByRole('searchbox').fill(fixture.names.live)
   const group=workspace.locator('.startup-group');assert.equal(await group.count(),1)
+  if(process.platform==='darwin')assert.match(await group.locator('.startup-group-name').innerText(),/迅雷测试应用/)
   await group.locator('.startup-group-name').click();await group.locator('.startup-item').first().waitFor()
   const row=group.locator(`[data-startup-item="${find(fixture.names.live).id}"]`)
   assert.equal(await row.getByRole('switch').getAttribute('aria-checked'),'true')

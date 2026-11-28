@@ -3,6 +3,8 @@ import {mkdir,rename,writeFile} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import {lstat,readdir,readFile} from '../physical-fs'
 import type {StartupAction,StartupCoverage,StartupItem,StartupState} from '../../shared/startup-types'
+import type {AppLanguage} from '../../shared/app-settings'
+import {applicationNamePlistPaths,plistApplicationName} from '../scanner'
 import {baseItem,command,digest,existence,fingerprint,inertRecord,shellQuote,startupText,type StartupAdapter,type StartupRecord} from './common'
 
 const plistReader=String.raw`ObjC.import('Foundation');function run(argv){return JSON.stringify(argv.map(function(p){try{var d=$.NSDictionary.dictionaryWithContentsOfFile($(p));return {path:p,data:d?ObjC.deepUnwrap(d):null}}catch(e){return {path:p,data:null}}}))}`
@@ -52,7 +54,7 @@ export function launchTarget(data:Record<string,unknown>):string {
   }
   return path.isAbsolute(program)?program:''
 }
-interface MacOptions {home:string;profile:string;trash:(file:string)=>Promise<void>;fixture?:string;run?:typeof command;uid?:number;self?:string}
+interface MacOptions {home:string;profile:string;trash:(file:string)=>Promise<void>;fixture?:string;run?:typeof command;uid?:number;self?:string;language?:()=>AppLanguage}
 export function macStartup(options:MacOptions):StartupAdapter {
   const run=options.run||command,uid=options.uid??process.getuid!(),journal=path.join(options.profile,'disabled-login-items.json')
   type Login={name:string;path:string;hidden?:boolean}
@@ -63,26 +65,27 @@ export function macStartup(options:MacOptions):StartupAdapter {
     if(!files.length)return new Map()
     return new Map((JSON.parse(await run('/usr/bin/osascript',['-l','JavaScript','-e',plistReader,...files],20000)) as Array<{path:string;data:Record<string,unknown>|null}>).map(row=>[row.path,row.data]))
   }
-  const appCache=new Map<string,{name:string;id:string}>()
-  const preloadOwners=async(targets:string[]):Promise<void>=>{
+  const appCache=new Map<string,string>()
+  const preloadOwners=async(targets:string[],language:AppLanguage):Promise<void>=>{
     const applications=[...new Set(targets.flatMap(target=>/^(.+?\.app)(?:\/|$)/i.exec(target)?.[1]||[]))].filter(app=>!appCache.has(app))
     if(!applications.length)return
     try{
-      const plists=await readPlists(applications.map(app=>path.join(app,'Contents/Info.plist')))
-      for(const app of applications){const data=plists.get(path.join(app,'Contents/Info.plist'));appCache.set(app,{name:String(data?.CFBundleDisplayName||data?.CFBundleName||path.basename(app,'.app')),id:String(data?.CFBundleIdentifier||app)})}
-    }catch{/* A per-app fallback remains available. */}
+      const plists=await readPlists(applications.flatMap(app=>applicationNamePlistPaths(app,language)))
+      for(const app of applications){
+        const name=applicationNamePlistPaths(app,language).map(file=>{const data=plists.get(file);return startupText(data?plistApplicationName(data):'')}).find(Boolean)
+        appCache.set(app,name||path.basename(app,'.app'))
+      }
+    }catch{for(const app of applications)appCache.set(app,path.basename(app,'.app'))}
   }
-  const owner=async(target:string):Promise<{owner:string;ownerId:string;icon:string|null}>=>{
+  const owner=async(target:string,language:AppLanguage):Promise<{owner:string;ownerId:string;icon:string|null}>=>{
     const app=/^(.+?\.app)(?:\/|$)/i.exec(target)?.[1]
     if(!app)return {owner:'',ownerId:target&&!target.startsWith('/usr/')&&!target.startsWith('/bin/')?digest(target):'',icon:null}
-    if(!appCache.has(app)){
-      try{const data=(await readPlists([path.join(app,'Contents/Info.plist')])).values().next().value;appCache.set(app,{name:String(data?.CFBundleDisplayName||data?.CFBundleName||path.basename(app,'.app')),id:String(data?.CFBundleIdentifier||app)})}catch{appCache.set(app,{name:path.basename(app,'.app'),id:app})}
-    }
-    return {owner:appCache.get(app)!.name,ownerId:digest(app),icon:await existence(app)==='present'?app:null}
+    if(!appCache.has(app))await preloadOwners([target],language)
+    return {owner:appCache.get(app)!,ownerId:digest(app),icon:await existence(app)==='present'?app:null}
   }
   return {async scan(){
     appCache.clear()
-    const records:StartupRecord[]=[],coverage:StartupCoverage[]=[],root=options.fixture||options.home
+    const records:StartupRecord[]=[],coverage:StartupCoverage[]=[],root=options.fixture||options.home,language=options.language?.()||'zh-CN'
     const roots:Array<{path:string;kind:'agent'|'daemon';scope:StartupItem['scope'];domain:string}>=[
       {path:path.join(root,'Library/LaunchAgents'),kind:'agent',scope:'user',domain:`gui/${uid}`},
       ...options.fixture?[]:[{path:'/Library/LaunchAgents',kind:'agent' as const,scope:'machine' as const,domain:`gui/${uid}`},{path:'/Library/LaunchDaemons',kind:'daemon' as const,scope:'machine' as const,domain:'system'},{path:'/System/Library/LaunchAgents',kind:'agent' as const,scope:'system' as const,domain:`gui/${uid}`},{path:'/System/Library/LaunchDaemons',kind:'daemon' as const,scope:'system' as const,domain:'system'}]
@@ -95,7 +98,7 @@ export function macStartup(options:MacOptions):StartupAdapter {
     for(const source of roots)try{for(const name of await readdir(source.path))if(name.endsWith('.plist'))files.push({file:path.join(source.path,name),root:source})}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')sourceErrors.add(source.kind)}
     let dataByPath=new Map<string,Record<string,unknown>|null>()
     try{dataByPath=await readPlists(files.map(row=>row.file))}catch{sourceErrors.add('agent');sourceErrors.add('daemon')}
-    await preloadOwners([...dataByPath.values()].flatMap(data=>data?[launchTarget(data)]:[]))
+    await preloadOwners([...dataByPath.values()].flatMap(data=>data?[launchTarget(data)]:[]),language)
     for(const {file,root:source} of files){
       const data=dataByPath.get(file),label=startupText(data?.Label)||path.basename(file,'.plist'),target=data?launchTarget(data):''
       const isOwn=label.startsWith('com.fcl.diskcollie')||Boolean(options.self&&target.startsWith(options.self+'/'))
@@ -103,7 +106,7 @@ export function macStartup(options:MacOptions):StartupAdapter {
       const overridesForDomain=overrides.get(source.domain)
       const state:StartupState=data&&overridesForDomain?(overridesForDomain.get(label)??data.Disabled===true?'disabled':'enabled'):'unknown'
       const targetStatus=await existence(target),orphan=targetStatus==='missing'
-      const item=baseItem({name:label,kind:source.kind,scope:isProtected?'system':source.scope,configuration:file,target,state,orphan,...await owner(target),running:source.domain.startsWith('gui/')&&running?(running.get(label)??false):null,timing:source.kind==='daemon'?['boot']:data?.KeepAlive?['login','background']:data?.StartCalendarInterval||data?.StartInterval?['scheduled']:['login'],access:isOwn?'settings':isProtected?'protected':source.scope==='machine'?'administrator':'user',issue:isOwn?'startup.selfManaged':!data?'startup.invalid':targetStatus==='unknown'?'startup.targetUnknown':orphan?'startup.targetMissing':null})
+      const item=baseItem({name:label,kind:source.kind,scope:isProtected?'system':source.scope,configuration:file,target,state,orphan,...await owner(target,language),running:source.domain.startsWith('gui/')&&running?(running.get(label)??false):null,timing:source.kind==='daemon'?['boot']:data?.KeepAlive?['login','background']:data?.StartCalendarInterval||data?.StartInterval?['scheduled']:['login'],access:isOwn?'settings':isProtected?'protected':source.scope==='machine'?'administrator':'user',issue:isOwn?'startup.selfManaged':!data?'startup.invalid':targetStatus==='unknown'?'startup.targetUnknown':orphan?'startup.targetMissing':null})
       let original:string;try{original=await fingerprint(file,true)}catch{item.access='readonly';item.issue='startup.invalid';original='unreadable'}
       const canChange=!isProtected&&!isOwn&&Boolean(data)&&/^[\w.@-]+$/.test(label)&&state!=='unknown'&&original!=='unreadable'
       item.canToggle=canChange&&targetStatus==='present';item.canRemove=canChange
@@ -131,11 +134,11 @@ export function macStartup(options:MacOptions):StartupAdapter {
       let logins:Login[]=[],available=false
       try{logins=await liveLogins();available=true}catch{/* Report Automation permission/timeout instead of pretending empty. */}
       const saved=await savedLogins(),all=new Map([...saved,...logins].filter(login=>path.isAbsolute(login.path)).map(login=>[login.path,login]))
-      await preloadOwners([...all.keys()])
+      await preloadOwners([...all.keys()],language)
       for(const login of all.values()){
         const enabled=available?logins.some(item=>item.path===login.path):null,state:StartupState=enabled===null?'unknown':enabled?'enabled':'disabled',status=await existence(login.path)
         const self=options.self===login.path
-        const item=baseItem({name:login.name||path.basename(login.path),kind:'login',configuration:'System Events / Login Items',target:login.path,...await owner(login.path),state,orphan:status==='missing',canToggle:!self&&available&&status==='present',canRemove:!self&&available,access:self?'settings':available?'user':'settings',issue:self?'startup.selfManaged':status==='missing'?'startup.targetMissing':null})
+        const item=baseItem({name:login.name||path.basename(login.path),kind:'login',configuration:'System Events / Login Items',target:login.path,...await owner(login.path,language),state,orphan:status==='missing',canToggle:!self&&available&&status==='present',canRemove:!self&&available,access:self?'settings':available?'user':'settings',issue:self?'startup.selfManaged':status==='missing'?'startup.targetMissing':null})
         const signature=()=>digest([login.path,state,status,Boolean(login.hidden)])
         records.push({item,key:'login:'+login.path,signature:signature(),validate:async()=>{const live=await liveLogins(),found=live.find(row=>row.path===login.path),saved=(await savedLogins()).find(row=>row.path===login.path);return digest([login.path,found?'enabled':saved?'disabled':'missing',await existence(login.path),Boolean((found||saved)?.hidden)])},change:async action=>{
           await run('/usr/bin/osascript',['-l','JavaScript','-e',loginWriter,login.path,action,String(login.hidden===true)],30000)
@@ -150,14 +153,14 @@ export function macStartup(options:MacOptions):StartupAdapter {
       let background:BackgroundRecord[]=[]
       try{background=backgroundRecords(await run('/usr/bin/sfltool',['dumpbtm'],6000),uid);coverage.push({source:'background',status:'complete',message:'',count:background.length})}catch{coverage.push({source:'background',status:'unavailable',message:'startup.backgroundPermission',count:0})}
       const byIdentifier=new Map(background.map(row=>[row.identifier,row]))
-      await preloadOwners(background.map(row=>localPath(row.executable)||localPath(row.url)))
+      await preloadOwners(background.map(row=>localPath(row.executable)||localPath(row.url)),language)
       for(const row of background){
         const configuration=localPath(row.url),target=localPath(row.executable)||configuration
         const matching=records.find(record=>record.item.configuration===configuration||record.item.kind==='login'&&record.item.target===target)
         if(matching){if(row.publisher)matching.item.publisher=row.publisher;if(matching.item.state==='unknown'&&row.state!=='unknown')matching.item.state=row.state;continue}
-        const parent=byIdentifier.get(row.parent),status=await existence(target),kind:StartupItem['kind']=/login item/i.test(row.type)?'login':/embedded|agent|daemon/i.test(row.type)?'embedded':'background'
-        const owned=await owner(target),self=Boolean(options.self&&(target===options.self||target.startsWith(options.self+'/')))
-        const item=baseItem({...owned,name:row.name||row.identifier,owner:owned.owner||parent?.name||'',ownerId:owned.ownerId||(parent?digest(parent.identifier):''),publisher:row.publisher,kind,configuration,target,state:row.state,orphan:status==='missing',issue:self?'startup.selfManaged':status==='missing'?'startup.targetMissing':status==='unknown'?'startup.targetUnknown':null,scope:self||row.uid===uid?'user':'system',timing:kind==='login'?['login']:['background'],access:'settings'})
+        const parent=row.parent?byIdentifier.get(row.parent):undefined,status=await existence(target),kind:StartupItem['kind']=/login item/i.test(row.type)?'login':/embedded|agent|daemon/i.test(row.type)?'embedded':'background'
+        const owned=await owner(target,language),parentOwner=parent?await owner(localPath(parent.executable)||localPath(parent.url),language):null,self=Boolean(options.self&&(target===options.self||target.startsWith(options.self+'/')))
+        const item=baseItem({...owned,name:row.name||row.identifier,owner:owned.owner||parentOwner?.owner||parent?.name||'',ownerId:owned.ownerId||parentOwner?.ownerId||(parent?digest(parent.identifier):''),publisher:row.publisher,kind,configuration,target,state:row.state,orphan:status==='missing',issue:self?'startup.selfManaged':status==='missing'?'startup.targetMissing':status==='unknown'?'startup.targetUnknown':null,scope:self||row.uid===uid?'user':'system',timing:kind==='login'?['login']:['background'],access:'settings'})
         records.push(inertRecord(item,'btm:'+row.uid+':'+row.identifier+':'+row.url))
       }
       // A bundled helper alone is not proof of a registered startup item.

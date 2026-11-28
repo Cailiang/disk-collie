@@ -18,19 +18,20 @@ function StartupLogo({item}:{item:StartupItem}):React.JSX.Element {
 }
 interface Pending {items:StartupItem[];action:StartupAction;name:string}
 export function StartupWorkspace({active,onSettings}:{active:boolean;onSettings:()=>void}):React.JSX.Element {
-  const {t,locale}=useI18n(),{show}=useMessages()
+  const {t,locale,language}=useI18n(),{show}=useMessages()
   const [catalog,setCatalog]=useState<StartupCatalog|null>(null),[scanning,setScanning]=useState(false),[busy,setBusy]=useState(false),[query,setQuery]=useState(''),[filter,setFilter]=useState('all'),[system,setSystem]=useState(false),[expanded,setExpanded]=useState(new Set<string>()),[pending,setPending]=useState<Pending|null>(null)
   const demoHistory=useRef<MaintenanceRunRecord[]>([])
   const [history,setHistory]=useState<MaintenanceRunRecord[]|null>(null)
   const [lastOutcome,setLastOutcome]=useState(''),mounted=useRef(true),scanSequence=useRef(0),started=useRef(false)
+  const scannedLanguage=useRef(language)
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;++scanSequence.current}},[])
   const error=(problem:unknown):void=>show({message:readableTaskError(problem),tone:'error'})
   const scan=async():Promise<void>=>{
     const sequence=++scanSequence.current;setScanning(true)
-    try{const result=window.diskCollie?await window.diskCollie.startupScan():await new Promise<StartupCatalog>(resolve=>setTimeout(()=>resolve(demoStartup()),1100));if(mounted.current&&sequence===scanSequence.current){setCatalog(result);setLastOutcome('')}}catch(problem){if(mounted.current&&sequence===scanSequence.current)error(problem)}finally{if(mounted.current&&sequence===scanSequence.current)setScanning(false)}
+    try{const result=window.diskCollie?await window.diskCollie.startupScan():await new Promise<StartupCatalog>(resolve=>setTimeout(()=>resolve(demoStartup(language)),1100));if(mounted.current&&sequence===scanSequence.current){setCatalog(result);setLastOutcome('')}}catch(problem){if(mounted.current&&sequence===scanSequence.current)error(problem)}finally{if(mounted.current&&sequence===scanSequence.current)setScanning(false)}
   }
   // Retain results and controls when visiting the advisor or another workspace.
-  useEffect(()=>{if(active&&!started.current){started.current=true;void scan()}},[active])
+  useEffect(()=>{if(active&&(!started.current||scannedLanguage.current!==language)){started.current=true;scannedLanguage.current=language;void scan()}},[active,language])
   const groups=useMemo(()=>catalog?startupGroups(catalog):[],[catalog]),visible=useMemo(()=>filterStartupGroups(groups,query,filter,system),[groups,query,filter,system])
   const scoped=useMemo(()=>filterStartupGroups(groups,'','all',system),[groups,system])
   const counts={all:scoped.length,enabled:scoped.filter(group=>group.items.some(item=>item.state==='enabled')).length,disabled:scoped.filter(group=>group.state==='disabled').length,orphan:scoped.filter(group=>group.items.some(item=>item.orphan)).length}

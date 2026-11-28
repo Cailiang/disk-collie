@@ -6,8 +6,10 @@ describe('startup grouping and status filters',()=>{
     const groups=startupGroups(demoStartup()),code=groups.find(group=>group.id==='vscode')!
     expect(code.items).toHaveLength(2);expect(code.state).toBe('mixed')
     expect(filterStartupGroups(groups,'Microsoft','all',false)).toEqual([code])
-    expect(filterStartupGroups(groups,'','all',false)).toHaveLength(7)
-    expect(filterStartupGroups(groups,'','all',true)).toHaveLength(8)
+    expect(filterStartupGroups(groups,'','all',false)).toHaveLength(8)
+    expect(filterStartupGroups(groups,'','all',true)).toHaveLength(9)
+    expect(filterStartupGroups(groups,'迅雷','all',false)[0].name).toBe('迅雷')
+    expect(filterStartupGroups(groups,'Thunder','all',false)[0].name).toBe('迅雷')
     expect(filterStartupGroups(groups,'','enabled',false)).toContainEqual(code)
     expect(filterStartupGroups(groups,'','disabled',false).map(group=>group.name).sort()).toEqual(['Build worker','Figma'])
     expect(filterStartupGroups(groups,'','orphan',false).map(group=>group.name).sort()).toEqual(['Old Cloud','Old Editor'])
