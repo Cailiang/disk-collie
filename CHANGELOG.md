@@ -4,6 +4,16 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.40 - 2026-11-28
+
+### English
+
+- Make whole-folder review tests use native path separators and explicitly verify both macOS and Windows protected roots. Retain the verified 1.0.39 application behavior for the cross-platform public release.
+
+### 简体中文
+
+- 修正整目录核验测试的平台假设：使用原生路径分隔符，并明确校验 macOS 与 Windows 的保护目录。跨平台公开发布沿用已验证的 1.0.39 应用功能。
+
 ## 1.0.39 - 2026-11-28
 
 ### English
