@@ -13,7 +13,7 @@ export async function verifyApplicationDataUi(browser,baseUrl,directory,viewport
       const remove=tree.getByRole('button',{name:'移到废纸篓 NoMachine',exact:true})
       assert(await remove.isEnabled(),'A selected third-party support folder must have a review action')
       await remove.click();const dialog=page.getByRole('dialog'),confirm=dialog.getByRole('button',{name:'移到废纸篓',exact:true}),ack=dialog.getByRole('checkbox',{name:'我确认不再需要所选目录中的应用数据',exact:true})
-      assert.match(await dialog.innerText(),/配置、账户资料、数据库和文件/);assert(await confirm.isDisabled())
+      assert.equal(await dialog.getByRole('heading').innerText(),'将应用数据移到废纸篓');assert.match(await dialog.innerText(),/配置、账户资料、数据库和文件/);assert(await confirm.isDisabled())
       await ack.check();assert(await confirm.isEnabled());await dialog.getByRole('button',{name:'取消',exact:true}).click()
       await remove.click();assert(await confirm.isDisabled());assert.equal(await ack.isChecked(),false)
       await ack.check();await page.screenshot({path:`${directory}/${viewport.width}-application-data-review.png`})

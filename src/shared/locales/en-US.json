@@ -1307,5 +1307,6 @@
   "storage.applicationDataAuthorization": "DiskCollie needs administrator permission to move the application data folder “{name}” to Trash, including its settings and data. The application may stop working.",
   "storage.applicationDataCancelled": "Administrator authorization was cancelled. Application data was not moved.",
   "storage.applicationDataTrashUnavailable": "The current user Trash cannot be used safely. The folder was preserved. Use Finder to manage it.",
-  "storage.applicationDataMoveFailed": "macOS could not move this application data folder. Quit the application and its background services, then try again."
+  "storage.applicationDataMoveFailed": "macOS could not move this application data folder. Quit the application and its background services, then try again.",
+  "disk.applicationDataTrashTitle": "Move application data to Trash"
 }
