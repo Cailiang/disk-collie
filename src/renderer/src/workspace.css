@@ -658,3 +658,7 @@ summary::-webkit-details-marker { display:none; }
 .provider-purpose p { margin:5px 0; }.provider-purpose strong { color:var(--text); font-weight:500; }
 
 .provider-settings-content { min-width:0; }
+
+.space-directory-sensitive-note { margin:16px 0; padding:12px 14px; border-radius:8px; background:var(--surface-subtle); font-size:12px; line-height:1.6; }
+.space-directory-sensitive-note strong { font-weight:600; }.space-directory-sensitive-note p { margin:6px 0; }
+.space-directory-sensitive-note ul { padding-left:18px; margin:6px 0 0; }.space-directory-sensitive-note code { overflow-wrap:anywhere; white-space:pre-wrap; }

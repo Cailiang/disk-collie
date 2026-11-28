@@ -1332,5 +1332,13 @@
   "storage.itemUnavailable": "This item is no longer available. Scan again.",
   "storage.ignoreRoot": "The entire scan root cannot be ignored.",
   "storage.ignoreUnavailable": "The ignore list is unavailable.",
-  "storage.ignoreLimit": "The ignore list has reached 200 items. Remove unused entries in Settings first."
+  "storage.ignoreLimit": "The ignore list has reached 200 items. Remove unused entries in Settings first.",
+  "disk.directorySensitiveTitle": "Contains {count} possible configuration or credential files",
+  "disk.directorySensitiveWarning": "These files belong to the selected folder and will move to Trash with the whole folder. Confirm that you no longer need its settings, account data or certificates. Only a few filenames are listed; file contents were not read.",
+  "storage.directoryBlocked.root": "A disk root, user home or its ancestor cannot be moved as a whole: {path}",
+  "storage.directoryBlocked.policy": "This path is a protected system, application or credential location and cannot be moved as a whole: {path}",
+  "storage.directoryBlocked.excluded": "The folder contains an ignored path. Moving it would also affect that path. Remove the ignore entry in Settings first, or handle other children separately: {path}",
+  "storage.directoryBlocked.application": "Uninstall application bundles in Applications: {path}",
+  "storage.directoryBlocked.volume": "This path is on a mount boundary and cannot be safely moved with the whole folder: {path}",
+  "storage.directoryBlocked.special": "The folder contains a special file that cannot be completely verified for a whole-folder Trash move: {path}"
 }

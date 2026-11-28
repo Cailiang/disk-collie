@@ -1,3 +1,4 @@
+import {verifyProjectDirectoryElectron} from './project-directory-smoke.mjs'
 import {verifyFileActionsElectron} from './file-actions-smoke.mjs'
 import {verifyApplicationDataElectron} from './application-data-smoke.mjs'
 import {startupFixture,verifyStartupFixture} from './startup-electron-smoke.mjs'
@@ -236,6 +237,7 @@ try{
   await electronApp.close();electronApp=await launch(smokePrivacyRoot);const privacyRestarted=await electronApp.firstWindow();await privacyRestarted.locator('.nav-button[title="首页"]').waitFor({timeout:20000});const persistedPrivacy=await privacyRestarted.evaluate(()=>window.diskCollie.storageState());assert(persistedPrivacy.history.some(record=>record.kind==='privacy'&&record.items===privacyOutcome.selected&&record.traces===privacyOutcome.traces),'Verified privacy outcomes must persist after restart')
   const ignoreFixture=path.join(fixture,'ignore-owned-fixture');mkdirSync(ignoreFixture);writeFileSync(path.join(ignoreFixture,'ignore-me.txt'),'owned fixture');writeFileSync(path.join(ignoreFixture,'keep-me.txt'),'keep')
   await verifyFileActionsElectron(privacyRestarted,fixture)
+  await verifyProjectDirectoryElectron(privacyRestarted,fixture)
   assert(existsSync(path.join(ignoreFixture,'ignore-me.txt')),'Ignore must never remove the source file')
   console.log(`Electron smoke passed: production IPC, native scan (${state.index.elapsedMs}ms), tree file actions, physical ASAR directory review and changed-archive rejection, cross-group duplicate batch guard and real Trash operations on owned fixtures, persisted activity, ${metrics.processes.length} processes, ${applicationCount} applications, registered application actions, queued app/config uninstall with hidden explorer reconciliation, read-only real privacy scan, ${privacyOutcome.traces} owned privacy traces, encrypted provider editing. Version ${version}.`)
 }finally{

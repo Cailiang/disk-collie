@@ -4,6 +4,20 @@ All notable changes to DiskCollie are documented here in English and Simplified 
 
 DiskCollie 的重要变更会在这里使用英文和简体中文同步记录。
 
+## 1.0.38 - 2026-11-28
+
+### English
+
+- Fix whole-folder Trash incorrectly refusing ordinary projects containing `.env`, built configuration copies or certificate files. Complete review now lists the number and sample names of those files and explains that they move with the selected folder; their contents are never read for classification.
+- Keep system locations, credential stores, ignored paths, installed bundles, mount boundaries and special files protected. Report the exact blocking path and reason instead of one generic refusal.
+- Revalidate every hidden descendant before the move, retain main-owned review tokens, and verify cancel and actual Trash behavior using owned project fixtures at four viewports.
+
+### 简体中文
+
+- 修复普通项目因包含 `.env`、构建产物中的配置副本或证书文件而无法整体移到废纸篓的问题。完整核验后提示数量和部分文件名，说明它们会随所选目录一并移动；分类不读取文件内容。
+- 保留系统目录、凭据目录、忽略项、已安装应用包、磁盘挂载边界和特殊文件保护；拦截时显示具体路径和原因。
+- 移动前继续复核全部隐藏子项，并要求主进程签发的核验令牌；用自建项目目录验证取消、实际废纸篓操作及四种窗口尺寸。
+
 ## 1.0.37 - 2026-11-28
 
 ### English

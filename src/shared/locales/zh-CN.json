@@ -1332,5 +1332,13 @@
   "storage.itemUnavailable": "此项目已不可用，请重新扫描。",
   "storage.ignoreRoot": "不能忽略整个扫描根目录。",
   "storage.ignoreUnavailable": "忽略列表暂不可用。",
-  "storage.ignoreLimit": "忽略列表已达 200 项，请先在设置中移除不需要的项目。"
+  "storage.ignoreLimit": "忽略列表已达 200 项，请先在设置中移除不需要的项目。",
+  "disk.directorySensitiveTitle": "包含 {count} 个可能存有配置或凭据的文件",
+  "disk.directorySensitiveWarning": "这些文件属于所选目录，确认后会随整个目录一并移到废纸篓。请确认不再需要其中的配置、账户信息或证书。以下仅列出部分文件名，未读取文件内容。",
+  "storage.directoryBlocked.root": "不能整体移走磁盘根目录、用户主目录或其上级目录：{path}",
+  "storage.directoryBlocked.policy": "此路径属于受保护的系统、应用或凭据目录，不能整体移到废纸篓：{path}",
+  "storage.directoryBlocked.excluded": "目录包含忽略列表中的路径，整体移走也会影响它。请先在设置中取消该忽略项，或只处理其他子项：{path}",
+  "storage.directoryBlocked.application": "应用包请在“应用管理”中卸载：{path}",
+  "storage.directoryBlocked.volume": "此路径位于磁盘挂载边界，无法安全执行整目录移动：{path}",
+  "storage.directoryBlocked.special": "目录包含无法完整核验的特殊文件，无法整体移到废纸篓：{path}"
 }

@@ -1,3 +1,4 @@
+import {verifyProjectDirectoryUi} from './project-directory-smoke.mjs'
 import {verifyFileActionsUi} from './file-actions-smoke.mjs'
 import {verifyApplicationDataUi} from './application-data-smoke.mjs'
 import {startupLayout,verifyStartup} from './startup-smoke.mjs'
@@ -140,6 +141,7 @@ try{
       await p.screenshot({path:`${directory}/${viewport.width}-${String(i).padStart(2,'0')}.png`})
     }
     await verifyFileActionsUi(p,directory,viewport.width)
+    await verifyProjectDirectoryUi(p,directory,viewport.width)
     await p.close()
   }
   const p=await browser.newPage({viewport:viewports[0]});p.on('pageerror',e=>failures.push(e.message));await p.goto(baseUrl)

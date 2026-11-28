@@ -31,7 +31,7 @@ import {DeepCleanService} from './deep-clean-service'
 import {storageProcessMatcher} from './storage-process-match'
 import type {DeepCleanScan} from '../shared/deep-clean-types'
 import type {StorageDirectoryPlan} from '../shared/storage-directory-types'
-import {isStorageDirectoryCandidate,prepareStorageDirectoryTrash,type DirectoryTrashSnapshot} from './storage-directory-trash'
+import {assertStorageDirectoryCandidate,isStorageDirectoryCandidate,prepareStorageDirectoryTrash,StorageDirectoryProtectionError,type DirectoryTrashSnapshot} from './storage-directory-trash'
 import {applicationDataRoot} from './storage-application-data-policy'
 import {trashApplicationDataDirectory} from './storage-application-data-trash'
 import type {PrivacyItem,PrivacyTimeRange} from '../shared/privacy-types'
@@ -225,7 +225,7 @@ export class StorageService {
         for(const location of removedPaths)for(const removed of this.scanRemovals.values())removed.add(location)
       }
       try{if(kind!=='uninstall'&&epoch!==this.scopeEpoch)throw new Error('storage.scopeChanged');accept(await job.run())}
-      catch(error) {if(error instanceof PrivacyCleanupError)accept(error.outcome);record.failures++;const message=error instanceof Error?error.message:String(error);(record.errors??=[]).push({path:job.path,message:message.startsWith('privacy.')||message.startsWith('deep.')||message.startsWith('storage.')?translate(this.language(),message):message})}
+      catch(error) {if(error instanceof PrivacyCleanupError)accept(error.outcome);record.failures++;const message=error instanceof Error?error.message:String(error);(record.errors??=[]).push({path:job.path,message:error instanceof StorageDirectoryProtectionError?translate(this.language(),`storage.directoryBlocked.${error.reason}`,{path:error.path}):message.startsWith('privacy.')||message.startsWith('deep.')||message.startsWith('storage.')?translate(this.language(),message):message})}
       processed++;await this.save()
       this.progress({scope:kind==='uninstall'?'apps':kind,phase:'cleaning',entries:processed,total:jobs.length,elapsedMs:Date.now()-started,path:job.path})
     }
@@ -361,7 +361,8 @@ export class StorageService {
       const {index,engine}=this.session(input.generation)
       const entry=await engine.request<StorageEntry>('entry',{id:input.id})
       const options=this.directoryOptions()
-      if(index.mode!=='analysis'||!entry.directory||!index.root||!isStorageDirectoryCandidate(entry.path,index.root.path,options))throw new Error(translate(this.language(),'storage.directoryProtected'))
+      if(index.mode!=='analysis'||!entry.directory||!index.root)throw new Error(translate(this.language(),'storage.directoryProtected'))
+      assertStorageDirectoryCandidate(entry.path,index.root.path,options)
       const directory=await prepareStorageDirectoryTrash(entry.path,index.root.path,options)
       const plan:StorageDirectoryPlan={id:randomUUID(),generation:input.generation,entryId:entry.id,...directory.summary,applicationData:Boolean(applicationDataRoot(entry.path,options.home))}
       if(epoch!==this.scopeEpoch)throw new Error('storage.scopeChanged')
@@ -380,7 +381,7 @@ export class StorageService {
         const reviewed=this.directoryTrashPlan,entry=entries[0]
         if(!reviewed||reviewed.plan.id!==input.directoryPlanId||reviewed.plan.generation!==input.generation||reviewed.plan.entryId!==entry.id||reviewed.plan.path!==entry.path)throw new Error(translate(this.language(),'storage.directoryPlanExpired'))
         if(reviewed.plan.applicationData&&!input.acknowledgeApplicationData)throw new Error(translate(this.language(),'storage.applicationDataAcknowledgement'))
-        const assertCurrentPolicy=():void=>{if(!index.root||!isStorageDirectoryCandidate(entry.path,index.root.path,this.directoryOptions()))throw new Error(translate(this.language(),'storage.directoryProtected'))}
+        const assertCurrentPolicy=():void=>{if(!index.root)throw new Error(translate(this.language(),'storage.directoryProtected'));assertStorageDirectoryCandidate(entry.path,index.root.path,this.directoryOptions())}
         assertCurrentPolicy();await reviewed.snapshot.validate()
         const result=await this.activity('analysis',[{path:entry.path,size:reviewed.plan.allocated,run:()=>reviewed.snapshot.trash(async(target)=>{
           assertCurrentPolicy()
@@ -634,7 +635,7 @@ export class StorageService {
     return {path:item.path}
   }
   register(): void {
-    const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`diskcollie:storage:${name}`,async(_event,input)=>{try{return await fn(input)}catch(error){const message=error instanceof Error?error.message:String(error);if(message.startsWith('privacy.')||message.startsWith('deep.')||message.startsWith('storage.')||message==='apps.operationInProgress')throw new Error(translate(this.language(),message));if(/Item changed since scan|item changed since it was inspected|Path changed or became a link/.test(message))throw new Error(translate(this.language(),'storage.changed'));throw error}})}
+    const handle=(name:string, fn:(input:any)=>unknown):void=>{ipcMain.handle(`diskcollie:storage:${name}`,async(_event,input)=>{try{return await fn(input)}catch(error){if(error instanceof StorageDirectoryProtectionError)throw new Error(translate(this.language(),`storage.directoryBlocked.${error.reason}`,{path:error.path}));const message=error instanceof Error?error.message:String(error);if(message.startsWith('privacy.')||message.startsWith('deep.')||message.startsWith('storage.')||message==='apps.operationInProgress')throw new Error(translate(this.language(),message));if(/Item changed since scan|item changed since it was inspected|Path changed or became a link/.test(message))throw new Error(translate(this.language(),'storage.changed'));throw error}})}
     handle('state',()=>({index:this.latest?this.sessions.get(this.latest)?.index||null:null,indexes:Object.fromEntries([...this.sessions].map(([mode,s])=>[mode,s.index])),history:this.history,home}))
     handle('scan',(v)=>this.scan(z.object({mode:z.enum(['analysis','large','duplicates']).default('analysis'),minimum:z.number().int().min(10*1024**2).optional(),includeHidden:z.boolean().optional()}).parse(v||{})))
     handle('cancel',(v)=>{const scope=z.enum(['analysis','large','duplicates','cleanup','privacy','apps']).optional().parse(v)||this.queue.activeScopes[0];if(!scope)return false;this.queue.cancelPending(scope);if(scope==='cleanup'&&this.deepScanCancellation){this.deepScanCancellation.abort();return true}const engine=this.activeEngines.get(scope as StorageMode);if(!engine)return false;engine.stop();for(const [mode,session] of this.sessions)if(session.engine===engine)this.sessions.delete(mode);return true})

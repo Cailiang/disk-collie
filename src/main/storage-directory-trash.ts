@@ -1,3 +1,4 @@
+import {directorySensitiveNames} from '../shared/directory-sensitive-files'
 import {lstat,readdir,readlink} from './physical-fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -28,29 +29,41 @@ export interface DirectoryTrashOptions {
   progress?:(entries:number)=>void
 }
 export interface DirectoryTrashSnapshot {
-  summary:Pick<StorageDirectoryPlan,'path'|'name'|'size'|'allocated'|'files'|'directories'|'links'|'hiddenFiles'>
+  summary:Pick<StorageDirectoryPlan,'path'|'name'|'size'|'allocated'|'files'|'directories'|'links'|'hiddenFiles'|'sensitiveFiles'|'sensitiveExamples'>
   validate:()=>Promise<void>
   trash:(move:(target:string)=>Promise<void>)=>Promise<void>
 }
-const protectedFile=(name:string):boolean=>/^\.env(?:\.|$)/i.test(name)||/^(?:auth|credentials|secrets)\.json$/i.test(name)||/^id_(?:rsa|ed25519|ecdsa)(?:\.pub)?$/i.test(name)||/\.(?:pem|p12|pfx|mobileprovision|key)$/i.test(name)
+type ProtectionReason='root'|'policy'|'excluded'|'application'|'volume'|'special'
+export class StorageDirectoryProtectionError extends Error {
+  constructor(readonly reason:ProtectionReason,readonly path:string){super('storage.directoryProtected')}
+}
 const equalOrInside=(target:string,root:string,p:typeof path.posix):boolean=>target===root||target.startsWith(root+p.sep)
 function policy(options:DirectoryTrashOptions):{platform:NodeJS.Platform;home:string;env:NodeJS.ProcessEnv;p:typeof path.posix;normalize:(value:string)=>string}{
   const platform=options.platform||process.platform,p=platform==='win32'?path.win32:path.posix
   const normalize=(value:string):string=>platform==='win32'?p.normalize(value.replace(/^\\\\\?\\/,'' )).toLowerCase():p.normalize(value)
   return {platform,p,normalize,home:options.home||os.homedir(),env:options.env||process.env}
 }
-/** This only controls whether a folder can be offered for review. The full tree is checked later. */
-export function isStorageDirectoryCandidate(target:string,scanRoot:string,options:DirectoryTrashOptions={}):boolean {
+function protectionIssue(target:string,scanRoot:string,options:DirectoryTrashOptions):StorageDirectoryProtectionError|null {
   const {platform,p,normalize,home,env}=policy(options),normalized=normalize(target),root=normalize(scanRoot),user=normalize(home)
   const relative=p.relative(root,normalized)
-  if(!relative||relative==='..'||relative.startsWith('..'+p.sep)||p.isAbsolute(relative))return false
+  if(!relative||relative==='..'||relative.startsWith('..'+p.sep)||p.isAbsolute(relative))return new StorageDirectoryProtectionError('root',target)
   const applicationData=applicationDataRoot(normalized,home,platform)
-  if(!applicationData&&!isStorageMutationAllowed(target,scanRoot,platform,home,env))return false
-  if(normalized===normalize(p.parse(target).root)||normalized===user||equalOrInside(user,normalized,p))return false
-  if(normalized===root||normalized.toLowerCase().endsWith('.app'))return false
-  const protectedPaths=[...(applicationData?[]:storageProtectedPaths(home,platform,env)),...(options.excludedPaths||[])].map(normalize)
-  if(protectedPaths.some((protectedPath)=>equalOrInside(normalized,protectedPath,p)||equalOrInside(protectedPath,normalized,p)))return false
-  return !p.basename(normalized).toLowerCase().endsWith('.app')&&!protectedFile(p.basename(normalized))
+  if(!applicationData&&!isStorageMutationAllowed(target,scanRoot,platform,home,env))return new StorageDirectoryProtectionError('policy',target)
+  if(normalized===normalize(p.parse(target).root)||normalized===user||equalOrInside(user,normalized,p))return new StorageDirectoryProtectionError('root',target)
+  if(normalized.toLowerCase().endsWith('.app'))return new StorageDirectoryProtectionError('application',target)
+  const excluded=(options.excludedPaths||[]).find((location)=>equalOrInside(normalized,normalize(location),p)||equalOrInside(normalize(location),normalized,p))
+  if(excluded)return new StorageDirectoryProtectionError('excluded',excluded)
+  const protectedPath=(applicationData?[]:storageProtectedPaths(home,platform,env)).find((location)=>equalOrInside(normalized,normalize(location),p)||equalOrInside(normalize(location),normalized,p))
+  if(protectedPath)return new StorageDirectoryProtectionError('policy',protectedPath)
+  return null
+}
+/** This only controls whether a folder can be offered for review. The full tree is checked later. */
+export function isStorageDirectoryCandidate(target:string,scanRoot:string,options:DirectoryTrashOptions={}):boolean {
+  return protectionIssue(target,scanRoot,options)===null
+}
+export function assertStorageDirectoryCandidate(target:string,scanRoot:string,options:DirectoryTrashOptions={}):void {
+  const issue=protectionIssue(target,scanRoot,options)
+  if(issue)throw issue
 }
 async function nonLinkedAncestors(target:string):Promise<void>{
   for(let current=target;;current=path.dirname(current)){
@@ -64,16 +77,17 @@ function assertEntryAllowed(target:string,scanRoot:string,options:DirectoryTrash
   // Links remain physical entries; their destinations are never traversed or removed.
   if(applicationDataScope&&equalOrInside(target,applicationDataScope,p))return
   // An uninstalled bundle inside a reviewed project is part of that folder, like any other build output.
-  // Installed locations, credential files and the selected .app root remain protected by their own checks.
-  if(!isStorageMutationAllowed(target,scanRoot,platform,home,env)||storageProtectedNames.some((entry)=>entry.toLowerCase()===name.toLowerCase())||protectedFile(name))throw new Error('storage.directoryProtected')
+  // Installed locations and credential stores remain protected. A project's own
+  // configuration/certificate files belong to its complete, explicitly reviewed Trash move.
+  if(!isStorageMutationAllowed(target,scanRoot,platform,home,env)||storageProtectedNames.some((entry)=>entry.toLowerCase()===name.toLowerCase()))throw new StorageDirectoryProtectionError('policy',target)
 }
 /** Includes hidden entries and does not follow links, hydrate linked targets or cross mounted volumes. */
 async function capture(target:string,scanRoot:string,options:DirectoryTrashOptions):Promise<Map<string,DirectoryPath>>{
-  if(!isStorageDirectoryCandidate(target,scanRoot,options))throw new Error('storage.directoryProtected')
+  assertStorageDirectoryCandidate(target,scanRoot,options)
   await nonLinkedAncestors(target)
   const root=await lstat(target),parent=await lstat(path.dirname(target))
   if(!root.isDirectory()||root.isSymbolicLink())throw new Error('storage.directoryChanged')
-  if(root.dev!==parent.dev)throw new Error('storage.directoryProtected')
+  if(root.dev!==parent.dev)throw new StorageDirectoryProtectionError('volume',target)
   const applicationDataScope=applicationDataRoot(target,options.home||os.homedir(),options.platform||process.platform)?target:undefined
   const maximum=options.maximumEntries??500000,result=new Map<string,DirectoryPath>(),pending=[{path:target,hidden:path.basename(target).startsWith('.')}]
   while(pending.length){
@@ -84,7 +98,8 @@ async function capture(target:string,scanRoot:string,options:DirectoryTrashOptio
       let value:Awaited<ReturnType<typeof lstat>>
       try{value=await lstat(entry.path)}catch{throw new Error('storage.directoryIncomplete')}
       const link=value.isSymbolicLink()
-      if(value.dev!==root.dev||!value.isDirectory()&&!value.isFile()&&!link)throw new Error('storage.directoryProtected')
+      if(value.dev!==root.dev)throw new StorageDirectoryProtectionError('volume',entry.path)
+      if(!value.isDirectory()&&!value.isFile()&&!link)throw new StorageDirectoryProtectionError('special',entry.path)
       const captured:DirectoryPath={path:entry.path,dev:value.dev,ino:value.ino,size:value.size,allocated:link?0:Number.isFinite(value.blocks)?Math.max(0,value.blocks*512):value.size,modified:value.mtimeMs,changed:value.ctimeMs,mode:value.mode,directory:value.isDirectory(),link,hidden:entry.hidden}
       if(link)captured.destination=await readlink(entry.path)
       result.set(entry.path,captured)
@@ -111,7 +126,7 @@ export async function prepareStorageDirectoryTrash(target:string,scanRoot:string
   await validate()
   const entries=[...captured.values()],files=entries.filter((entry)=>!entry.directory&&!entry.link),links=entries.filter((entry)=>entry.link)
   return {
-    summary:{path:target,name:path.basename(target),size:files.reduce((sum,entry)=>sum+entry.size,0),allocated:files.reduce((sum,entry)=>sum+entry.allocated,0),files:files.length,directories:entries.filter((entry)=>entry.directory).length-1,links:links.length,hiddenFiles:[...files,...links].filter((entry)=>entry.hidden).length},
+    summary:{path:target,name:path.basename(target),size:files.reduce((sum,entry)=>sum+entry.size,0),allocated:files.reduce((sum,entry)=>sum+entry.allocated,0),files:files.length,directories:entries.filter((entry)=>entry.directory).length-1,links:links.length,hiddenFiles:[...files,...links].filter((entry)=>entry.hidden).length,...directorySensitiveNames([...files,...links].map((entry)=>path.relative(target,entry.path)))},
     validate,
     trash:async(move)=>{
       await validate();await move(target)

@@ -33,6 +33,29 @@ beforeEach(async()=>{
 })
 afterEach(async()=>{vi.unstubAllEnvs();for(const shutdown of state.shutdown.splice(0))shutdown();await rm(state.home,{recursive:true,force:true})})
 describe('registered directory Trash plans',()=>{
+  it('returns config-file review hints and requires the registered complete-folder token before Trash',async()=>{
+    await writeFile(path.join(folder,'.env'),'OWNED_CONFIGURATION')
+    session('analysis',92)
+    const plan=await state.handlers.get('diskcollie:storage:directory-plan')!(null,{generation:92,id:1})
+    expect(plan).toMatchObject({sensitiveFiles:1,sensitiveExamples:['.env'],files:3})
+    expect(JSON.stringify(plan)).not.toContain('OWNED_CONFIGURATION')
+    await expect(service.trash({generation:92,ids:[1],kind:'analysis'})).rejects.toThrow()
+    expect(state.calls).toEqual([])
+    const result=await service.trash({generation:92,ids:[1],kind:'analysis',directoryPlanId:plan.id})
+    expect(result).toMatchObject({items:1,failures:0})
+    expect(await readFile(path.join(state.trash,'archive/.env'),'utf8')).toBe('OWNED_CONFIGURATION')
+  })
+  it('reports the precise protected or ignored path over IPC instead of a generic whole-folder refusal',async()=>{
+    session('analysis',93)
+    await mkdir(path.join(folder,'.ssh'));await writeFile(path.join(folder,'.ssh/private.txt'),'owned')
+    const plan=state.handlers.get('diskcollie:storage:directory-plan')!
+    await expect(plan(null,{generation:93,id:1})).rejects.toThrow(path.join(folder,'.ssh'))
+    await rm(path.join(folder,'.ssh'),{recursive:true})
+    const excluded=path.join(folder,'.hidden');state.excluded=[excluded]
+    await expect(plan(null,{generation:93,id:1})).rejects.toThrow('ignored path')
+    await expect(plan(null,{generation:93,id:1})).rejects.toThrow(excluded)
+    expect(state.calls).toEqual([])
+  })
   it.skipIf(process.platform!=='darwin')('requires explicit application-data acknowledgement over IPC and reconciles only the reviewed subtree',async()=>{
     vi.stubEnv('DISKCOLLIE_TEST_RUN','1');vi.stubEnv('DISKCOLLIE_TEST_STORAGE_ROOT',state.home)
     folder=path.join(state.home,'Library/Application Support/NoMachine')
